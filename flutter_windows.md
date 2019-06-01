@@ -32,6 +32,13 @@ flutter run
 
 
 
+new project
+
+copy ..\flutter-desktop-embedding\example\windows .
+
+
+
+add lib/main.dart 
 
 import 'dart:io' show Platform;
 
