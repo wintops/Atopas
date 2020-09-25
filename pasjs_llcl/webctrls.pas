@@ -70,8 +70,8 @@ type
   TFrame = class(TCustomFrame)
   private
     /// Fake
-    FDesignLeft: LongInt;
-    FDesignTop: LongInt;
+    FDesignLeft: longint;
+    FDesignTop: longint;
   published
     property Align;
     property AutoSize;
@@ -101,8 +101,8 @@ type
     property OnResize;
   published
     /// Fake
-    property DesignLeft: LongInt read FDesignLeft write FDesignLeft;
-    property DesignTop: LongInt read FDesignTop write FDesignTop;
+    property DesignLeft: longint read FDesignLeft write FDesignLeft;
+    property DesignTop: longint read FDesignTop write FDesignTop;
   end;
 
   TFrameClass = class of TFrame;
@@ -111,26 +111,29 @@ type
 
   TDataModule = class(TCustomDataModule)
   private
-    FHorizontalOffset: LongInt;
-    FPPI: LongInt;
-    FVerticalOffset: LongInt;
+    FHorizontalOffset: longint;
+    FPPI: longint;
+    FVerticalOffset: longint;
   published
     property OnCreate;
     property OnDestroy;
     property OldCreateOrder;
   published
     /// Fake
-    property HorizontalOffset: LongInt read FHorizontalOffset
-      write FHorizontalOffset;
-    property VerticalOffset: LongInt read FVerticalOffset write FVerticalOffset;
-    property PPI: LongInt read FPPI write FPPI;
+    property HorizontalOffset: longint read FHorizontalOffset write FHorizontalOffset;
+    property VerticalOffset: longint read FVerticalOffset write FVerticalOffset;
+    property PPI: longint read FPPI write FPPI;
   end;
 
   TDataModuleClass = class of TDataModule;
 
   { TComboBox }
+  TComboBoxStyle =
+    (csDropDown, csSimple, csDropDownList, csOwnerDrawFixed, csOwnerDrawVariable);
 
   TComboBox = class(TCustomComboBox)
+  public
+    Style: TComboBoxStyle;
   published
     property Align;
     property AutoSize;
@@ -214,8 +217,10 @@ type
   end;
 
   { TMemo }
+  TScrollStyle = (ssNone, ssHorizontal, ssVertical, ssBoth);
 
   TMemo = class(TCustomMemo)
+    ScrollBars: TScrollStyle;
   published
     property Align;
     property Alignment;
@@ -298,9 +303,10 @@ type
 
   TCheckbox = class(TCustomCheckbox)
   public
+    AllowGrayed: boolean;
+
     property Align;
     property Alignment;
-    /// property AllowGrayed;
     property AutoSize;
     property BorderSpacing;
     property Caption;
@@ -781,7 +787,11 @@ type
   TListBox = class(TCustomPanel)
     Items: TStringList;
     ItemIndex: integer;
+    ItemHeight: integer;
+  public
+    constructor Create(AOwner: TComponent); override;
     procedure Clear;
+    property OnDblClick;
   end;
 
   TGroupBox = class(TCustomPanel);
@@ -816,17 +826,32 @@ type
     function Execute: boolean;
   end;
 
-    TRadioButton = class(TCustomPanel);
-  TStaticText = class(TCustomPanel);
+  TRadioButton = class(TCustomPanel)
+    Checked: boolean;
+  end;
+
+  TStaticBorderStyle =
+    (sbsNone, sbsSingle, sbsSunken);
+
+  TStaticText = class(TCustomPanel)
+    BorderStyle: TStaticBorderStyle;
+  end;
 
   TProgressBar = class(TCustomPanel)
     Position: integer;
     procedure StepIt;
   end;
 
-  TTimer = class(TCustomPanel);
+  TTimer = class(TCustomPanel)
+    OnTimer: TNotifyEvent;
+  end;
+
   TMainMenu = class(TCustomPanel);
-  TMenuItem = class(TCustomPanel);
+
+  TMenuItem = class(TCustomPanel)
+    AutoCheck: boolean;
+    Checked: boolean;
+  end;
 
   TPopupMenu = class(TCustomPanel)
     procedure Popup(X, Y: integer);
@@ -879,8 +904,8 @@ end;
 
 procedure TFloatEdit.RealSetText(const AValue: string);
 begin
-  inherited RealSetText(FloatToStrF(StrToFloatDef(AValue, 0), ffFixed, 20,
-    DecimalPlaces));
+  inherited RealSetText(FloatToStrF(StrToFloatDef(AValue, 0), ffFixed,
+    20, DecimalPlaces));
 end;
 
 { TIntegertEdit }
@@ -897,8 +922,8 @@ end;
 
 procedure TIntegertEdit.RealSetText(const AValue: string);
 begin
-  inherited RealSetText(FloatToStrF(StrToFloatDef(AValue, 0), ffFixed, 20,
-    DecimalPlaces));
+  inherited RealSetText(FloatToStrF(StrToFloatDef(AValue, 0), ffFixed,
+    20, DecimalPlaces));
 end;
 
 constructor TIntegertEdit.Create(AOwner: TComponent);
@@ -931,8 +956,7 @@ end;
 
 procedure TDateEditBox.RealSetText(const AValue: string);
 begin
-  inherited RealSetText(FormatDateTime(ShortDateFormat,
-    StrToDateDef(AValue, 0)));
+  inherited RealSetText(FormatDateTime(ShortDateFormat, StrToDateDef(AValue, 0)));
 end;
 
 { TTimeEditBox }
@@ -954,8 +978,14 @@ end;
 
 procedure TTimeEditBox.RealSetText(const AValue: string);
 begin
-  inherited RealSetText(FormatDateTime(ShortTimeFormat,
-    StrToTimeDef(AValue, 0)));
+  inherited RealSetText(FormatDateTime(ShortTimeFormat, StrToTimeDef(AValue, 0)));
+end;
+
+
+constructor TListBox.Create(AOwner: TComponent);
+begin
+  inherited Create(AOwner);
+  Items := TStringList.Create;
 end;
 
 procedure TListBox.Clear;
@@ -977,8 +1007,11 @@ function TOpenDialog.Execute: boolean;
 begin
 
 end;
+
 function TSaveDialog.Execute: boolean;
 begin
 
 end;
+
+
 end.

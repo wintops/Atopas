@@ -152,7 +152,7 @@ type
   protected
     FActiveCell: TJSHTMLTableCellElement;
   protected
-    procedure KeyDown(var Key: NativeInt; Shift: TShiftState); override;
+    procedure KeyDown(var Key: Word; Shift: TShiftState); override;
     procedure DoEnter; override;
     procedure CellClick(ACol, ARow: NativeInt); virtual;
     procedure HeaderClick(ACol: NativeInt); virtual;
@@ -585,7 +585,7 @@ begin
   end;
 end;
 
-procedure TCustomDataGrid.KeyDown(var Key: NativeInt; Shift: TShiftState);
+procedure TCustomDataGrid.KeyDown(var Key: Word; Shift: TShiftState);
 begin
   inherited KeyDown(Key, Shift);
   { TODO: NavigatePageDown, NavigatePageUp }

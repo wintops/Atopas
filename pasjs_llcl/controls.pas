@@ -137,12 +137,13 @@ type
   TShiftStateEnum = (ssShift, ssAlt, ssCtrl, ssLeft, ssRight, ssMIDdle, ssDouble);
   TShiftState = set of TShiftStateEnum;
 
-  TKeyEvent = procedure(Sender: TObject; var Key: NativeInt; Shift: TShiftState) of object;
+//  TKeyEvent = procedure(Sender: TObject; var Key: NativeInt; Shift: TShiftState) of object;
+  TKeyEvent = procedure(Sender: TObject; var Key: Word; Shift: TShiftState) of object;
   TKeyPressEvent = procedure(Sender: TObject; var Key: char) of object;
 
   TMouseButton = (mbLeft, mbRight, mbMiddle);
 
-  TMouseEvent = procedure(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: NativeInt) of object;
+  TMouseEvent = procedure(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: integer) of object;
   TMouseMoveEvent = procedure(Sender: TObject; Shift: TShiftState; X, Y: NativeInt) of object;
   TMouseWheelEvent = procedure(Sender: TObject; Shift: TShiftState; WheelDelta: NativeInt; MousePos: TPoint; var Handled: boolean) of object;
 
@@ -370,9 +371,9 @@ type
   protected
     procedure DoEnter; virtual;
     procedure DoExit; virtual;
-    procedure KeyDown(var Key: NativeInt; Shift: TShiftState); virtual;
+    procedure KeyDown(var Key: Word; Shift: TShiftState); virtual;
     procedure KeyPress(var Key: char); virtual;
-    procedure KeyUp(var Key: NativeInt; Shift: TShiftState); virtual;
+    procedure KeyUp(var Key: Word; Shift: TShiftState); virtual;
   protected
     function HandleEnter(AEvent: TJSFocusEvent): boolean; virtual;
     function HandleExit(AEvent: TJSEvent): boolean; virtual;
@@ -434,7 +435,7 @@ function ScrollbarWidth: NativeInt;
 
 function OffSets(const AElement: TJSHTMLElement): TRect;
 
-function ExtractKeyCode(const AEvent: TJSKeyBoardEvent): NativeInt;
+function ExtractKeyCode(const AEvent: TJSKeyBoardEvent): Word;//NativeInt;
 function ExtractKeyChar(const AEvent: TJSKeyBoardEvent): char;
 function ExtractShiftState(const AEvent: TJSKeyboardEvent): TShiftState; overload;
 function ExtractShiftState(const AEvent: TJSMouseEvent): TShiftState; overload;
@@ -570,7 +571,7 @@ begin
   end;
 end;
 
-function ExtractKeyCode(const AEvent: TJSKeyBoardEvent): NativeInt;
+function ExtractKeyCode(const AEvent: TJSKeyBoardEvent): Word;//NativeInt;
 var
   VLocation: NativeInt;
   VKey: string;
@@ -2091,7 +2092,9 @@ begin
   end;
 end;
 
-procedure TWinControl.KeyDown(var Key: NativeInt; Shift: TShiftState);
+
+
+procedure TWinControl.KeyDown(var Key: Word; Shift: TShiftState);
 begin
   if (Assigned(FOnKeyDown)) then
   begin
@@ -2107,7 +2110,7 @@ begin
   end;
 end;
 
-procedure TWinControl.KeyUp(var Key: NativeInt; Shift: TShiftState);
+procedure TWinControl.KeyUp(var Key: Word; Shift: TShiftState);
 begin
   if (Assigned(FOnKeyUp)) then
   begin
@@ -2145,7 +2148,7 @@ function TWinControl.HandleKeyDown(AEvent: TJSKeyBoardEvent): boolean;
 var
   VControl: TWinControl;
   VForm: TCustomForm;
-  VKey: NativeInt;
+  VKey: Word;//NativeInt;
   VParent: TControl;
   VShift: TShiftState;
 begin
@@ -2216,7 +2219,7 @@ end;
 function TWinControl.HandleKeyUp(AEvent: TJSKeyBoardEvent): boolean;
 var
   VForm: TCustomForm;
-  VKey: NativeInt;
+  VKey: Word;
   VParent: TControl;
   VShift: TShiftState;
 begin

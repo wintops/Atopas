@@ -193,7 +193,7 @@ type
     procedure SetWordWrap(AValue: boolean);
   protected
     procedure Change; virtual;
-    procedure KeyDown(var Key: NativeInt; Shift: TShiftState); override;
+    procedure KeyDown(var Key: Word; Shift: TShiftState); override;
   protected
     function HandleChange(AEvent: TJSEvent): boolean; virtual;
   protected
@@ -1057,7 +1057,7 @@ begin
   end;
 end;
 
-procedure TCustomMemo.KeyDown(var Key: NativeInt; Shift: TShiftState);
+procedure TCustomMemo.KeyDown(var Key: Word; Shift: TShiftState);
 begin
   inherited KeyDown(Key, Shift);
   if (not FWantReturns) and (Key = 13) then

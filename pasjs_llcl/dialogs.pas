@@ -158,7 +158,7 @@ type
     procedure PrepareTitle; virtual;
     procedure PrepareLayout; virtual;
   protected
-    procedure KeyDown(var Key: NativeInt; Shift: TShiftState); override;
+    procedure KeyDown(var Key: Word; Shift: TShiftState); override;
   public
     constructor Create(AOwner: TComponent); override;
   published
@@ -263,7 +263,7 @@ begin
   PrepareButtons;
 end;
 
-procedure TMessageDialog.KeyDown(var Key: NativeInt; Shift: TShiftState);
+procedure TMessageDialog.KeyDown(var Key: Word; Shift: TShiftState);
 begin
   inherited KeyDown(Key, Shift);
   case Key of
