@@ -5485,7 +5485,7 @@ rtl.module("Controls",["System","Classes","SysUtils","Types","JS","Web","Graphic
     var VKey = "";
     VLocation = AEvent.location;
     VKey = pas.SysUtils.LowerCase(AEvent.key);
-    Result = -1;
+    Result = 0;
     var $tmp1 = VKey;
     if ($tmp1 === "backspace") {
       Result = 8}
@@ -7756,6 +7756,7 @@ rtl.module("Unit1",["System","SysUtils","Classes","Dialogs","Controls","StdCtrls
     this.Button1Click = function (Sender) {
       this.ComboBox1.FItems.Add(this.Edit1.GetText());
       this.ListBox1.Items.Add(this.Edit1.GetText());
+      this.ComboBox1.SetText(this.Edit1.GetText());
     };
     this.Button2Click = function (Sender) {
       this.Edit1.SetText(this.ComboBox1.GetText());
@@ -7871,12 +7872,11 @@ rtl.module("unit1frm",["System","SysUtils","Classes","Dialogs","Controls","StdCt
     $with1.GroupBox1.SetTop(140);
     $with1.GroupBox1.SetWidth(129);
     $with1.GroupBox1.SetText("GroupBox1");
-    $with1.GroupBox1.SetClientHeight(44);
+    $with1.GroupBox1.SetClientHeight(110);
     $with1.GroupBox1.SetClientWidth(125);
     $with1.GroupBox1.FFont.SetColor(0);
-    $with1.GroupBox1.FFont.SetHeight(-13);
+    $with1.GroupBox1.FFont.SetSize(9);
     $with1.GroupBox1.FFont.SetName("Tahoma");
-    $with1.GroupBox1.FFont.SetStyle(rtl.createSet(pas.Graphics.TFontStyle.fsBold));
     $with1.GroupBox1.SetParentFont(false);
     $with1.RadioButton1 = pas.WebCtrls.TRadioButton.$create("Create$1",[$with1.GroupBox1]);
     $with1.RadioButton1.BeginUpdate();
@@ -7887,7 +7887,7 @@ rtl.module("unit1frm",["System","SysUtils","Classes","Dialogs","Controls","StdCt
     $with1.RadioButton1.SetWidth(87);
     $with1.RadioButton1.SetText("RadioButton1");
     $with1.RadioButton1.FFont.SetColor(0);
-    $with1.RadioButton1.FFont.SetHeight(-11);
+    $with1.RadioButton1.FFont.SetSize(9);
     $with1.RadioButton1.FFont.SetName("Tahoma");
     $with1.RadioButton1.FFont.SetStyle(rtl.createSet(pas.Graphics.TFontStyle.fsItalic));
     $with1.RadioButton1.SetParentFont(false);
@@ -7902,7 +7902,7 @@ rtl.module("unit1frm",["System","SysUtils","Classes","Dialogs","Controls","StdCt
     $with1.RadioButton2.SetText("RadioButton2");
     $with1.RadioButton2.Checked = true;
     $with1.RadioButton2.FFont.SetColor(0);
-    $with1.RadioButton2.FFont.SetHeight(-11);
+    $with1.RadioButton2.FFont.SetSize(9);
     $with1.RadioButton2.FFont.SetName("Tahoma");
     $with1.RadioButton2.SetParentFont(false);
     $with1.RadioButton2.EndUpdate();
@@ -7915,7 +7915,7 @@ rtl.module("unit1frm",["System","SysUtils","Classes","Dialogs","Controls","StdCt
     $with1.ComboBox1.SetTop(12);
     $with1.ComboBox1.SetWidth(133);
     $with1.ComboBox1.FFont.SetColor(0);
-    $with1.ComboBox1.FFont.SetHeight(-11);
+    $with1.ComboBox1.FFont.SetSize(12);
     $with1.ComboBox1.FFont.SetName("Tahoma");
     $with1.ComboBox1.FFont.SetStyle(rtl.createSet(pas.Graphics.TFontStyle.fsBold));
     $with1.ComboBox1.SetItemHeight(13);
@@ -7996,6 +7996,7 @@ rtl.module("unit1frm",["System","SysUtils","Classes","Dialogs","Controls","StdCt
     $with1.Button2.SetWidth(53);
     $with1.Button2.SetText("GetText");
     $with1.Button2.FOnClick = rtl.createCallback($with1,"Button2Click");
+    $with1.Button2.FFont.SetSize(10);
     $with1.Button2.EndUpdate();
     $with1.Button4 = pas.WebCtrls.TButton.$create("Create$1",[pas.Unit1.Form1]);
     $with1.Button4.BeginUpdate();
@@ -8005,6 +8006,7 @@ rtl.module("unit1frm",["System","SysUtils","Classes","Dialogs","Controls","StdCt
     $with1.Button4.SetTop(44);
     $with1.Button4.SetWidth(53);
     $with1.Button4.SetText("SetText");
+    $with1.Button4.FFont.SetSize(10);
     $with1.Button4.FOnClick = rtl.createCallback($with1,"Button4Click");
     $with1.Button4.EndUpdate();
     $with1.CheckBox1 = pas.WebCtrls.TCheckbox.$create("Create$1",[pas.Unit1.Form1]);
@@ -8013,7 +8015,8 @@ rtl.module("unit1frm",["System","SysUtils","Classes","Dialogs","Controls","StdCt
     $with1.CheckBox1.SetLeft(8);
     $with1.CheckBox1.SetHeight(21);
     $with1.CheckBox1.SetTop(76);
-    $with1.CheckBox1.SetWidth(86);
+    $with1.CheckBox1.SetWidth(100);
+    $with1.CheckBox1.FFont.SetSize(10);
     $with1.CheckBox1.AllowGrayed = true;
     $with1.CheckBox1.SetText("CheckBox1");
     $with1.CheckBox1.SetState(pas.StdCtrls.TCheckBoxState.cbGrayed);
@@ -8026,6 +8029,7 @@ rtl.module("unit1frm",["System","SysUtils","Classes","Dialogs","Controls","StdCt
     $with1.Button6.SetTop(92);
     $with1.Button6.SetWidth(53);
     $with1.Button6.SetText("Grayed");
+    $with1.Button6.FFont.SetSize(10);
     $with1.Button6.FOnClick = rtl.createCallback($with1,"Button6Click");
     $with1.Button6.EndUpdate();
     $with1.Button7 = pas.WebCtrls.TButton.$create("Create$1",[pas.Unit1.Form1]);
@@ -8036,6 +8040,7 @@ rtl.module("unit1frm",["System","SysUtils","Classes","Dialogs","Controls","StdCt
     $with1.Button7.SetTop(12);
     $with1.Button7.SetWidth(29);
     $with1.Button7.SetText("DD");
+    $with1.Button7.FFont.SetSize(10);
     $with1.Button7.FOnClick = rtl.createCallback($with1,"Button7Click");
     $with1.Button7.EndUpdate();
     $with1.Button8 = pas.WebCtrls.TButton.$create("Create$1",[pas.Unit1.Form1]);
@@ -8046,6 +8051,7 @@ rtl.module("unit1frm",["System","SysUtils","Classes","Dialogs","Controls","StdCt
     $with1.Button8.SetTop(44);
     $with1.Button8.SetWidth(61);
     $with1.Button8.SetText("Disabled");
+    $with1.Button8.FFont.SetSize(10);
     $with1.Button8.SetEnabled(false);
     $with1.Button8.FOnClick = rtl.createCallback($with1,"Button8Click");
     $with1.Button8.EndUpdate();
@@ -8057,6 +8063,7 @@ rtl.module("unit1frm",["System","SysUtils","Classes","Dialogs","Controls","StdCt
     $with1.Button9.SetTop(180);
     $with1.Button9.SetWidth(33);
     $with1.Button9.SetText("Sh\/H");
+    $with1.Button9.FFont.SetSize(10);
     $with1.Button9.FOnClick = rtl.createCallback($with1,"Button9Click");
     $with1.Button9.EndUpdate();
     $with1.Button10 = pas.WebCtrls.TButton.$create("Create$1",[pas.Unit1.Form1]);
@@ -8076,8 +8083,9 @@ rtl.module("unit1frm",["System","SysUtils","Classes","Dialogs","Controls","StdCt
     $with1.CheckBox2.SetLeft(8);
     $with1.CheckBox2.SetHeight(21);
     $with1.CheckBox2.SetTop(96);
-    $with1.CheckBox2.SetWidth(86);
+    $with1.CheckBox2.SetWidth(100);
     $with1.CheckBox2.SetText("CheckBox2");
+    $with1.CheckBox2.FFont.SetSize(10);
     $with1.CheckBox2.SetChecked(true);
     $with1.CheckBox2.SetState(pas.StdCtrls.TCheckBoxState.cbChecked);
     $with1.CheckBox2.EndUpdate();
@@ -8087,8 +8095,9 @@ rtl.module("unit1frm",["System","SysUtils","Classes","Dialogs","Controls","StdCt
     $with1.CheckBox3.SetLeft(8);
     $with1.CheckBox3.SetHeight(21);
     $with1.CheckBox3.SetTop(116);
-    $with1.CheckBox3.SetWidth(86);
+    $with1.CheckBox3.SetWidth(100);
     $with1.CheckBox3.SetText("CheckBox3");
+    $with1.CheckBox3.FFont.SetSize(10);
     $with1.CheckBox3.EndUpdate();
     $with1.ComboBox2 = pas.WebCtrls.TComboBox.$create("Create$1",[pas.Unit1.Form1]);
     $with1.ComboBox2.BeginUpdate();
@@ -8101,17 +8110,19 @@ rtl.module("unit1frm",["System","SysUtils","Classes","Dialogs","Controls","StdCt
     $with1.ComboBox2.FItems.SetCommaText("5,4,3,2,1");
     $with1.ComboBox2.Style = pas.WebCtrls.TComboBoxStyle.csSimple;
     $with1.ComboBox2.SetText("10");
+    $with1.ComboBox2.FFont.SetSize(9);
     $with1.ComboBox2.EndUpdate();
     $with1.StaticText1 = pas.WebCtrls.TStaticText.$create("Create$1",[pas.Unit1.Form1]);
     $with1.StaticText1.BeginUpdate();
     $with1.StaticText1.SetParent(pas.Unit1.Form1);
     $with1.StaticText1.SetLeft(44);
-    $with1.StaticText1.SetHeight(17);
+    $with1.StaticText1.SetHeight(30);
     $with1.StaticText1.SetTop(512);
-    $with1.StaticText1.SetWidth(68);
+    $with1.StaticText1.SetWidth(70);
     $with1.StaticText1.SetAlignment(pas.Classes.TAlignment.taCenter);
     $with1.StaticText1.BorderStyle = pas.WebCtrls.TStaticBorderStyle.sbsSunken;
     $with1.StaticText1.SetText("StaticText");
+    $with1.StaticText1.FFont.SetSize(9);
     $with1.StaticText1.EndUpdate();
     $with1.Label1 = pas.WebCtrls.TLabel.$create("Create$1",[pas.Unit1.Form1]);
     $with1.Label1.BeginUpdate();
@@ -8162,13 +8173,15 @@ rtl.module("unit1frm",["System","SysUtils","Classes","Dialogs","Controls","StdCt
     $with1.StaticText2.SetWidth(217);
     $with1.StaticText2.SetAlignment(pas.Classes.TAlignment.taCenter);
     $with1.StaticText2.SetText("(Reserved for dynamic control)");
+    $with1.StaticText2.FFont.SetSize(10);
     $with1.StaticText2.SetVisible(false);
     $with1.StaticText2.EndUpdate();
     $with1.Timer1 = pas.WebCtrls.TTimer.$create("Create$1",[pas.Unit1.Form1]);
     $with1.Timer1.BeginUpdate();
     $with1.Timer1.SetParent(pas.Unit1.Form1);
     $with1.Timer1.OnTimer = rtl.createCallback($with1,"Timer1Timer");
-    $with1.Timer1.SetLeft(368);
+    $with1.Timer1.SetWidth(0);
+    $with1.Timer1.SetHeight(0);
     $with1.Timer1.EndUpdate();
     pas.Unit1.Form1.EndUpdate();
   };

@@ -94,7 +94,7 @@
 -Jirtl.js
 -Jc
 -Jminclude
--Fu..\..\pasjs
+-Fu..\..\pasjs_llcl
 -dPASJS
 -dIS_FPC_OBJFPC_MODE"/>
       <OtherDefines Count="2">

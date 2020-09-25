@@ -209,6 +209,9 @@ begin
   //    Adds Edit1 current text to ComboBox1 (choices list) and ListBox1
   ComboBox1.Items.Add(Edit1.Text);
   ListBox1.Items.Add(Edit1.Text);
+     {$IFDEF PASJS}
+  ComboBox1.Text := Edit1.Text;
+  {$ENDIF}
 end;
 
 procedure TForm1.Button2Click(Sender: TObject);
@@ -222,6 +225,9 @@ begin
   // Clears both ComboBox1 (only choices list) and ListBox1
   ComboBox1.Items.Clear;
   ListBox1.Clear;
+       {$IFDEF PASJS}
+  ComboBox1.Text := '';
+  {$ENDIF}
 end;
 
 procedure TForm1.Button4Click(Sender: TObject);
