@@ -148,7 +148,12 @@ implementation
 //
 procedure MemoAddLineFmt(MemoCtrl: TMemo; const s: string; const Args: array of const);
 begin
-  MemoCtrl.Lines.Add(Format(s, Args));
+   {$IFDEF PASJS}
+  MemoCtrl.Append(s);
+
+  {$ELSE}
+    MemoCtrl.Lines.Add(Format(s, Args));
+{$ENDIF}
 end;
 
 // Workaround for FPC (TCheckBox and TRadioButton don't have any alignment property)
@@ -302,14 +307,14 @@ var s: String;
 begin
   // Mouse button down (any button) over Form1
   if ssDouble in Shift then s := ' (Double click)' else s := '';
-  MemoAddLineFmt(Memo1,'FormMouseDown at %d %d'+s, [X, Y]);
+  MemoAddLineFmt(Memo1,'FormMouseDown at %d %d'+s, [x,y]);
 end;
 
 procedure TForm1.FormMouseUp(Sender: TObject; Button: TMouseButton;
   Shift: TShiftState; X, Y: Integer);
 begin
   // Mouse button up (any button) over Form1
-  MemoAddLineFmt(Memo1,'FormMouseUp at %d %d', [X, Y]);
+  MemoAddLineFmt(Memo1,'FormMouseUp at %d %d', [x,y]);
   // If right button (i.e. right click), shows a popup menu
   if Button=mbRight then
     PopupMenu1.Popup(Mouse.CursorPos.X,Mouse.CursorPos.Y);
@@ -320,7 +325,7 @@ procedure TForm1.FormKeyDown(Sender: TObject; var Key: Word;
 begin
   // Keyboard key down (in most of controls)
   //    (Because Form1 has KeyPreview=True property)
-  MemoAddLineFmt(Memo1,'FormKeyDown %d', [Key]);
+  MemoAddLineFmt(Memo1,'FormKeyDown %d', [key]);
 end;
 
 procedure TForm1.FormKeyUp(Sender: TObject; var Key: Word;
@@ -328,7 +333,7 @@ procedure TForm1.FormKeyUp(Sender: TObject; var Key: Word;
 begin
   // Keyboard key up (in most of controls)
   //    (Because Form1 has KeyPreview=True property)
-  MemoAddLineFmt(Memo1,'FormKeyUp %d', [Key]);
+  MemoAddLineFmt(Memo1,'FormKeyUp %d', [key]);
 end;
 
 procedure TForm1.FormKeyPress(Sender: TObject; var Key: Char);

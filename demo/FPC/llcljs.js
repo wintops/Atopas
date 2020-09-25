@@ -1933,6 +1933,18 @@ rtl.module("SysUtils",["System","RTLConsts","JS"],function () {
     Result = true;
     return Result;
   };
+  this.TStringReplaceFlag = {"0": "rfReplaceAll", rfReplaceAll: 0, "1": "rfIgnoreCase", rfIgnoreCase: 1};
+  this.StringReplace = function (aOriginal, aSearch, aReplace, Flags) {
+    var Result = "";
+    var REFlags = "";
+    var REString = "";
+    REFlags = "";
+    if ($mod.TStringReplaceFlag.rfReplaceAll in Flags) REFlags = "g";
+    if ($mod.TStringReplaceFlag.rfIgnoreCase in Flags) REFlags = REFlags + "i";
+    REString = aSearch.replace(new RegExp($impl.RESpecials,"g"),"\\$1");
+    Result = aOriginal.replace(new RegExp(REString,REFlags),aReplace);
+    return Result;
+  };
   this.IntToStr = function (Value) {
     var Result = "";
     Result = "" + Value;
@@ -2283,6 +2295,7 @@ rtl.module("SysUtils",["System","RTLConsts","JS"],function () {
     };
     return Result;
   };
+  $impl.RESpecials = "([\\+\\[\\]\\(\\)\\\\\\.\\*])";
 });
 rtl.module("Classes",["System","RTLConsts","Types","SysUtils"],function () {
   "use strict";
@@ -2420,7 +2433,31 @@ rtl.module("Classes",["System","RTLConsts","Types","SysUtils"],function () {
       this.FUpdateCount = 0;
       this.FLBS = 0;
       this.FSkipLastLineBreak = false;
+      this.FStrictDelimiter = false;
       this.FLineBreak = "";
+    };
+    this.SetCommaText = function (Value) {
+      var C1 = "";
+      var C2 = "";
+      this.CheckSpecialChars();
+      C1 = this.GetDelimiter();
+      C2 = this.GetQuoteChar();
+      this.SetDelimiter(",");
+      this.SetQuoteChar('"');
+      try {
+        this.SetDelimitedText(Value);
+      } finally {
+        this.SetDelimiter(C1);
+        this.SetQuoteChar(C2);
+      };
+    };
+    this.SetDelimiter = function (c) {
+      this.CheckSpecialChars();
+      this.FDelimiter = c;
+    };
+    this.SetQuoteChar = function (c) {
+      this.CheckSpecialChars();
+      this.FQuoteChar = c;
     };
     this.DoSetTextStr = function (Value, DoClear) {
       var S = "";
@@ -2441,6 +2478,18 @@ rtl.module("Classes",["System","RTLConsts","Types","SysUtils"],function () {
       } finally {
         this.EndUpdate();
       };
+    };
+    this.GetDelimiter = function () {
+      var Result = "";
+      this.CheckSpecialChars();
+      Result = this.FDelimiter;
+      return Result;
+    };
+    this.GetQuoteChar = function () {
+      var Result = "";
+      this.CheckSpecialChars();
+      Result = this.FQuoteChar;
+      return Result;
     };
     this.GetLineBreak = function () {
       var Result = "";
@@ -2509,6 +2558,72 @@ rtl.module("Classes",["System","RTLConsts","Types","SysUtils"],function () {
       Result = pas.SysUtils.CompareText(s1,s2);
       return Result;
     };
+    this.SetDelimitedText = function (AValue) {
+      var i = 0;
+      var j = 0;
+      var aNotFirst = false;
+      this.CheckSpecialChars();
+      this.BeginUpdate();
+      i = 1;
+      j = 1;
+      aNotFirst = false;
+      try {
+        this.Clear();
+        if (this.FStrictDelimiter) {
+          while (i <= AValue.length) {
+            if (aNotFirst && (i <= AValue.length) && (AValue.charAt(i - 1) === this.FDelimiter)) i += 1;
+            if (i <= AValue.length) {
+              if (AValue.charAt(i - 1) === this.FQuoteChar) {
+                j = i + 1;
+                while ((j <= AValue.length) && ((AValue.charAt(j - 1) !== this.FQuoteChar) || (((j + 1) <= AValue.length) && (AValue.charAt((j + 1) - 1) === this.FQuoteChar)))) {
+                  if ((j <= AValue.length) && (AValue.charAt(j - 1) === this.FQuoteChar)) {
+                    j += 2}
+                   else j += 1;
+                };
+                this.Add(pas.SysUtils.StringReplace(pas.System.Copy(AValue,i + 1,j - i - 1),this.FQuoteChar + this.FQuoteChar,this.FQuoteChar,rtl.createSet(pas.SysUtils.TStringReplaceFlag.rfReplaceAll)));
+                i = j + 1;
+              } else {
+                j = i;
+                while ((j <= AValue.length) && (AValue.charAt(j - 1) !== this.FDelimiter)) j += 1;
+                this.Add(pas.System.Copy(AValue,i,j - i));
+                i = j;
+              };
+            } else {
+              if (aNotFirst) this.Add("");
+            };
+            aNotFirst = true;
+          };
+        } else {
+          while (i <= AValue.length) {
+            if (aNotFirst && (i <= AValue.length) && (AValue.charAt(i - 1) === this.FDelimiter)) i += 1;
+            while ((i <= AValue.length) && (AValue.charCodeAt(i - 1) <= " ".charCodeAt())) i += 1;
+            if (i <= AValue.length) {
+              if (AValue.charAt(i - 1) === this.FQuoteChar) {
+                j = i + 1;
+                while ((j <= AValue.length) && ((AValue.charAt(j - 1) !== this.FQuoteChar) || (((j + 1) <= AValue.length) && (AValue.charAt((j + 1) - 1) === this.FQuoteChar)))) {
+                  if ((j <= AValue.length) && (AValue.charAt(j - 1) === this.FQuoteChar)) {
+                    j += 2}
+                   else j += 1;
+                };
+                this.Add(pas.SysUtils.StringReplace(pas.System.Copy(AValue,i + 1,j - i - 1),this.FQuoteChar + this.FQuoteChar,this.FQuoteChar,rtl.createSet(pas.SysUtils.TStringReplaceFlag.rfReplaceAll)));
+                i = j + 1;
+              } else {
+                j = i;
+                while ((j <= AValue.length) && (AValue.charCodeAt(j - 1) > " ".charCodeAt()) && (AValue.charAt(j - 1) !== this.FDelimiter)) j += 1;
+                this.Add(pas.System.Copy(AValue,i,j - i));
+                i = j;
+              };
+            } else {
+              if (aNotFirst) this.Add("");
+            };
+            while ((i <= AValue.length) && (AValue.charCodeAt(i - 1) <= " ".charCodeAt())) i += 1;
+            aNotFirst = true;
+          };
+        };
+      } finally {
+        this.EndUpdate();
+      };
+    };
     this.CheckSpecialChars = function () {
       if (!this.FSpecialCharsInited) {
         this.FQuoteChar = '"';
@@ -2551,6 +2666,9 @@ rtl.module("Classes",["System","RTLConsts","Types","SysUtils"],function () {
       Result = this.Add(S);
       this.PutObject(Result,AObject);
       return Result;
+    };
+    this.Append = function (S) {
+      this.Add(S);
     };
     this.AddStrings = function (TheStrings) {
       var Runner = 0;
@@ -4115,11 +4233,11 @@ rtl.module("Controls",["System","Classes","SysUtils","Types","JS","Web","Graphic
   this.TShiftStateEnum = {"0": "ssShift", ssShift: 0, "1": "ssAlt", ssAlt: 1, "2": "ssCtrl", ssCtrl: 2, "3": "ssLeft", ssLeft: 3, "4": "ssRight", ssRight: 4, "5": "ssMIDdle", ssMIDdle: 5, "6": "ssDouble", ssDouble: 6};
   $mod.$rtti.$Enum("TShiftStateEnum",{minvalue: 0, maxvalue: 6, ordtype: 1, enumtype: this.TShiftStateEnum});
   $mod.$rtti.$Set("TShiftState",{comptype: $mod.$rtti["TShiftStateEnum"]});
-  $mod.$rtti.$MethodVar("TKeyEvent",{procsig: rtl.newTIProcSig([["Sender",pas.System.$rtti["TObject"]],["Key",rtl.nativeint,1],["Shift",$mod.$rtti["TShiftState"]]]), methodkind: 0});
+  $mod.$rtti.$MethodVar("TKeyEvent",{procsig: rtl.newTIProcSig([["Sender",pas.System.$rtti["TObject"]],["Key",rtl.word,1],["Shift",$mod.$rtti["TShiftState"]]]), methodkind: 0});
   $mod.$rtti.$MethodVar("TKeyPressEvent",{procsig: rtl.newTIProcSig([["Sender",pas.System.$rtti["TObject"]],["Key",rtl.char,1]]), methodkind: 0});
   this.TMouseButton = {"0": "mbLeft", mbLeft: 0, "1": "mbRight", mbRight: 1, "2": "mbMiddle", mbMiddle: 2};
   $mod.$rtti.$Enum("TMouseButton",{minvalue: 0, maxvalue: 2, ordtype: 1, enumtype: this.TMouseButton});
-  $mod.$rtti.$MethodVar("TMouseEvent",{procsig: rtl.newTIProcSig([["Sender",pas.System.$rtti["TObject"]],["Button",$mod.$rtti["TMouseButton"]],["Shift",$mod.$rtti["TShiftState"]],["X",rtl.nativeint],["Y",rtl.nativeint]]), methodkind: 0});
+  $mod.$rtti.$MethodVar("TMouseEvent",{procsig: rtl.newTIProcSig([["Sender",pas.System.$rtti["TObject"]],["Button",$mod.$rtti["TMouseButton"]],["Shift",$mod.$rtti["TShiftState"]],["X",rtl.longint],["Y",rtl.longint]]), methodkind: 0});
   $mod.$rtti.$MethodVar("TMouseMoveEvent",{procsig: rtl.newTIProcSig([["Sender",pas.System.$rtti["TObject"]],["Shift",$mod.$rtti["TShiftState"]],["X",rtl.nativeint],["Y",rtl.nativeint]]), methodkind: 0});
   $mod.$rtti.$MethodVar("TMouseWheelEvent",{procsig: rtl.newTIProcSig([["Sender",pas.System.$rtti["TObject"]],["Shift",$mod.$rtti["TShiftState"]],["WheelDelta",rtl.nativeint],["MousePos",pas.Types.$rtti["TPoint"]],["Handled",rtl.boolean,1]]), methodkind: 0});
   this.TFocusSearchDirection = {"0": "fsdFirst", fsdFirst: 0, "1": "fsdLast", fsdLast: 1, "2": "fsdNext", fsdNext: 2, "3": "fsdPrev", fsdPrev: 3};
@@ -6240,6 +6358,10 @@ rtl.module("StdCtrls",["System","Classes","SysUtils","Types","Web","WebExtra","G
       this.FLines = null;
       pas.Controls.TControl.Destroy.call(this);
     };
+    this.Append = function (AValue) {
+      this.FLines.Append(AValue);
+      this.Changed();
+    };
   });
   rtl.createClass($mod,"TCustomButton",pas.Controls.TWinControl,function () {
     this.$init = function () {
@@ -6970,7 +7092,12 @@ rtl.module("WebCtrls",["System","browserapp","Classes","SysUtils","Types","Graph
     $r.addProperty("OnScroll",0,pas.Classes.$rtti["TNotifyEvent"],"FOnScroll$1","FOnScroll$1");
     $r.addProperty("OnShow",0,pas.Classes.$rtti["TNotifyEvent"],"FOnShow","FOnShow");
   });
+  this.TComboBoxStyle = {"0": "csDropDown", csDropDown: 0, "1": "csSimple", csSimple: 1, "2": "csDropDownList", csDropDownList: 2, "3": "csOwnerDrawFixed", csOwnerDrawFixed: 3, "4": "csOwnerDrawVariable", csOwnerDrawVariable: 4};
   rtl.createClass($mod,"TComboBox",pas.StdCtrls.TCustomComboBox,function () {
+    this.$init = function () {
+      pas.StdCtrls.TCustomComboBox.$init.call(this);
+      this.Style = 0;
+    };
     var $r = this.$rtti;
     $r.addProperty("Align",2,pas.Controls.$rtti["TAlign"],"FAlign","SetAlign");
     $r.addProperty("AutoSize",2,rtl.boolean,"FAutoSize","SetAutoSize");
@@ -7049,7 +7176,12 @@ rtl.module("WebCtrls",["System","browserapp","Classes","SysUtils","Types","Graph
     $r.addProperty("OnMouseWheel",0,pas.Controls.$rtti["TMouseWheelEvent"],"FOnMouseWheel","FOnMouseWheel");
     $r.addProperty("OnResize",0,pas.Classes.$rtti["TNotifyEvent"],"FOnResize","FOnResize");
   });
+  this.TScrollStyle = {"0": "ssNone", ssNone: 0, "1": "ssHorizontal", ssHorizontal: 1, "2": "ssVertical", ssVertical: 2, "3": "ssBoth", ssBoth: 3};
   rtl.createClass($mod,"TMemo",pas.StdCtrls.TCustomMemo,function () {
+    this.$init = function () {
+      pas.StdCtrls.TCustomMemo.$init.call(this);
+      this.ScrollBars = 0;
+    };
     var $r = this.$rtti;
     $r.addProperty("Align",2,pas.Controls.$rtti["TAlign"],"FAlign","SetAlign");
     $r.addProperty("Alignment",2,pas.Classes.$rtti["TAlignment"],"FAlignment","SetAlignment");
@@ -7125,6 +7257,10 @@ rtl.module("WebCtrls",["System","browserapp","Classes","SysUtils","Types","Graph
     $r.addProperty("OnResize",0,pas.Classes.$rtti["TNotifyEvent"],"FOnResize","FOnResize");
   });
   rtl.createClass($mod,"TCheckbox",pas.StdCtrls.TCustomCheckbox,function () {
+    this.$init = function () {
+      pas.StdCtrls.TCustomCheckbox.$init.call(this);
+      this.AllowGrayed = false;
+    };
   });
   rtl.createClass($mod,"TLabel",pas.StdCtrls.TCustomLabel,function () {
     var $r = this.$rtti;
@@ -7230,10 +7366,17 @@ rtl.module("WebCtrls",["System","browserapp","Classes","SysUtils","Types","Graph
     this.$init = function () {
       pas.ExtCtrls.TCustomPanel.$init.call(this);
       this.Items = null;
+      this.ItemIndex = 0;
+      this.ItemHeight = 0;
     };
     this.$final = function () {
       this.Items = undefined;
       pas.ExtCtrls.TCustomPanel.$final.call(this);
+    };
+    this.Create$1 = function (AOwner) {
+      pas.ExtCtrls.TCustomPanel.Create$1.call(this,AOwner);
+      this.Items = pas.Classes.TStringList.$create("Create$1");
+      return this;
     };
     this.Clear = function () {
       this.Items.Clear();
@@ -7241,59 +7384,40 @@ rtl.module("WebCtrls",["System","browserapp","Classes","SysUtils","Types","Graph
   });
   rtl.createClass($mod,"TGroupBox",pas.ExtCtrls.TCustomPanel,function () {
   });
-  this.TOpenOption = {"0": "ofReadOnly", ofReadOnly: 0, "1": "ofOverwritePrompt", ofOverwritePrompt: 1, "2": "ofHideReadOnly", ofHideReadOnly: 2, "3": "ofNoChangeDir", ofNoChangeDir: 3, "4": "ofShowHelp", ofShowHelp: 4, "5": "ofNoValidate", ofNoValidate: 5, "6": "ofAllowMultiSelect", ofAllowMultiSelect: 6, "7": "ofExtensionDifferent", ofExtensionDifferent: 7, "8": "ofPathMustExist", ofPathMustExist: 8, "9": "ofFileMustExist", ofFileMustExist: 9, "10": "ofCreatePrompt", ofCreatePrompt: 10, "11": "ofShareAware", ofShareAware: 11, "12": "ofNoReadOnlyReturn", ofNoReadOnlyReturn: 12, "13": "ofNoTestFileCreate", ofNoTestFileCreate: 13, "14": "ofNoNetworkButton", ofNoNetworkButton: 14, "15": "ofNoLongNames", ofNoLongNames: 15, "16": "ofOldStyleDialog", ofOldStyleDialog: 16, "17": "ofNoDereferenceLinks", ofNoDereferenceLinks: 17, "18": "ofEnableIncludeNotify", ofEnableIncludeNotify: 18, "19": "ofEnableSizing", ofEnableSizing: 19, "20": "ofDontAddToRecent", ofDontAddToRecent: 20, "21": "ofForceShowHidden", ofForceShowHidden: 21, "22": "ofViewDetail", ofViewDetail: 22, "23": "ofAutoPreview", ofAutoPreview: 23};
-  rtl.createClass($mod,"TOpenDialog",pas.ExtCtrls.TCustomPanel,function () {
-    this.$init = function () {
-      pas.ExtCtrls.TCustomPanel.$init.call(this);
-      this.FileName = "";
-      this.Filter = "";
-      this.FilterIndex = 0;
-      this.Options = {};
-      this.Title = "";
-    };
-    this.$final = function () {
-      this.Options = undefined;
-      pas.ExtCtrls.TCustomPanel.$final.call(this);
-    };
-    this.Execute = function () {
-      var Result = false;
-      return Result;
-    };
-  });
-  rtl.createClass($mod,"TSaveDialog",pas.ExtCtrls.TCustomPanel,function () {
-    this.$init = function () {
-      pas.ExtCtrls.TCustomPanel.$init.call(this);
-      this.FileName = "";
-      this.Filter = "";
-      this.FilterIndex = 0;
-      this.Options = {};
-    };
-    this.$final = function () {
-      this.Options = undefined;
-      pas.ExtCtrls.TCustomPanel.$final.call(this);
-    };
-    this.Execute = function () {
-      var Result = false;
-      return Result;
-    };
-  });
   rtl.createClass($mod,"TRadioButton",pas.ExtCtrls.TCustomPanel,function () {
+    this.$init = function () {
+      pas.ExtCtrls.TCustomPanel.$init.call(this);
+      this.Checked = false;
+    };
   });
+  this.TStaticBorderStyle = {"0": "sbsNone", sbsNone: 0, "1": "sbsSingle", sbsSingle: 1, "2": "sbsSunken", sbsSunken: 2};
   rtl.createClass($mod,"TStaticText",pas.ExtCtrls.TCustomPanel,function () {
+    this.$init = function () {
+      pas.ExtCtrls.TCustomPanel.$init.call(this);
+      this.BorderStyle = 0;
+    };
   });
   rtl.createClass($mod,"TProgressBar",pas.ExtCtrls.TCustomPanel,function () {
     this.$init = function () {
       pas.ExtCtrls.TCustomPanel.$init.call(this);
       this.Position = 0;
     };
+    this.StepIt = function () {
+    };
   });
   rtl.createClass($mod,"TTimer",pas.ExtCtrls.TCustomPanel,function () {
-  });
-  rtl.createClass($mod,"TMainMenu",pas.ExtCtrls.TCustomPanel,function () {
-  });
-  rtl.createClass($mod,"TMenuItem",pas.ExtCtrls.TCustomPanel,function () {
+    this.$init = function () {
+      pas.ExtCtrls.TCustomPanel.$init.call(this);
+      this.OnTimer = null;
+    };
+    this.$final = function () {
+      this.OnTimer = undefined;
+      pas.ExtCtrls.TCustomPanel.$final.call(this);
+    };
   });
   rtl.createClass($mod,"TPopupMenu",pas.ExtCtrls.TCustomPanel,function () {
+    this.Popup = function (X, Y) {
+    };
   });
   rtl.createClass($mod,"TTrackBar",pas.ExtCtrls.TCustomPanel,function () {
     this.$init = function () {
@@ -7309,6 +7433,17 @@ rtl.module("WebCtrls",["System","browserapp","Classes","SysUtils","Types","Graph
     var $r = this.$rtti;
     $r.addProperty("OnChange",0,pas.Classes.$rtti["TNotifyEvent"],"FOnChange","FOnChange");
   });
+  rtl.createClass($mod,"TMouse",pas.Controls.TWinControl,function () {
+    this.$init = function () {
+      pas.Controls.TWinControl.$init.call(this);
+      this.CursorPos = pas.Types.TPoint.$new();
+    };
+    this.$final = function () {
+      this.CursorPos = undefined;
+      pas.Controls.TWinControl.$final.call(this);
+    };
+  });
+  this.Mouse = null;
 });
 rtl.module("Dialogs",["System","Classes","SysUtils","Types","Graphics","Controls","StdCtrls","ExtCtrls","Forms","WebCtrls"],function () {
   "use strict";
@@ -7556,30 +7691,14 @@ rtl.module("Unit1",["System","SysUtils","Classes","Dialogs","Controls","StdCtrls
       this.CheckBox2 = null;
       this.CheckBox3 = null;
       this.GroupBox1 = null;
-      this.OpenDialog1 = null;
       this.RadioButton1 = null;
       this.RadioButton2 = null;
       this.ComboBox2 = null;
       this.Label1 = null;
-      this.SaveDialog1 = null;
       this.StaticText1 = null;
       this.ProgressBar1 = null;
       this.StaticText2 = null;
       this.Timer1 = null;
-      this.MainMenu1 = null;
-      this.MenuItem1 = null;
-      this.MenuItem2 = null;
-      this.MenuItem3 = null;
-      this.MenuItem4 = null;
-      this.MenuItem5 = null;
-      this.MenuItem6 = null;
-      this.MenuItem7 = null;
-      this.MenuItem8 = null;
-      this.MenuItem9 = null;
-      this.MenuItem10 = null;
-      this.MenuItem11 = null;
-      this.MenuItem12 = null;
-      this.MenuItem13 = null;
       this.PopupMenu1 = null;
       this.TrackBar1 = null;
     };
@@ -7603,30 +7722,14 @@ rtl.module("Unit1",["System","SysUtils","Classes","Dialogs","Controls","StdCtrls
       this.CheckBox2 = undefined;
       this.CheckBox3 = undefined;
       this.GroupBox1 = undefined;
-      this.OpenDialog1 = undefined;
       this.RadioButton1 = undefined;
       this.RadioButton2 = undefined;
       this.ComboBox2 = undefined;
       this.Label1 = undefined;
-      this.SaveDialog1 = undefined;
       this.StaticText1 = undefined;
       this.ProgressBar1 = undefined;
       this.StaticText2 = undefined;
       this.Timer1 = undefined;
-      this.MainMenu1 = undefined;
-      this.MenuItem1 = undefined;
-      this.MenuItem2 = undefined;
-      this.MenuItem3 = undefined;
-      this.MenuItem4 = undefined;
-      this.MenuItem5 = undefined;
-      this.MenuItem6 = undefined;
-      this.MenuItem7 = undefined;
-      this.MenuItem8 = undefined;
-      this.MenuItem9 = undefined;
-      this.MenuItem10 = undefined;
-      this.MenuItem11 = undefined;
-      this.MenuItem12 = undefined;
-      this.MenuItem13 = undefined;
       this.PopupMenu1 = undefined;
       this.TrackBar1 = undefined;
       pas.WebCtrls.TForm.$final.call(this);
@@ -7700,40 +7803,35 @@ rtl.module("Unit1",["System","SysUtils","Classes","Dialogs","Controls","StdCtrls
     this.ComboBox1Change = function (Sender) {
       this.Memo1.FLines.Add("ComboBox1Change " + pas.SysUtils.IntToStr(this.ComboBox1.FItemIndex));
     };
+    this.ListBox1DblClick = function (Sender) {
+      this.Memo1.FLines.Add("ListBox1DblClick " + pas.SysUtils.IntToStr(this.ListBox1.ItemIndex));
+    };
+    this.FormMouseDown = function (Sender, Button, Shift, X, Y) {
+      var s = "";
+      if (pas.Controls.TShiftStateEnum.ssDouble in Shift) {
+        s = " (Double click)"}
+       else s = "";
+      $impl.MemoAddLineFmt(this.Memo1,"FormMouseDown at %d %d" + s,pas.System.VarRecs(0,X,0,Y));
+    };
+    this.FormMouseUp = function (Sender, Button, Shift, X, Y) {
+      $impl.MemoAddLineFmt(this.Memo1,"FormMouseUp at %d %d",pas.System.VarRecs(0,X,0,Y));
+      if (Button === pas.Controls.TMouseButton.mbRight) this.PopupMenu1.Popup(pas.WebCtrls.Mouse.CursorPos.x,pas.WebCtrls.Mouse.CursorPos.y);
+    };
+    this.FormKeyDown = function (Sender, Key, Shift) {
+      $impl.MemoAddLineFmt(this.Memo1,"FormKeyDown %d",pas.System.VarRecs(0,Key.get()));
+    };
+    this.FormKeyUp = function (Sender, Key, Shift) {
+      $impl.MemoAddLineFmt(this.Memo1,"FormKeyUp %d",pas.System.VarRecs(0,Key.get()));
+    };
     this.FormKeyPress = function (Sender, Key) {
       $impl.MemoAddLineFmt(this.Memo1,"FormKeyPress #%d '%s'",pas.System.VarRecs(0,Key.get().charCodeAt(),9,Key.get()));
     };
+    this.Timer1Timer = function (Sender) {
+      this.ProgressBar1.StepIt();
+      this.Memo1.FLines.Add("Timer Tick: ProgressBar=" + pas.SysUtils.IntToStr(this.ProgressBar1.Position));
+    };
     this.TrackBar1Change = function (Sender) {
       this.Memo1.FLines.Add("TrackBar: New value=" + pas.SysUtils.IntToStr(Sender.Position) + "\/" + pas.SysUtils.IntToStr(Sender.Max));
-    };
-    this.MenuItem6Click = function (Sender) {
-      pas.Forms.Application().Terminate();
-    };
-    this.MenuItem7Click = function (Sender) {
-      this.Memo1.FLines.Add("Menu21");
-    };
-    this.MenuItem8Click = function (Sender) {
-      this.Memo1.FLines.Add("Menu22");
-    };
-    this.MenuItem9Click = function (Sender) {
-      this.Memo1.FLines.Add("Popup1");
-    };
-    this.MenuItem10Click = function (Sender) {
-      this.Memo1.FLines.Add("Popup2");
-    };
-    this.MenuItem11Click = function (Sender) {
-      this.OpenDialog1.Options = rtl.unionSet(this.OpenDialog1.Options,rtl.createSet(pas.WebCtrls.TOpenOption.ofPathMustExist,pas.WebCtrls.TOpenOption.ofFileMustExist));
-      this.OpenDialog1.Filter = "Text files (*.txt)|*.txt|All files|*.*";
-      this.OpenDialog1.FilterIndex = 1;
-      this.OpenDialog1.Title = "File to open";
-      if (this.OpenDialog1.Execute()) pas.Dialogs.ShowMessage$1("File to open: " + this.OpenDialog1.FileName);
-    };
-    this.MenuItem12Click = function (Sender) {
-      this.SaveDialog1.Options = rtl.unionSet(this.SaveDialog1.Options,rtl.createSet(pas.WebCtrls.TOpenOption.ofPathMustExist,pas.WebCtrls.TOpenOption.ofOverwritePrompt));
-      this.SaveDialog1.Filter = "Text files (*.txt)|*.txt|Temporary files (*.tmp)|*.tmp|All files|*.*";
-      this.SaveDialog1.FilterIndex = 2;
-      this.SaveDialog1.FileName = "MyFile.tmp";
-      if (this.SaveDialog1.Execute()) pas.Dialogs.ShowMessage$1("File to save: " + this.SaveDialog1.FileName);
     };
   });
   this.Form1 = null;
@@ -7742,10 +7840,10 @@ rtl.module("Unit1",["System","SysUtils","Classes","Dialogs","Controls","StdCtrls
   var $mod = this;
   var $impl = $mod.$impl;
   $impl.MemoAddLineFmt = function (MemoCtrl, s, Args) {
-    MemoCtrl.FLines.Add(pas.SysUtils.Format(s,Args));
+    MemoCtrl.Append(s);
   };
 });
-rtl.module("unit1frm",["System","SysUtils","Classes","Dialogs","Controls","StdCtrls","Forms","WebCtrls"],function () {
+rtl.module("unit1frm",["System","SysUtils","Classes","Dialogs","Controls","StdCtrls","Forms","Graphics","WebCtrls"],function () {
   "use strict";
   var $mod = this;
   this.Loaded = function () {
@@ -7760,7 +7858,11 @@ rtl.module("unit1frm",["System","SysUtils","Classes","Dialogs","Controls","StdCt
     pas.Unit1.Form1.SetClientWidth(408);
     pas.Unit1.Form1.FKeyPreview = true;
     pas.Unit1.Form1.FOnCreate = rtl.createCallback($with1,"FormCreate");
+    pas.Unit1.Form1.FOnKeyDown = rtl.createCallback($with1,"FormKeyDown");
     pas.Unit1.Form1.FOnKeyPress = rtl.createCallback($with1,"FormKeyPress");
+    pas.Unit1.Form1.FOnKeyUp = rtl.createCallback($with1,"FormKeyUp");
+    pas.Unit1.Form1.FOnMouseDown = rtl.createCallback($with1,"FormMouseDown");
+    pas.Unit1.Form1.FOnMouseUp = rtl.createCallback($with1,"FormMouseUp");
     $with1.GroupBox1 = pas.WebCtrls.TGroupBox.$create("Create$1",[pas.Unit1.Form1]);
     $with1.GroupBox1.BeginUpdate();
     $with1.GroupBox1.SetParent(pas.Unit1.Form1);
@@ -7768,11 +7870,13 @@ rtl.module("unit1frm",["System","SysUtils","Classes","Dialogs","Controls","StdCt
     $with1.GroupBox1.SetHeight(65);
     $with1.GroupBox1.SetTop(140);
     $with1.GroupBox1.SetWidth(129);
-    $with1.GroupBox1.SetText("&GroupBox1");
+    $with1.GroupBox1.SetText("GroupBox1");
     $with1.GroupBox1.SetClientHeight(44);
     $with1.GroupBox1.SetClientWidth(125);
+    $with1.GroupBox1.FFont.SetColor(0);
     $with1.GroupBox1.FFont.SetHeight(-13);
     $with1.GroupBox1.FFont.SetName("Tahoma");
+    $with1.GroupBox1.FFont.SetStyle(rtl.createSet(pas.Graphics.TFontStyle.fsBold));
     $with1.GroupBox1.SetParentFont(false);
     $with1.RadioButton1 = pas.WebCtrls.TRadioButton.$create("Create$1",[$with1.GroupBox1]);
     $with1.RadioButton1.BeginUpdate();
@@ -7782,8 +7886,10 @@ rtl.module("unit1frm",["System","SysUtils","Classes","Dialogs","Controls","StdCt
     $with1.RadioButton1.SetTop(3);
     $with1.RadioButton1.SetWidth(87);
     $with1.RadioButton1.SetText("RadioButton1");
+    $with1.RadioButton1.FFont.SetColor(0);
     $with1.RadioButton1.FFont.SetHeight(-11);
     $with1.RadioButton1.FFont.SetName("Tahoma");
+    $with1.RadioButton1.FFont.SetStyle(rtl.createSet(pas.Graphics.TFontStyle.fsItalic));
     $with1.RadioButton1.SetParentFont(false);
     $with1.RadioButton1.EndUpdate();
     $with1.RadioButton2 = pas.WebCtrls.TRadioButton.$create("Create$1",[$with1.GroupBox1]);
@@ -7794,6 +7900,8 @@ rtl.module("unit1frm",["System","SysUtils","Classes","Dialogs","Controls","StdCt
     $with1.RadioButton2.SetTop(22);
     $with1.RadioButton2.SetWidth(87);
     $with1.RadioButton2.SetText("RadioButton2");
+    $with1.RadioButton2.Checked = true;
+    $with1.RadioButton2.FFont.SetColor(0);
     $with1.RadioButton2.FFont.SetHeight(-11);
     $with1.RadioButton2.FFont.SetName("Tahoma");
     $with1.RadioButton2.SetParentFont(false);
@@ -7806,12 +7914,15 @@ rtl.module("unit1frm",["System","SysUtils","Classes","Dialogs","Controls","StdCt
     $with1.ComboBox1.SetHeight(21);
     $with1.ComboBox1.SetTop(12);
     $with1.ComboBox1.SetWidth(133);
+    $with1.ComboBox1.FFont.SetColor(0);
     $with1.ComboBox1.FFont.SetHeight(-11);
     $with1.ComboBox1.FFont.SetName("Tahoma");
+    $with1.ComboBox1.FFont.SetStyle(rtl.createSet(pas.Graphics.TFontStyle.fsBold));
     $with1.ComboBox1.SetItemHeight(13);
+    $with1.ComboBox1.FItems.SetCommaText("11,22,44,33");
+    $with1.ComboBox1.SetItemIndex(0);
     $with1.ComboBox1.FOnChange = rtl.createCallback($with1,"ComboBox1Change");
     $with1.ComboBox1.SetParentFont(false);
-    $with1.ComboBox1.SetTabOrder(0);
     $with1.ComboBox1.SetText("sample text");
     $with1.ComboBox1.EndUpdate();
     $with1.Edit1 = pas.WebCtrls.TEdit.$create("Create$1",[pas.Unit1.Form1]);
@@ -7823,7 +7934,6 @@ rtl.module("unit1frm",["System","SysUtils","Classes","Dialogs","Controls","StdCt
     $with1.Edit1.SetWidth(125);
     $with1.Edit1.FOnChange = rtl.createCallback($with1,"Edit1Change");
     $with1.Edit1.FOnDblClick = rtl.createCallback($with1,"Edit1DblClick");
-    $with1.Edit1.SetTabOrder(12);
     $with1.Edit1.SetText("New item name");
     $with1.Edit1.EndUpdate();
     $with1.Button1 = pas.WebCtrls.TButton.$create("Create$1",[pas.Unit1.Form1]);
@@ -7833,12 +7943,13 @@ rtl.module("unit1frm",["System","SysUtils","Classes","Dialogs","Controls","StdCt
     $with1.Button1.SetHeight(25);
     $with1.Button1.SetTop(12);
     $with1.Button1.SetWidth(75);
-    $with1.Button1.SetText("&Add");
+    $with1.Button1.SetText("Add");
+    $with1.Button1.FFont.SetColor(0);
     $with1.Button1.FFont.SetHeight(-13);
     $with1.Button1.FFont.SetName("Tahoma");
+    $with1.Button1.FFont.SetStyle(rtl.createSet(pas.Graphics.TFontStyle.fsBold));
     $with1.Button1.FOnClick = rtl.createCallback($with1,"Button1Click");
     $with1.Button1.SetParentFont(false);
-    $with1.Button1.SetTabOrder(11);
     $with1.Button1.EndUpdate();
     $with1.Button3 = pas.WebCtrls.TButton.$create("Create$1",[pas.Unit1.Form1]);
     $with1.Button3.BeginUpdate();
@@ -7847,9 +7958,8 @@ rtl.module("unit1frm",["System","SysUtils","Classes","Dialogs","Controls","StdCt
     $with1.Button3.SetHeight(25);
     $with1.Button3.SetTop(44);
     $with1.Button3.SetWidth(75);
-    $with1.Button3.SetText("&Clear");
+    $with1.Button3.SetText("Clear");
     $with1.Button3.FOnClick = rtl.createCallback($with1,"Button3Click");
-    $with1.Button3.SetTabOrder(13);
     $with1.Button3.EndUpdate();
     $with1.ListBox1 = pas.WebCtrls.TListBox.$create("Create$1",[pas.Unit1.Form1]);
     $with1.ListBox1.BeginUpdate();
@@ -7858,8 +7968,13 @@ rtl.module("unit1frm",["System","SysUtils","Classes","Dialogs","Controls","StdCt
     $with1.ListBox1.SetHeight(100);
     $with1.ListBox1.SetTop(76);
     $with1.ListBox1.SetWidth(217);
+    $with1.ListBox1.FFont.SetColor(0);
     $with1.ListBox1.FFont.SetHeight(-11);
     $with1.ListBox1.FFont.SetName("Tahoma");
+    $with1.ListBox1.FFont.SetStyle(rtl.createSet(pas.Graphics.TFontStyle.fsBold));
+    $with1.ListBox1.Items.SetCommaText("444,111,333,222");
+    $with1.ListBox1.ItemHeight = 13;
+    $with1.ListBox1.FOnDblClick = rtl.createCallback($with1,"ListBox1DblClick");
     $with1.ListBox1.SetParentFont(false);
     $with1.ListBox1.EndUpdate();
     $with1.Memo1 = pas.WebCtrls.TMemo.$create("Create$1",[pas.Unit1.Form1]);
@@ -7869,7 +7984,8 @@ rtl.module("unit1frm",["System","SysUtils","Classes","Dialogs","Controls","StdCt
     $with1.Memo1.SetHeight(285);
     $with1.Memo1.SetTop(216);
     $with1.Memo1.SetWidth(393);
-    $with1.Memo1.SetTabOrder(17);
+    $with1.Memo1.FLines.SetCommaText("asd,zxc");
+    $with1.Memo1.ScrollBars = pas.WebCtrls.TScrollStyle.ssVertical;
     $with1.Memo1.EndUpdate();
     $with1.Button2 = pas.WebCtrls.TButton.$create("Create$1",[pas.Unit1.Form1]);
     $with1.Button2.BeginUpdate();
@@ -7880,7 +7996,6 @@ rtl.module("unit1frm",["System","SysUtils","Classes","Dialogs","Controls","StdCt
     $with1.Button2.SetWidth(53);
     $with1.Button2.SetText("GetText");
     $with1.Button2.FOnClick = rtl.createCallback($with1,"Button2Click");
-    $with1.Button2.SetTabOrder(14);
     $with1.Button2.EndUpdate();
     $with1.Button4 = pas.WebCtrls.TButton.$create("Create$1",[pas.Unit1.Form1]);
     $with1.Button4.BeginUpdate();
@@ -7891,7 +8006,6 @@ rtl.module("unit1frm",["System","SysUtils","Classes","Dialogs","Controls","StdCt
     $with1.Button4.SetWidth(53);
     $with1.Button4.SetText("SetText");
     $with1.Button4.FOnClick = rtl.createCallback($with1,"Button4Click");
-    $with1.Button4.SetTabOrder(15);
     $with1.Button4.EndUpdate();
     $with1.CheckBox1 = pas.WebCtrls.TCheckbox.$create("Create$1",[pas.Unit1.Form1]);
     $with1.CheckBox1.BeginUpdate();
@@ -7900,9 +8014,9 @@ rtl.module("unit1frm",["System","SysUtils","Classes","Dialogs","Controls","StdCt
     $with1.CheckBox1.SetHeight(21);
     $with1.CheckBox1.SetTop(76);
     $with1.CheckBox1.SetWidth(86);
+    $with1.CheckBox1.AllowGrayed = true;
     $with1.CheckBox1.SetText("CheckBox1");
     $with1.CheckBox1.SetState(pas.StdCtrls.TCheckBoxState.cbGrayed);
-    $with1.CheckBox1.SetTabOrder(4);
     $with1.CheckBox1.EndUpdate();
     $with1.Button6 = pas.WebCtrls.TButton.$create("Create$1",[pas.Unit1.Form1]);
     $with1.Button6.BeginUpdate();
@@ -7913,7 +8027,6 @@ rtl.module("unit1frm",["System","SysUtils","Classes","Dialogs","Controls","StdCt
     $with1.Button6.SetWidth(53);
     $with1.Button6.SetText("Grayed");
     $with1.Button6.FOnClick = rtl.createCallback($with1,"Button6Click");
-    $with1.Button6.SetTabOrder(7);
     $with1.Button6.EndUpdate();
     $with1.Button7 = pas.WebCtrls.TButton.$create("Create$1",[pas.Unit1.Form1]);
     $with1.Button7.BeginUpdate();
@@ -7924,7 +8037,6 @@ rtl.module("unit1frm",["System","SysUtils","Classes","Dialogs","Controls","StdCt
     $with1.Button7.SetWidth(29);
     $with1.Button7.SetText("DD");
     $with1.Button7.FOnClick = rtl.createCallback($with1,"Button7Click");
-    $with1.Button7.SetTabOrder(1);
     $with1.Button7.EndUpdate();
     $with1.Button8 = pas.WebCtrls.TButton.$create("Create$1",[pas.Unit1.Form1]);
     $with1.Button8.BeginUpdate();
@@ -7936,7 +8048,6 @@ rtl.module("unit1frm",["System","SysUtils","Classes","Dialogs","Controls","StdCt
     $with1.Button8.SetText("Disabled");
     $with1.Button8.SetEnabled(false);
     $with1.Button8.FOnClick = rtl.createCallback($with1,"Button8Click");
-    $with1.Button8.SetTabOrder(3);
     $with1.Button8.EndUpdate();
     $with1.Button9 = pas.WebCtrls.TButton.$create("Create$1",[pas.Unit1.Form1]);
     $with1.Button9.BeginUpdate();
@@ -7947,7 +8058,6 @@ rtl.module("unit1frm",["System","SysUtils","Classes","Dialogs","Controls","StdCt
     $with1.Button9.SetWidth(33);
     $with1.Button9.SetText("Sh\/H");
     $with1.Button9.FOnClick = rtl.createCallback($with1,"Button9Click");
-    $with1.Button9.SetTabOrder(10);
     $with1.Button9.EndUpdate();
     $with1.Button10 = pas.WebCtrls.TButton.$create("Create$1",[pas.Unit1.Form1]);
     $with1.Button10.BeginUpdate();
@@ -7958,7 +8068,6 @@ rtl.module("unit1frm",["System","SysUtils","Classes","Dialogs","Controls","StdCt
     $with1.Button10.SetWidth(69);
     $with1.Button10.SetText("Invisible!!!");
     $with1.Button10.FOnClick = rtl.createCallback($with1,"Button10Click");
-    $with1.Button10.SetTabOrder(2);
     $with1.Button10.SetVisible(false);
     $with1.Button10.EndUpdate();
     $with1.CheckBox2 = pas.WebCtrls.TCheckbox.$create("Create$1",[pas.Unit1.Form1]);
@@ -7971,7 +8080,6 @@ rtl.module("unit1frm",["System","SysUtils","Classes","Dialogs","Controls","StdCt
     $with1.CheckBox2.SetText("CheckBox2");
     $with1.CheckBox2.SetChecked(true);
     $with1.CheckBox2.SetState(pas.StdCtrls.TCheckBoxState.cbChecked);
-    $with1.CheckBox2.SetTabOrder(5);
     $with1.CheckBox2.EndUpdate();
     $with1.CheckBox3 = pas.WebCtrls.TCheckbox.$create("Create$1",[pas.Unit1.Form1]);
     $with1.CheckBox3.BeginUpdate();
@@ -7981,7 +8089,6 @@ rtl.module("unit1frm",["System","SysUtils","Classes","Dialogs","Controls","StdCt
     $with1.CheckBox3.SetTop(116);
     $with1.CheckBox3.SetWidth(86);
     $with1.CheckBox3.SetText("CheckBox3");
-    $with1.CheckBox3.SetTabOrder(6);
     $with1.CheckBox3.EndUpdate();
     $with1.ComboBox2 = pas.WebCtrls.TComboBox.$create("Create$1",[pas.Unit1.Form1]);
     $with1.ComboBox2.BeginUpdate();
@@ -7991,7 +8098,8 @@ rtl.module("unit1frm",["System","SysUtils","Classes","Dialogs","Controls","StdCt
     $with1.ComboBox2.SetTop(44);
     $with1.ComboBox2.SetWidth(25);
     $with1.ComboBox2.SetItemHeight(17);
-    $with1.ComboBox2.SetTabOrder(8);
+    $with1.ComboBox2.FItems.SetCommaText("5,4,3,2,1");
+    $with1.ComboBox2.Style = pas.WebCtrls.TComboBoxStyle.csSimple;
     $with1.ComboBox2.SetText("10");
     $with1.ComboBox2.EndUpdate();
     $with1.StaticText1 = pas.WebCtrls.TStaticText.$create("Create$1",[pas.Unit1.Form1]);
@@ -8001,6 +8109,8 @@ rtl.module("unit1frm",["System","SysUtils","Classes","Dialogs","Controls","StdCt
     $with1.StaticText1.SetHeight(17);
     $with1.StaticText1.SetTop(512);
     $with1.StaticText1.SetWidth(68);
+    $with1.StaticText1.SetAlignment(pas.Classes.TAlignment.taCenter);
+    $with1.StaticText1.BorderStyle = pas.WebCtrls.TStaticBorderStyle.sbsSunken;
     $with1.StaticText1.SetText("StaticText");
     $with1.StaticText1.EndUpdate();
     $with1.Label1 = pas.WebCtrls.TLabel.$create("Create$1",[pas.Unit1.Form1]);
@@ -8023,7 +8133,6 @@ rtl.module("unit1frm",["System","SysUtils","Classes","Dialogs","Controls","StdCt
     $with1.Button5.SetCancel(true);
     $with1.Button5.SetText("Cancel Button");
     $with1.Button5.FOnClick = rtl.createCallback($with1,"Button5Click");
-    $with1.Button5.SetTabOrder(19);
     $with1.Button5.EndUpdate();
     $with1.Button11 = pas.WebCtrls.TButton.$create("Create$1",[pas.Unit1.Form1]);
     $with1.Button11.BeginUpdate();
@@ -8035,7 +8144,6 @@ rtl.module("unit1frm",["System","SysUtils","Classes","Dialogs","Controls","StdCt
     $with1.Button11.SetText("Default Button");
     $with1.Button11.SetDefault(true);
     $with1.Button11.FOnClick = rtl.createCallback($with1,"Button11Click");
-    $with1.Button11.SetTabOrder(20);
     $with1.Button11.EndUpdate();
     $with1.ProgressBar1 = pas.WebCtrls.TProgressBar.$create("Create$1",[pas.Unit1.Form1]);
     $with1.ProgressBar1.BeginUpdate();
@@ -8052,107 +8160,16 @@ rtl.module("unit1frm",["System","SysUtils","Classes","Dialogs","Controls","StdCt
     $with1.StaticText2.SetHeight(17);
     $with1.StaticText2.SetTop(184);
     $with1.StaticText2.SetWidth(217);
+    $with1.StaticText2.SetAlignment(pas.Classes.TAlignment.taCenter);
     $with1.StaticText2.SetText("(Reserved for dynamic control)");
     $with1.StaticText2.SetVisible(false);
     $with1.StaticText2.EndUpdate();
     $with1.Timer1 = pas.WebCtrls.TTimer.$create("Create$1",[pas.Unit1.Form1]);
     $with1.Timer1.BeginUpdate();
     $with1.Timer1.SetParent(pas.Unit1.Form1);
+    $with1.Timer1.OnTimer = rtl.createCallback($with1,"Timer1Timer");
     $with1.Timer1.SetLeft(368);
     $with1.Timer1.EndUpdate();
-    $with1.MainMenu1 = pas.WebCtrls.TMainMenu.$create("Create$1",[pas.Unit1.Form1]);
-    $with1.MainMenu1.BeginUpdate();
-    $with1.MainMenu1.SetParent(pas.Unit1.Form1);
-    $with1.MainMenu1.SetLeft(336);
-    $with1.MenuItem1 = pas.WebCtrls.TMenuItem.$create("Create$1",[$with1.MainMenu1]);
-    $with1.MenuItem1.BeginUpdate();
-    $with1.MenuItem1.SetParent($with1.MainMenu1);
-    $with1.MenuItem1.SetText("&Menu1");
-    $with1.MenuItem3 = pas.WebCtrls.TMenuItem.$create("Create$1",[$with1.MenuItem1]);
-    $with1.MenuItem3.BeginUpdate();
-    $with1.MenuItem3.SetParent($with1.MenuItem1);
-    $with1.MenuItem3.SetText("Menu11");
-    $with1.MenuItem3.EndUpdate();
-    $with1.MenuItem4 = pas.WebCtrls.TMenuItem.$create("Create$1",[$with1.MenuItem1]);
-    $with1.MenuItem4.BeginUpdate();
-    $with1.MenuItem4.SetParent($with1.MenuItem1);
-    $with1.MenuItem4.SetText("Menu12");
-    $with1.MenuItem4.SetEnabled(false);
-    $with1.MenuItem4.EndUpdate();
-    $with1.MenuItem13 = pas.WebCtrls.TMenuItem.$create("Create$1",[$with1.MenuItem1]);
-    $with1.MenuItem13.BeginUpdate();
-    $with1.MenuItem13.SetParent($with1.MenuItem1);
-    $with1.MenuItem13.SetText("-");
-    $with1.MenuItem13.EndUpdate();
-    $with1.MenuItem11 = pas.WebCtrls.TMenuItem.$create("Create$1",[$with1.MenuItem1]);
-    $with1.MenuItem11.BeginUpdate();
-    $with1.MenuItem11.SetParent($with1.MenuItem1);
-    $with1.MenuItem11.SetText("Open File...");
-    $with1.MenuItem11.FOnClick = rtl.createCallback($with1,"MenuItem11Click");
-    $with1.MenuItem11.EndUpdate();
-    $with1.MenuItem12 = pas.WebCtrls.TMenuItem.$create("Create$1",[$with1.MenuItem1]);
-    $with1.MenuItem12.BeginUpdate();
-    $with1.MenuItem12.SetParent($with1.MenuItem1);
-    $with1.MenuItem12.SetText("Save File...");
-    $with1.MenuItem12.FOnClick = rtl.createCallback($with1,"MenuItem12Click");
-    $with1.MenuItem12.EndUpdate();
-    $with1.MenuItem5 = pas.WebCtrls.TMenuItem.$create("Create$1",[$with1.MenuItem1]);
-    $with1.MenuItem5.BeginUpdate();
-    $with1.MenuItem5.SetParent($with1.MenuItem1);
-    $with1.MenuItem5.SetText("-");
-    $with1.MenuItem5.EndUpdate();
-    $with1.MenuItem6 = pas.WebCtrls.TMenuItem.$create("Create$1",[$with1.MenuItem1]);
-    $with1.MenuItem6.BeginUpdate();
-    $with1.MenuItem6.SetParent($with1.MenuItem1);
-    $with1.MenuItem6.SetText("Quit");
-    $with1.MenuItem6.FOnClick = rtl.createCallback($with1,"MenuItem6Click");
-    $with1.MenuItem6.EndUpdate();
-    $with1.MenuItem1.EndUpdate();
-    $with1.MenuItem2 = pas.WebCtrls.TMenuItem.$create("Create$1",[$with1.MainMenu1]);
-    $with1.MenuItem2.BeginUpdate();
-    $with1.MenuItem2.SetParent($with1.MainMenu1);
-    $with1.MenuItem2.SetText("M&enu2");
-    $with1.MenuItem7 = pas.WebCtrls.TMenuItem.$create("Create$1",[$with1.MenuItem2]);
-    $with1.MenuItem7.BeginUpdate();
-    $with1.MenuItem7.SetParent($with1.MenuItem2);
-    $with1.MenuItem7.SetText("Menu21");
-    $with1.MenuItem7.FOnClick = rtl.createCallback($with1,"MenuItem7Click");
-    $with1.MenuItem7.EndUpdate();
-    $with1.MenuItem8 = pas.WebCtrls.TMenuItem.$create("Create$1",[$with1.MenuItem2]);
-    $with1.MenuItem8.BeginUpdate();
-    $with1.MenuItem8.SetParent($with1.MenuItem2);
-    $with1.MenuItem8.SetText("Menu22");
-    $with1.MenuItem8.FOnClick = rtl.createCallback($with1,"MenuItem8Click");
-    $with1.MenuItem8.EndUpdate();
-    $with1.MenuItem2.EndUpdate();
-    $with1.MainMenu1.EndUpdate();
-    $with1.PopupMenu1 = pas.WebCtrls.TPopupMenu.$create("Create$1",[pas.Unit1.Form1]);
-    $with1.PopupMenu1.BeginUpdate();
-    $with1.PopupMenu1.SetParent(pas.Unit1.Form1);
-    $with1.PopupMenu1.SetLeft(304);
-    $with1.MenuItem9 = pas.WebCtrls.TMenuItem.$create("Create$1",[$with1.PopupMenu1]);
-    $with1.MenuItem9.BeginUpdate();
-    $with1.MenuItem9.SetParent($with1.PopupMenu1);
-    $with1.MenuItem9.SetText("Popup1");
-    $with1.MenuItem9.FOnClick = rtl.createCallback($with1,"MenuItem9Click");
-    $with1.MenuItem9.EndUpdate();
-    $with1.MenuItem10 = pas.WebCtrls.TMenuItem.$create("Create$1",[$with1.PopupMenu1]);
-    $with1.MenuItem10.BeginUpdate();
-    $with1.MenuItem10.SetParent($with1.PopupMenu1);
-    $with1.MenuItem10.SetText("Popup2");
-    $with1.MenuItem10.FOnClick = rtl.createCallback($with1,"MenuItem10Click");
-    $with1.MenuItem10.EndUpdate();
-    $with1.PopupMenu1.EndUpdate();
-    $with1.OpenDialog1 = pas.WebCtrls.TOpenDialog.$create("Create$1",[pas.Unit1.Form1]);
-    $with1.OpenDialog1.BeginUpdate();
-    $with1.OpenDialog1.SetParent(pas.Unit1.Form1);
-    $with1.OpenDialog1.SetLeft(240);
-    $with1.OpenDialog1.EndUpdate();
-    $with1.SaveDialog1 = pas.WebCtrls.TSaveDialog.$create("Create$1",[pas.Unit1.Form1]);
-    $with1.SaveDialog1.BeginUpdate();
-    $with1.SaveDialog1.SetParent(pas.Unit1.Form1);
-    $with1.SaveDialog1.SetLeft(272);
-    $with1.SaveDialog1.EndUpdate();
     pas.Unit1.Form1.EndUpdate();
   };
 },["Unit1"]);
