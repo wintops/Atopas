@@ -1,0 +1,394 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CONFIG>
+  <ProjectSession>
+    <PathDelim Value="\"/>
+    <Version Value="11"/>
+    <BuildModes Active="Default"/>
+    <Units Count="29">
+      <Unit0>
+        <Filename Value="LLCLJS.pas"/>
+        <IsPartOfProject Value="True"/>
+        <EditorIndex Value="4"/>
+        <CursorPos X="30" Y="20"/>
+        <UsageCount Value="29"/>
+        <Loaded Value="True"/>
+      </Unit0>
+      <Unit1>
+        <Filename Value="llcljs.html"/>
+        <IsPartOfProject Value="True"/>
+        <EditorIndex Value="-1"/>
+        <WindowIndex Value="-1"/>
+        <TopLine Value="-1"/>
+        <CursorPos X="-1" Y="-1"/>
+        <UsageCount Value="29"/>
+        <DefaultSyntaxHighlighter Value="HTML"/>
+      </Unit1>
+      <Unit2>
+        <Filename Value="llcljs.js"/>
+        <IsPartOfProject Value="True"/>
+        <EditorIndex Value="-1"/>
+        <TopLine Value="3087"/>
+        <CursorPos X="26" Y="3105"/>
+        <UsageCount Value="29"/>
+        <DefaultSyntaxHighlighter Value="JScript"/>
+      </Unit2>
+      <Unit3>
+        <Filename Value="unit1.pas"/>
+        <IsPartOfProject Value="True"/>
+        <ComponentName Value="Form1"/>
+        <HasResources Value="True"/>
+        <ResourceBaseClass Value="Form"/>
+        <UnitName Value="Unit1"/>
+        <TopLine Value="157"/>
+        <CursorPos X="184" Y="223"/>
+        <UsageCount Value="29"/>
+        <Loaded Value="True"/>
+      </Unit3>
+      <Unit4>
+        <Filename Value="llcl.html"/>
+        <CustomData Count="1">
+          <Item0 Name="PasJSIsProjectHTMLFile" Value="1"/>
+        </CustomData>
+        <EditorIndex Value="-1"/>
+        <CursorPos X="38" Y="6"/>
+        <UsageCount Value="19"/>
+        <DefaultSyntaxHighlighter Value="HTML"/>
+      </Unit4>
+      <Unit5>
+        <Filename Value="..\..\pasjs\Classes.pas"/>
+        <EditorIndex Value="-1"/>
+        <TopLine Value="76"/>
+        <CursorPos X="21" Y="89"/>
+        <UsageCount Value="9"/>
+      </Unit5>
+      <Unit6>
+        <Filename Value="..\..\..\PASJS\pas2js\packages\rtl\classes.pas"/>
+        <UnitName Value="Classes"/>
+        <EditorIndex Value="18"/>
+        <TopLine Value="560"/>
+        <CursorPos X="17" Y="576"/>
+        <UsageCount Value="15"/>
+        <Loaded Value="True"/>
+      </Unit6>
+      <Unit7>
+        <Filename Value="..\..\pasjs\SysUtils.pas"/>
+        <EditorIndex Value="-1"/>
+        <TopLine Value="68"/>
+        <CursorPos X="21" Y="81"/>
+        <UsageCount Value="9"/>
+      </Unit7>
+      <Unit8>
+        <Filename Value="..\..\pasjs\Variants.pas"/>
+        <EditorIndex Value="-1"/>
+        <CursorPos X="73" Y="2"/>
+        <UsageCount Value="9"/>
+      </Unit8>
+      <Unit9>
+        <Filename Value="..\..\pasjs\Menus.pas"/>
+        <EditorIndex Value="-1"/>
+        <TopLine Value="31"/>
+        <CursorPos X="48" Y="42"/>
+        <UsageCount Value="9"/>
+      </Unit9>
+      <Unit10>
+        <Filename Value="..\..\pasjs\XPMan.pas"/>
+        <EditorIndex Value="-1"/>
+        <TopLine Value="48"/>
+        <CursorPos X="5" Y="67"/>
+        <UsageCount Value="9"/>
+      </Unit10>
+      <Unit11>
+        <Filename Value="..\..\pasjs\forms.pas"/>
+        <UnitName Value="Forms"/>
+        <EditorIndex Value="16"/>
+        <TopLine Value="40"/>
+        <CursorPos X="62" Y="55"/>
+        <UsageCount Value="15"/>
+        <Loaded Value="True"/>
+      </Unit11>
+      <Unit12>
+        <Filename Value="..\..\pasjs\stdctrls.pas"/>
+        <UnitName Value="StdCtrls"/>
+        <EditorIndex Value="19"/>
+        <TopLine Value="76"/>
+        <CursorPos X="26" Y="88"/>
+        <UsageCount Value="15"/>
+        <Loaded Value="True"/>
+      </Unit12>
+      <Unit13>
+        <Filename Value="..\..\pasjs\jsctrls.pas"/>
+        <EditorIndex Value="10"/>
+        <TopLine Value="35"/>
+        <CursorPos X="147" Y="45"/>
+        <UsageCount Value="15"/>
+        <Loaded Value="True"/>
+      </Unit13>
+      <Unit14>
+        <Filename Value="..\..\pasjs\webctrls.pas"/>
+        <UnitName Value="WebCtrls"/>
+        <IsVisibleTab Value="True"/>
+        <EditorIndex Value="11"/>
+        <TopLine Value="804"/>
+        <CursorPos X="29" Y="846"/>
+        <UsageCount Value="15"/>
+        <Loaded Value="True"/>
+      </Unit14>
+      <Unit15>
+        <Filename Value="..\..\sources\LLCLFPCInc.inc"/>
+        <EditorIndex Value="9"/>
+        <TopLine Value="28"/>
+        <UsageCount Value="15"/>
+        <Loaded Value="True"/>
+      </Unit15>
+      <Unit16>
+        <Filename Value="..\..\..\PASJS\pas2js\packages\rtl\sysutils.pas"/>
+        <UnitName Value="SysUtils"/>
+        <EditorIndex Value="3"/>
+        <TopLine Value="632"/>
+        <CursorPos X="81" Y="620"/>
+        <UsageCount Value="15"/>
+        <Loaded Value="True"/>
+      </Unit16>
+      <Unit17>
+        <Filename Value="..\..\pasjs\dialogs.pas"/>
+        <UnitName Value="Dialogs"/>
+        <EditorIndex Value="14"/>
+        <TopLine Value="28"/>
+        <CursorPos X="73" Y="39"/>
+        <UsageCount Value="15"/>
+        <Loaded Value="True"/>
+      </Unit17>
+      <Unit18>
+        <Filename Value="..\..\pasjs\controls.pas"/>
+        <UnitName Value="Controls"/>
+        <EditorIndex Value="15"/>
+        <TopLine Value="2386"/>
+        <CursorPos X="145" Y="2012"/>
+        <UsageCount Value="15"/>
+        <Loaded Value="True"/>
+      </Unit18>
+      <Unit19>
+        <Filename Value="..\..\..\PASJS\pas2js\packages\fcl-base\browserapp.pas"/>
+        <EditorIndex Value="12"/>
+        <TopLine Value="4"/>
+        <CursorPos X="3" Y="14"/>
+        <UsageCount Value="15"/>
+        <Loaded Value="True"/>
+      </Unit19>
+      <Unit20>
+        <Filename Value="..\..\..\PASJS\pas2js\packages\fcl-base\custapp.pas"/>
+        <UnitName Value="CustApp"/>
+        <EditorIndex Value="13"/>
+        <TopLine Value="57"/>
+        <CursorPos X="3" Y="37"/>
+        <UsageCount Value="15"/>
+        <Loaded Value="True"/>
+      </Unit20>
+      <Unit21>
+        <Filename Value="..\..\pasjs\dttctrls.pas"/>
+        <UnitName Value="DttCtrls"/>
+        <EditorIndex Value="8"/>
+        <TopLine Value="16"/>
+        <CursorPos X="33" Y="40"/>
+        <UsageCount Value="15"/>
+        <Loaded Value="True"/>
+      </Unit21>
+      <Unit22>
+        <Filename Value="..\..\pasjs\graphics.pas"/>
+        <UnitName Value="Graphics"/>
+        <EditorIndex Value="17"/>
+        <TopLine Value="737"/>
+        <CursorPos X="24" Y="741"/>
+        <UsageCount Value="15"/>
+        <Loaded Value="True"/>
+      </Unit22>
+      <Unit23>
+        <Filename Value="C:\work\js\Pas2JS_Widget-master\test\unit1.wfm"/>
+        <EditorIndex Value="5"/>
+        <TopLine Value="7"/>
+        <CursorPos X="6" Y="17"/>
+        <UsageCount Value="14"/>
+        <Loaded Value="True"/>
+        <DefaultSyntaxHighlighter Value="None"/>
+      </Unit23>
+      <Unit24>
+        <Filename Value="C:\work\js\Pas2JS_Widget-master\test\unit1.lfm"/>
+        <EditorIndex Value="6"/>
+        <UsageCount Value="14"/>
+        <Loaded Value="True"/>
+        <DefaultSyntaxHighlighter Value="LFM"/>
+      </Unit24>
+      <Unit25>
+        <Filename Value="unit1.lfm"/>
+        <EditorIndex Value="-1"/>
+        <TopLine Value="22"/>
+        <CursorPos X="23" Y="83"/>
+        <UsageCount Value="11"/>
+        <DefaultSyntaxHighlighter Value="LFM"/>
+      </Unit25>
+      <Unit26>
+        <Filename Value="C:\work\js\Pas2JS_Widget-master\pas2js\packages\rtl\nodejs.pas"/>
+        <UnitName Value="NodeJS"/>
+        <EditorIndex Value="1"/>
+        <TopLine Value="13"/>
+        <UsageCount Value="14"/>
+        <Loaded Value="True"/>
+      </Unit26>
+      <Unit27>
+        <Filename Value="C:\work\js\Pas2JS_Widget-master\test\unit1.pas"/>
+        <UnitName Value="Unit1"/>
+        <EditorIndex Value="7"/>
+        <TopLine Value="6"/>
+        <CursorPos Y="3"/>
+        <UsageCount Value="13"/>
+        <Loaded Value="True"/>
+      </Unit27>
+      <Unit28>
+        <Filename Value="unit1frm.pas"/>
+        <IsPartOfProject Value="True"/>
+        <EditorIndex Value="2"/>
+        <TopLine Value="392"/>
+        <CursorPos X="3" Y="404"/>
+        <UsageCount Value="24"/>
+        <Loaded Value="True"/>
+        <DefaultSyntaxHighlighter Value="Delphi"/>
+      </Unit28>
+    </Units>
+    <OtherDefines Count="2">
+      <Define0 Value="PASJS"/>
+      <Define1 Value="IS_FPC_OBJFPC_MODE"/>
+    </OtherDefines>
+    <JumpHistory Count="30" HistoryIndex="29">
+      <Position1>
+        <Filename Value="unit1frm.pas"/>
+        <Caret Line="46" Column="4" TopLine="34"/>
+      </Position1>
+      <Position2>
+        <Filename Value="unit1frm.pas"/>
+        <Caret Line="49" Column="3" TopLine="37"/>
+      </Position2>
+      <Position3>
+        <Filename Value="unit1frm.pas"/>
+        <Caret Line="51" Column="3" TopLine="39"/>
+      </Position3>
+      <Position4>
+        <Filename Value="unit1frm.pas"/>
+        <Caret Line="60" Column="3" TopLine="48"/>
+      </Position4>
+      <Position5>
+        <Filename Value="unit1frm.pas"/>
+        <Caret Line="63" Column="3" TopLine="51"/>
+      </Position5>
+      <Position6>
+        <Filename Value="unit1frm.pas"/>
+        <Caret Line="65" Column="3" TopLine="53"/>
+      </Position6>
+      <Position7>
+        <Filename Value="unit1frm.pas"/>
+        <Caret Line="76" Column="3" TopLine="64"/>
+      </Position7>
+      <Position8>
+        <Filename Value="unit1frm.pas"/>
+        <Caret Line="77" Column="3" TopLine="65"/>
+      </Position8>
+      <Position9>
+        <Filename Value="unit1frm.pas"/>
+        <Caret Line="81" Column="3" TopLine="69"/>
+      </Position9>
+      <Position10>
+        <Filename Value="unit1frm.pas"/>
+        <Caret Line="82" Column="3" TopLine="70"/>
+      </Position10>
+      <Position11>
+        <Filename Value="unit1frm.pas"/>
+        <Caret Line="94" Column="3" TopLine="82"/>
+      </Position11>
+      <Position12>
+        <Filename Value="unit1frm.pas"/>
+        <Caret Line="97" Column="3" TopLine="85"/>
+      </Position12>
+      <Position13>
+        <Filename Value="unit1frm.pas"/>
+        <Caret Line="126" Column="3" TopLine="114"/>
+      </Position13>
+      <Position14>
+        <Filename Value="unit1frm.pas"/>
+        <Caret Line="129" Column="3" TopLine="117"/>
+      </Position14>
+      <Position15>
+        <Filename Value="unit1frm.pas"/>
+        <Caret Line="154" Column="3" TopLine="142"/>
+      </Position15>
+      <Position16>
+        <Filename Value="unit1frm.pas"/>
+        <Caret Line="157" Column="3" TopLine="145"/>
+      </Position16>
+      <Position17>
+        <Filename Value="unit1frm.pas"/>
+        <Caret Line="158" Column="3" TopLine="146"/>
+      </Position17>
+      <Position18>
+        <Filename Value="unit1frm.pas"/>
+        <Caret Line="159" Column="3" TopLine="147"/>
+      </Position18>
+      <Position19>
+        <Filename Value="unit1frm.pas"/>
+        <Caret Line="161" Column="3" TopLine="149"/>
+      </Position19>
+      <Position20>
+        <Filename Value="unit1frm.pas"/>
+        <Caret Line="171" Column="3" TopLine="159"/>
+      </Position20>
+      <Position21>
+        <Filename Value="unit1frm.pas"/>
+        <Caret Line="206" Column="3" TopLine="194"/>
+      </Position21>
+      <Position22>
+        <Filename Value="unit1frm.pas"/>
+        <Caret Line="306" Column="3" TopLine="294"/>
+      </Position22>
+      <Position23>
+        <Filename Value="unit1frm.pas"/>
+        <Caret Line="318" Column="3" TopLine="306"/>
+      </Position23>
+      <Position24>
+        <Filename Value="unit1frm.pas"/>
+        <Caret Line="319" Column="3" TopLine="307"/>
+      </Position24>
+      <Position25>
+        <Filename Value="unit1frm.pas"/>
+        <Caret Line="321" Column="3" TopLine="309"/>
+      </Position25>
+      <Position26>
+        <Filename Value="unit1frm.pas"/>
+        <Caret Line="368" Column="3" TopLine="356"/>
+      </Position26>
+      <Position27>
+        <Filename Value="unit1frm.pas"/>
+        <Caret Line="378" Column="3" TopLine="366"/>
+      </Position27>
+      <Position28>
+        <Filename Value="unit1frm.pas"/>
+        <Caret Line="380" Column="3" TopLine="368"/>
+      </Position28>
+      <Position29>
+        <Filename Value="unit1frm.pas"/>
+        <Caret Line="387" Column="3" TopLine="375"/>
+      </Position29>
+      <Position30>
+        <Filename Value="unit1frm.pas"/>
+        <Caret Line="402" Column="3" TopLine="390"/>
+      </Position30>
+    </JumpHistory>
+    <RunParams>
+      <FormatVersion Value="2"/>
+      <Modes Count="1" ActiveMode="Default">
+        <Mode0 Name="Default">
+          <local>
+            <LaunchingApplication Use="True" PathPlusParams="&quot;$(Pas2JSBrowser)&quot; &quot;$(Pas2JSProjectURL)&quot;"/>
+          </local>
+        </Mode0>
+      </Modes>
+    </RunParams>
+  </ProjectSession>
+</CONFIG>
