@@ -4,7 +4,7 @@ unit unit1frm;
 
 interface
 
-uses SysUtils, Classes, Dialogs, Controls, StdCtrls, Forms, Graphics, WebCtrls;
+uses SysUtils, Classes, Dialogs, Controls, StdCtrls, Forms, Graphics, WebCtrls,WebCtrlsMore;
 
 procedure Loaded;
 
@@ -158,7 +158,7 @@ begin
     Memo1.Top := 216;
     Memo1.Width := 393;
     Memo1.Lines.CommaText := 'asd,zxc';
-    Memo1.ScrollBars := ssVertical;
+//    Memo1.ScrollBars := ssVertical;
     Memo1.EndUpdate;
 
     Button2 := TButton.Create(Form1);
@@ -190,7 +190,7 @@ begin
     CheckBox1.Height := 21;
     CheckBox1.Top := 76;
     CheckBox1.Width := 100;
-    CheckBox1.AllowGrayed := True;
+//    CheckBox1.AllowGrayed := True;
     CheckBox1.Caption := 'CheckBox1';
     CheckBox1.State := cbGrayed;
     CheckBox1.EndUpdate;
@@ -287,7 +287,7 @@ begin
     ComboBox2.Width := 25;
     ComboBox2.ItemHeight := 17;
     ComboBox2.Items.CommaText := '5,4,3,2,1';
-    ComboBox2.Style := csSimple;
+//    ComboBox2.Style := csSimple;
     ComboBox2.Text := '10';
     ComboBox2.EndUpdate;
 
@@ -361,12 +361,7 @@ begin
 
 
     Timer1 := TTimer.Create(Form1);
-    Timer1.BeginUpdate;
-    Timer1.Parent := Form1;
     Timer1.OnTimer := Timer1Timer;
-    Timer1.Width := 0;
-    Timer1.Height:=0;
-    Timer1.EndUpdate;
 
   {
   MainMenu1 := TMainMenu.Create(Form1);

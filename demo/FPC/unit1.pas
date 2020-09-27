@@ -20,7 +20,7 @@ interface
 
 uses  SysUtils, Classes, Dialogs, Controls, StdCtrls, Forms,
  {$IFDEF PASJS}
-   WebCtrls
+   WebCtrls,WebCtrlsMore
  {$ELSE}
 
   {$IFDEF FPC}LazUTF8, LCLType,{$ELSE} Variants, XPMan,{$ENDIF}
@@ -97,12 +97,12 @@ type
     procedure ComboBox1Change(Sender: TObject);
     procedure ListBox1DblClick(Sender: TObject);
     procedure FormMouseDown(Sender: TObject; Button: TMouseButton;
-      Shift: TShiftState; X, Y: Integer);
+      Shift: TShiftState; X, Y: {$IFDEF PASJS}NativeInt{$ELSE}Integer{$ENDIF});
     procedure FormMouseUp(Sender: TObject; Button: TMouseButton;
-      Shift: TShiftState; X, Y: Integer);
-    procedure FormKeyDown(Sender: TObject; var Key: Word;
+      Shift: TShiftState; X, Y: {$IFDEF PASJS}NativeInt{$ELSE}Integer{$ENDIF});
+    procedure FormKeyDown(Sender: TObject; var Key: {$IFDEF PASJS}NativeInt{$ELSE}Word{$ENDIF};
       Shift: TShiftState);
-    procedure FormKeyUp(Sender: TObject; var Key: Word;
+    procedure FormKeyUp(Sender: TObject; var Key: {$IFDEF PASJS}NativeInt{$ELSE}Word{$ENDIF};
       Shift: TShiftState);
     procedure FormKeyPress(Sender: TObject; var Key: Char);
     procedure Timer1Timer(Sender: TObject);
@@ -308,7 +308,7 @@ begin
 end;
 
 procedure TForm1.FormMouseDown(Sender: TObject; Button: TMouseButton;
-  Shift: TShiftState; X, Y: Integer);
+  Shift: TShiftState; X, Y: {$IFDEF PASJS}NativeInt{$ELSE}Integer{$ENDIF});
 var s: String;
 begin
   // Mouse button down (any button) over Form1
@@ -317,7 +317,7 @@ begin
 end;
 
 procedure TForm1.FormMouseUp(Sender: TObject; Button: TMouseButton;
-  Shift: TShiftState; X, Y: Integer);
+  Shift: TShiftState; X, Y: {$IFDEF PASJS}NativeInt{$ELSE}Integer{$ENDIF});
 begin
   // Mouse button up (any button) over Form1
   MemoAddLineFmt(Memo1,'FormMouseUp at %d %d', [x,y]);
@@ -326,7 +326,7 @@ begin
     PopupMenu1.Popup(Mouse.CursorPos.X,Mouse.CursorPos.Y);
 end;
 
-procedure TForm1.FormKeyDown(Sender: TObject; var Key: Word;
+procedure TForm1.FormKeyDown(Sender: TObject; var Key: {$IFDEF PASJS}NativeInt{$ELSE}Word{$ENDIF};
   Shift: TShiftState);
 begin
   // Keyboard key down (in most of controls)
@@ -334,7 +334,7 @@ begin
   MemoAddLineFmt(Memo1,'FormKeyDown %d', [key]);
 end;
 
-procedure TForm1.FormKeyUp(Sender: TObject; var Key: Word;
+procedure TForm1.FormKeyUp(Sender: TObject; var Key: {$IFDEF PASJS}NativeInt{$ELSE}Word{$ENDIF};
   Shift: TShiftState);
 begin
   // Keyboard key up (in most of controls)

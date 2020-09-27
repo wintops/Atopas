@@ -9,12 +9,7 @@ uses
   unit1,
   unit1frm,
   WebCtrls,
-  Forms,
-
-  JS,
-  Classes,
-  SysUtils,
-  Web;
+  Forms, WebCtrlsMore;
 
 begin
 

@@ -32,7 +32,7 @@
       <FormatVersion Value="2"/>
       <Modes Count="0"/>
     </RunParams>
-    <Units Count="5">
+    <Units Count="9">
       <Unit0>
         <Filename Value="LLCLJS.pas"/>
         <IsPartOfProject Value="True"/>
@@ -40,6 +40,9 @@
       <Unit1>
         <Filename Value="llcljs.html"/>
         <IsPartOfProject Value="True"/>
+        <CustomData Count="1">
+          <Item0 Name="PasJSIsProjectHTMLFile" Value="1"/>
+        </CustomData>
       </Unit1>
       <Unit2>
         <Filename Value="llcljs.js"/>
@@ -57,6 +60,25 @@
         <Filename Value="unit1frm.pas"/>
         <IsPartOfProject Value="True"/>
       </Unit4>
+      <Unit5>
+        <Filename Value="..\..\pasjs_llcl\p2jsres.pas"/>
+        <IsPartOfProject Value="True"/>
+      </Unit5>
+      <Unit6>
+        <Filename Value="..\..\pasjs_llcl\web.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="Web"/>
+      </Unit6>
+      <Unit7>
+        <Filename Value="..\..\pasjs_llcl\classesmore.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="ClassesMore"/>
+      </Unit7>
+      <Unit8>
+        <Filename Value="..\..\pasjs_llcl\webctrlsmore.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="WebCtrlsMore"/>
+      </Unit8>
     </Units>
   </ProjectOptions>
   <CompilerOptions>
@@ -67,6 +89,7 @@
     </Target>
     <SearchPaths>
       <IncludeFiles Value="$(ProjOutDir)"/>
+      <OtherUnitFiles Value="..\..\pasjs_llcl"/>
       <UnitOutputDirectory Value="js"/>
     </SearchPaths>
     <Parsing>
