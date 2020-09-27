@@ -49,12 +49,12 @@ const
   mbOKCancel = [mbOK, mbCancel];
   mbAbortRetryIgnore = [mbAbort, mbRetry, mbIgnore];
 
-procedure MessageDlg(const AOwner: TCustomForm; const ACaption, AMessage: string; ADlgType: TMsgDlgType; AButtons: TMsgDlgButtons; ADefaultButton: TMsgDlgBtn; AModalResultProc: TModalResultProc); overload;
-procedure MessageDlg(const AOwner: TCustomForm; const AMessage: string; ADlgType: TMsgDlgType; AButtons: TMsgDlgButtons; ADefaultButton: TMsgDlgBtn; AModalResultProc: TModalResultProc); overload;
-procedure MessageDlg(const AOwner: TCustomForm; const ACaption, AMessage: string; ADlgType: TMsgDlgType; AButtons: TMsgDlgButtons; AModalResultProc: TModalResultProc); overload;
-procedure MessageDlg(const AOwner: TCustomForm; const AMessage: string; ADlgType: TMsgDlgType; AButtons: TMsgDlgButtons; AModalResultProc: TModalResultProc); overload;
+procedure MessageDlg(AOwner: TCustomForm; const ACaption, AMessage: string; ADlgType: TMsgDlgType; AButtons: TMsgDlgButtons; ADefaultButton: TMsgDlgBtn; AModalResultProc: TModalResultProc); overload;
+procedure MessageDlg(AOwner: TCustomForm; const AMessage: string; ADlgType: TMsgDlgType; AButtons: TMsgDlgButtons; ADefaultButton: TMsgDlgBtn; AModalResultProc: TModalResultProc); overload;
+procedure MessageDlg(AOwner: TCustomForm; const ACaption, AMessage: string; ADlgType: TMsgDlgType; AButtons: TMsgDlgButtons; AModalResultProc: TModalResultProc); overload;
+procedure MessageDlg(AOwner: TCustomForm; const AMessage: string; ADlgType: TMsgDlgType; AButtons: TMsgDlgButtons; AModalResultProc: TModalResultProc); overload;
 
-procedure ShowMessage(const AOwner: TCustomForm; const AMessage: string); overload;
+procedure ShowMessage(AOwner: TCustomForm; const AMessage: string); overload;
 procedure ShowMessage(const AMessage: string); overload;   
 procedure ShowMessageFmt(const AMessage: string; const AArguments: array of JSValue); overload;
 
@@ -150,7 +150,7 @@ type
   protected
     FButtonPanel: TPanel;
     FInfoImage: TImage;
-    FMessageMemo: TMemo;
+    FMessageText: TLabel;
   protected
     procedure PrepareButtons; virtual;
     procedure PrepareImage; virtual;
@@ -158,7 +158,7 @@ type
     procedure PrepareTitle; virtual;
     procedure PrepareLayout; virtual;
   protected
-    procedure KeyDown(var Key: Word; Shift: TShiftState); override;
+    procedure KeyDown(var Key: NativeInt; Shift: TShiftState); override;
   public
     constructor Create(AOwner: TComponent); override;
   published
@@ -179,8 +179,10 @@ var
   VButtonWidth: NativeInt;
   VFormWidth: NativeInt;
   VSize: TSize;
+  buttonofs: NativeInt;
 begin
   VButtonCount := 0;
+  buttonofs := 0;
   VButtonHeight := CMinButtonHeight;
   VButtonWidth := CMinButtonWidth;
   BeginUpdate;
@@ -212,7 +214,7 @@ begin
         try
           VButton.Parent := FButtonPanel;
           VButton.BorderSpacing.Around := CControlsSpacing;
-          VButton.SetBounds(0, 0, VButtonWidth, VButtonHeight);
+          VButton.SetBounds(buttonofs, 0, VButtonWidth, VButtonHeight);
           VButton.ModalResult := ButtonModalResult[VMsgDlgBtn];
           VButton.Caption := ButtonCaption[VMsgDlgBtn];
           VButton.Align := alRight;
@@ -225,6 +227,7 @@ begin
           ActiveControl := VButton;
         end;
       end;
+      buttonofs := buttonofs + VButtonWidth;
     end;
     /// Calculate panel button width
     FButtonPanel.Height := VButtonHeight + (CControlsSpacing * 2);
@@ -242,12 +245,12 @@ end;
 
 procedure TMessageDialog.PrepareImage;
 begin
-  FInfoImage.Picture.Data := DialogIcon[FDialogType];
+  FInfoImage.URL := DialogIcon[FDialogType];
 end;
 
 procedure TMessageDialog.PrepareText;
 begin
-  FMessageMemo.Lines.Add(FMessage);
+  FMessageText.Caption := FMessage;
 end;
 
 procedure TMessageDialog.PrepareTitle;
@@ -263,7 +266,7 @@ begin
   PrepareButtons;
 end;
 
-procedure TMessageDialog.KeyDown(var Key: Word; Shift: TShiftState);
+procedure TMessageDialog.KeyDown(var Key: NativeInt; Shift: TShiftState);
 begin
   inherited KeyDown(Key, Shift);
   case Key of
@@ -277,7 +280,7 @@ end;
 
 constructor TMessageDialog.Create(AOwner: TComponent);
 begin
-  inherited Create(AOwner);
+  inherited CreateNew(AOwner, 1);
   BeginUpdate;
   try
     KeyPreview := True;
@@ -304,16 +307,15 @@ begin
     finally
       FInfoImage.EndUpdate;
     end;
-    FMessageMemo := TMemo.Create(Self);
-    FMessageMemo.BeginUpdate;
+    FMessageText := TLabel.Create(Self);
+    FMessageText.BeginUpdate;
     try
-      FMessageMemo.Parent := Self;
-      FMessageMemo.BorderSpacing.Around := CControlsSpacing;
-      FMessageMemo.ReadOnly := True;
-      FMessageMemo.WordWrap := True;
-      FMessageMemo.Align := alClient;
+      FMessageText.Parent := Self;
+      FMessageText.BorderSpacing.Around := CControlsSpacing;
+      FMessageText.WordWrap := True;
+      FMessageText.Align := alClient;
     finally
-      FMessageMemo.EndUpdate;
+      FMessageText.EndUpdate;
     end;
   finally
     EndUpdate;
@@ -388,10 +390,12 @@ begin
   end;
 end;
 
-procedure MessageDlg(const AOwner: TCustomForm; const ACaption, AMessage: string; ADlgType: TMsgDlgType; AButtons: TMsgDlgButtons; ADefaultButton: TMsgDlgBtn; AModalResultProc: TModalResultProc);
+procedure MessageDlg(AOwner: TCustomForm; const ACaption, AMessage: string; ADlgType: TMsgDlgType; AButtons: TMsgDlgButtons; ADefaultButton: TMsgDlgBtn; AModalResultProc: TModalResultProc);
 var
   VMessageDialog: TMessageDialog;
 begin
+  if not Assigned(AOwner) then
+    AOwner := Application.ActiveForm;
   VMessageDialog := TMessageDialog.Create(AOwner);
   with VMessageDialog do
   begin
@@ -405,22 +409,22 @@ begin
   end;
 end;
 
-procedure MessageDlg(const AOwner: TCustomForm; const AMessage: string; ADlgType: TMsgDlgType; AButtons: TMsgDlgButtons; ADefaultButton: TMsgDlgBtn; AModalResultProc: TModalResultProc);
+procedure MessageDlg(AOwner: TCustomForm; const AMessage: string; ADlgType: TMsgDlgType; AButtons: TMsgDlgButtons; ADefaultButton: TMsgDlgBtn; AModalResultProc: TModalResultProc);
 begin
   MessageDlg(AOwner, '', AMessage, ADlgType, AButtons, ADefaultButton, AModalResultProc);
 end;
 
-procedure MessageDlg(const AOwner: TCustomForm; const ACaption, AMessage: string; ADlgType: TMsgDlgType; AButtons: TMsgDlgButtons; AModalResultProc: TModalResultProc);
+procedure MessageDlg(AOwner: TCustomForm; const ACaption, AMessage: string; ADlgType: TMsgDlgType; AButtons: TMsgDlgButtons; AModalResultProc: TModalResultProc);
 begin
   MessageDlg(AOwner, ACaption, AMessage, ADlgType, AButtons, ModalDefaultButton(AButtons), AModalResultProc);
 end;
 
-procedure MessageDlg(const AOwner: TCustomForm; const AMessage: string; ADlgType: TMsgDlgType; AButtons: TMsgDlgButtons; AModalResultProc: TModalResultProc);
+procedure MessageDlg(AOwner: TCustomForm; const AMessage: string; ADlgType: TMsgDlgType; AButtons: TMsgDlgButtons; AModalResultProc: TModalResultProc);
 begin
   MessageDlg(AOwner, '', AMessage, ADlgType, AButtons, ModalDefaultButton(AButtons), AModalResultProc);
 end;
 
-procedure ShowMessage(const AOwner: TCustomForm; const AMessage: string);
+procedure ShowMessage(AOwner: TCustomForm; const AMessage: string);
 begin
   MessageDlg(AOwner, '', AMessage, mtInformation, [mbOK], nil);
 end;

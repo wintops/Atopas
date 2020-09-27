@@ -49,13 +49,15 @@ type
     FStretchInEnabled: boolean;
     FStretchOutEnabled: boolean;
     FTransparent: boolean;
+    FURL: String;
     procedure SetCenter(AValue: boolean);
     procedure SetPicture(AValue: TPicture);
-    procedure SetProportiona(AValue: boolean);
+    procedure SetProportional(AValue: boolean);
     procedure SetStretch(AValue: boolean);
     procedure SetStretchInEnabled(AValue: boolean);
     procedure SetStretchOutEnabled(AValue: boolean);
     procedure SetTransparent(AValue: boolean);
+    procedure SetURL(AValue: String);
   protected
     procedure Changed; override;
     function CreateHandleElement: TJSHTMLElement; override;
@@ -66,13 +68,14 @@ type
   public
     constructor Create(AOwner: TComponent); override;
   public
-    property Center: boolean read FCenter write SetCenter;
+    property Center: boolean read FCenter write SetCenter default False;
     property Picture: TPicture read FPicture write SetPicture;
-    property Proportional: boolean read FProportional write SetProportiona;
-    property Stretch: boolean read FStretch write SetStretch;
-    property StretchOutEnabled: boolean read FStretchOutEnabled write SetStretchOutEnabled;
-    property StretchInEnabled: boolean read FStretchInEnabled write SetStretchInEnabled;
-    property Transparent: boolean read FTransparent write SetTransparent;
+    property Proportional: boolean read FProportional write SetProportional default False;
+    property Stretch: boolean read FStretch write SetStretch default False;
+    property StretchOutEnabled: boolean read FStretchOutEnabled write SetStretchOutEnabled default True;
+    property StretchInEnabled: boolean read FStretchInEnabled write SetStretchInEnabled default True;
+    property Transparent: boolean read FTransparent write SetTransparent default False;
+    property URL: String read FURL write SetURL;
     property OnPictureChanged: TNotifyEvent read FOnPictureChanged write FOnPictureChanged;
   end;
 
@@ -88,7 +91,6 @@ type
     FBevelInner: TPanelBevel;
     FBevelOuter: TPanelBevel;
     FBevelWidth: TBevelWidth;
-    FContentElement: TJSHTMLTableElement;
     FLayout: TTextLayout;
     FWordWrap: boolean;
     procedure SetAlignment(AValue: TAlignment);
@@ -99,26 +101,131 @@ type
     procedure SetLayout(AValue: TTextLayout);
     procedure SetWordWrap(AValue: boolean);
   protected
-    property ContentElement: TJSHTMLTableElement read FContentElement;
     property Layout: TTextLayout read FLayout write SetLayout;
     property WordWrap: boolean read FWordWrap write SetWordWrap;
   protected
     procedure Changed; override;
     function CreateHandleElement: TJSHTMLElement; override;
-    function CreateContentElement: TJSHTMLTableElement; virtual;
   protected
     class function GetControlClassDefaultSize: TSize; override;
   public
     constructor Create(AOwner: TComponent); override;
   public
-    property Alignment: TAlignment read FAlignment write SetAlignment;
-    property BevelColor: TColor read FBevelColor write SetBevelColor;
-    property BevelInner: TPanelBevel read FBevelInner write SetBevelInner;
-    property BevelOuter: TPanelBevel read FBevelOuter write SetBevelOuter;
-    property BevelWidth: TBevelWidth read FBevelWidth write SetBevelWidth;
+    property Alignment: TAlignment read FAlignment write SetAlignment default taCenter;
+    property BevelColor: TColor read FBevelColor write SetBevelColor default clDefault;
+    property BevelInner: TPanelBevel read FBevelInner write SetBevelInner default bvNone;
+    property BevelOuter: TPanelBevel read FBevelOuter write SetBevelOuter default bvRaised;
+    property BevelWidth: TBevelWidth read FBevelWidth write SetBevelWidth default 1;
+  end;
+
+  { TCustomTimer }
+
+  TCustomTimer = class(TComponent)
+  private
+    FEnabled: Boolean;
+    FInterval: Cardinal;
+    FTimerHandle: NativeUInt;
+    FOnStartTimer: TNotifyEvent;
+    FOnStopTimer: TNotifyEvent;
+    FOnTimer: TNotifyEvent;
+  protected
+    procedure SetEnabled(AValue: Boolean); virtual;
+    procedure SetInterval(AValue: Cardinal); virtual;
+    procedure SetOnTimer(AValue: TNotifyEvent); virtual;
+    procedure DoOnTimer; virtual;
+    procedure UpdateTimer; virtual;
+    procedure KillTimer; virtual;
+    procedure Loaded; override;
+  public
+    constructor Create(AOwner: TComponent); override;
+    destructor Destroy; override;
+    property Enabled: Boolean read FEnabled write SetEnabled default True;
+    property Interval: Cardinal read FInterval write SetInterval default 1000;
+    property OnTimer: TNotifyEvent read FOnTimer write SetOnTimer;
+    property OnStartTimer: TNotifyEvent read FOnStartTimer write FOnStartTimer;
+    property OnStopTimer: TNotifyEvent read FOnStopTimer write FOnStopTimer;
   end;
 
 implementation
+
+uses
+  LCLStrConsts;
+
+{ TCustomTimer }
+
+procedure TCustomTimer.SetEnabled(AValue: Boolean);
+begin
+  if FEnabled = AValue then
+    Exit;
+  FEnabled := AValue;
+  UpdateTimer;
+end;
+
+procedure TCustomTimer.SetInterval(AValue: Cardinal);
+begin
+  if FInterval = AValue then
+    Exit;
+  FInterval := AValue;
+  UpdateTimer;
+end;
+
+procedure TCustomTimer.SetOnTimer(AValue: TNotifyEvent);
+begin
+  if FOnTimer = AValue then
+    Exit;
+  FOnTimer := AValue;
+  UpdateTimer;
+end;
+
+procedure TCustomTimer.DoOnTimer;
+begin
+  if Assigned(FOnTimer) then
+    FOnTimer(Self);
+end;
+
+procedure TCustomTimer.UpdateTimer;
+begin
+  KillTimer;
+  {
+  if FEnabled and (FInterval > 0) and
+      ([csLoading, csDestroying] * ComponentState = []) and Assigned(FOnTimer) then begin
+    FTimerHandle := window.setInterval(procedure begin FOnTimer(Self); end, FInterval);
+    if FTimerHandle = 0 then
+      raise EOutOfResources.Create(rsNoTimers);
+    if Assigned(FOnStartTimer) then
+      FOnStartTimer(Self);
+  end;
+  }
+end;
+
+procedure TCustomTimer.KillTimer;
+begin
+  if FTimerHandle <> 0 then begin
+    window.clearInterval(FTimerHandle);
+    if Assigned(FOnStopTimer) then
+      FOnStopTimer(Self);
+  end;
+end;
+
+procedure TCustomTimer.Loaded;
+begin
+  inherited Loaded;
+  UpdateTimer;
+end;
+
+constructor TCustomTimer.Create(AOwner: TComponent);
+begin
+  inherited Create(AOwner);
+  FEnabled := True;
+  FInterval := 1000;
+  FTimerHandle := 0;
+end;
+
+destructor TCustomTimer.Destroy;
+begin
+  KillTimer;
+  inherited Destroy;
+end;
 
 { TCustomImage }
 
@@ -139,7 +246,7 @@ begin
   end;
 end;
 
-procedure TCustomImage.SetProportiona(AValue: boolean);
+procedure TCustomImage.SetProportional(AValue: boolean);
 begin
   if (FProportional <> AValue) then
   begin
@@ -183,17 +290,25 @@ begin
   end;
 end;
 
+procedure TCustomImage.SetURL(AValue: String);
+begin
+  if FURL = AValue then
+    Exit;
+  FURL := AValue;
+  PictureChanged(Self);
+end;
+
 procedure TCustomImage.Changed;
 begin
   inherited Changed;
-  if (not IsUpdating) then
+  if (not IsUpdating) and not (csLoading in ComponentState) then
   begin
     with HandleElement do
     begin
       /// Focus highlight
       Style.SetProperty('outline', 'none');
       /// Load image
-      Style.SetProperty('background-image', FPicture.Data);
+      Style.SetProperty('background-image', Format('url(''%s'')', [FURL]));
       Style.SetProperty('background-repeat', 'no-repeat');
       /// Center
       if (FCenter) then
@@ -241,6 +356,7 @@ begin
   Result := TJSHTMLElement(Document.CreateElement('div'));
 end;
 
+{$push}
 {$hints off}
 
 function TCustomImage.CheckChildClassAllowed(AChildClass: TClass): boolean;
@@ -248,8 +364,9 @@ begin
   Result := False;
 end;
 
-{$hints on}
+{$pop}
 
+{$push}
 {$hints off}
 
 procedure TCustomImage.PictureChanged(Sender: TObject);
@@ -261,7 +378,7 @@ begin
   end;
 end;
 
-{$hints on}
+{$pop}
 
 class function TCustomImage.GetControlClassDefaultSize: TSize;
 begin
@@ -360,11 +477,9 @@ procedure TCustomPanel.Changed;
 var
   VTopColor: TColor;
   VBottomColor: TColor;
-  VTr: TJSHTMLTableRowElement;
-  VTd: TJSHTMLTableCellElement;
 begin
   inherited Changed;
-  if (not IsUpdating) then
+  if (not IsUpdating) and not (csLoading in ComponentState) then
   begin
     with HandleElement do
     begin
@@ -424,58 +539,12 @@ begin
       Style.SetProperty('-khtml-user-select', 'none');
       Style.SetProperty('-webkit-user-select', 'none');
     end;
-    /// ContentElement
-    with FContentElement do
-    begin
-      /// Clear
-      InnerHTML := '';
-      Style.SetProperty('height', '100%');
-      Style.SetProperty('width', '100%');
-      Style.SetProperty('table-layout', 'fixed');
-      VTr := TJSHTMLTableRowElement(FContentElement.AppendChild(Document.CreateElement('tr')));  
-      VTd := TJSHTMLTableCellElement(VTr.AppendChild(Document.CreateElement('td')));
-      with VTd do
-      begin
-        /// Aligment
-        case FAlignment of
-          taCenter: Style.SetProperty('text-align', 'center');
-          taLeftJustify: Style.SetProperty('text-align', 'left');
-          taRightJustify: Style.SetProperty('text-align', 'right');
-        end;
-        /// Layout
-        case FLayout of
-          tlBottom: Style.SetProperty('vertical-align', 'bottom');
-          tlCenter: Style.SetProperty('vertical-align', 'middle');
-          tlTop: Style.SetProperty('vertical-align', 'top');
-        end;
-        /// WordWrap
-        if (FWordWrap) then
-        begin
-          Style.SetProperty('word-wrap', 'break-word');
-        end
-        else
-        begin
-          Style.removeProperty('word-wrap');
-        end;
-        /// Scroll
-        Style.SetProperty('overflow', 'hidden');
-        /// Specifies how overflowed content
-        Style.SetProperty('text-overflow', 'ellipsis');
-        /// Caption
-        InnerHTML := Self.Caption;
-      end;
-    end;
   end;
 end;
 
 function TCustomPanel.CreateHandleElement: TJSHTMLElement;
 begin
   Result := TJSHTMLElement(Document.CreateElement('div'));
-end;
-
-function TCustomPanel.CreateContentElement: TJSHTMLTableElement;
-begin
-  Result := TJSHTMLTableElement(HandleElement.AppendChild(Document.CreateElement('table')));
 end;
 
 class function TCustomPanel.GetControlClassDefaultSize: TSize;
@@ -487,7 +556,6 @@ end;
 constructor TCustomPanel.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
-  FContentElement := CreateContentElement;
   FAlignment := taCenter;
   FBevelColor := clDefault;
   FBevelOuter := bvRaised;

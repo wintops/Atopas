@@ -1,33 +1,10 @@
-{
-  MIT License
-
-  Copyright (c) 2018 Hélio S. Ribeiro and Anderson J. Gado da Silva
-
-  Permission is hereby granted, free of charge, to any person obtaining a copy
-  of this software and associated documentation files (the "Software"), to deal
-  in the Software without restriction, including without limitation the rights
-  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-  copies of the Software, and to permit persons to whom the Software is
-  furnished to do so, subject to the following conditions:
-
-  The above copyright notice and this permission notice shall be included in all
-  copies or substantial portions of the Software.
-
-  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-  SOFTWARE.
-}
-unit WebCtrls;
+﻿unit WebCtrls;
 
 {$I pas2js_widget.inc}
 
 interface
 
-uses
+uses browserapp,
   Classes,
   SysUtils,
   Types,
@@ -43,6 +20,92 @@ uses
   DataGrid;
 
 type
+
+  { TForm }
+
+  TForm = class(TCustomForm)
+  published
+    property ActiveControl;
+    property Align;
+    property AlphaBlend;
+    property AlphaBlendValue;
+    property Caption;
+    property ClientHeight;
+    property Clientwidth;
+    property Color;
+    property Enabled;
+    property Font;
+    property HandleClass;
+    property HandleID;
+    property KeyPreview;
+    property ShowHint;
+    property Visible;
+    property OnActivate;
+    property OnClick;
+    property OnClose;
+    property OnCloseQuery;
+    property OnCreate;
+    property OnDblClick;
+    property OnDeactivate;
+    property OnDestroy;
+    property OnHide;
+    property OnKeyDown;
+    property OnKeyPress;
+    property OnKeyUp;
+    property OnMouseDown;
+    property OnMouseEnter;
+    property OnMouseLeave;
+    property OnMouseMove;
+    property OnMouseUp;
+    property OnMouseWheel;
+    property OnResize;
+    property OnScroll;
+    property OnShow;
+  end;
+
+  TFormClass = class of TForm;
+
+  { TFrame }
+
+  TFrame = class(TCustomFrame)
+  private
+    /// Fake
+    FDesignLeft: longint;
+    FDesignTop: longint;
+  published
+    property Align;
+    property AutoSize;
+    property BorderSpacing;
+    property ClientHeight;
+    property Clientwidth;
+    property Color;
+    property Enabled;
+    property Font;
+    property ParentColor;
+    property ParentFont;
+    property ParentShowHint;
+    property ShowHint;
+    property TabOrder;
+    property TabStop;
+    property Visible;
+    property OnClick;
+    property OnDblClick;
+    property OnEnter;
+    property OnExit;
+    property OnMouseDown;
+    property OnMouseEnter;
+    property OnMouseLeave;
+    property OnMouseMove;
+    property OnMouseUp;
+    property OnMouseWheel;
+    property OnResize;
+  published
+    /// Fake
+    property DesignLeft: longint read FDesignLeft write FDesignLeft;
+    property DesignTop: longint read FDesignTop write FDesignTop;
+  end;
+
+  TFrameClass = class of TFrame;
 
   { TDataModule }
 
@@ -65,12 +128,14 @@ type
   TDataModuleClass = class of TDataModule;
 
   { TComboBox }
+  TComboBoxStyle =
+    (csDropDown, csSimple, csDropDownList, csOwnerDrawFixed, csOwnerDrawVariable);
 
   TComboBox = class(TCustomComboBox)
+  public
+    Style: TComboBoxStyle;
   published
-  DroppedDown :Boolean;
     property Align;
-    property Anchors;
     property AutoSize;
     property BorderSpacing;
     property BorderStyle;
@@ -104,47 +169,7 @@ type
     property OnMouseMove;
     property OnMouseUp;
     property OnMouseWheel;
-  end;
-
-  { TListBox }
-
-  TListBox = class(TCustomListBox)
-  published
-    property Align;
-    property Anchors;
-    property AutoSize;
-    property BorderSpacing;
-    property BorderStyle;
-    property Color;
-    property Enabled;
-    property Font;
-    property HandleClass;
-    property HandleID;
-    property ItemHeight;
-    property ItemIndex;
-    property Items;
-    property MultiSelect;
-    property ParentColor;
-    property ParentFont;
-    property ParentShowHint;
-    property ShowHint;
-    property TabOrder;
-    property TabStop;
-    property Visible;
-    property OnClick;
-    property OnDblClick;
-    property OnEnter;
-    property OnExit;
-    property OnKeyDown;
-    property OnKeyPress;
-    property OnKeyUp;
-    property OnMouseDown;
-    property OnMouseEnter;
-    property OnMouseLeave;
-    property OnMouseMove;
-    property OnMouseUp;
-    property OnMouseWheel;
-    property OnSelectionChange;
+    property DroppedDown;
   end;
 
   { TEdit }
@@ -152,7 +177,6 @@ type
   TEdit = class(TCustomEdit)
   published
     property Align;
-    property Anchors;
     property Alignment;
     property AutoSize;
     property BorderSpacing;
@@ -162,7 +186,7 @@ type
     property Enabled;
     property Font;
     property HandleClass;
-    property HandleId;
+    property HandleID;
     property MaxLength;
     property ParentColor;
     property ParentFont;
@@ -193,11 +217,12 @@ type
   end;
 
   { TMemo }
+  TScrollStyle = (ssNone, ssHorizontal, ssVertical, ssBoth);
 
   TMemo = class(TCustomMemo)
+    ScrollBars: TScrollStyle;
   published
     property Align;
-    property Anchors;
     property Alignment;
     property BorderSpacing;
     property BorderStyle;
@@ -206,7 +231,7 @@ type
     property Enabled;
     property Font;
     property HandleClass;
-    property HandleId;
+    property HandleID;
     property Lines;
     property MaxLength;
     property ParentColor;
@@ -243,7 +268,6 @@ type
   TButton = class(TCustomButton)
   published
     property Align;
-    property Anchors;
     property AutoSize;
     property BorderSpacing;
     property Caption;
@@ -251,7 +275,7 @@ type
     property Enabled;
     property Font;
     property HandleClass;
-    property HandleId;
+    property HandleID;
     property Hint;
     property ModalResult;
     property ParentFont;
@@ -278,11 +302,11 @@ type
   { TCheckbox }
 
   TCheckbox = class(TCustomCheckbox)
-  published
+  public
+    AllowGrayed: boolean;
+
     property Align;
     property Alignment;
-    /// property AllowGrayed;
-    property Anchors;
     property AutoSize;
     property BorderSpacing;
     property Caption;
@@ -291,7 +315,7 @@ type
     property Enabled;
     property Font;
     property HandleClass;
-    property HandleId;
+    property HandleID;
     property ParentColor;
     property ParentFont;
     property ParentShowHint;
@@ -322,7 +346,6 @@ type
   published
     property Align;
     property Alignment;
-    property Anchors;
     property AutoSize;
     property BorderSpacing;
     property Caption;
@@ -331,7 +354,7 @@ type
     property FocusControl;
     property Font;
     property HandleClass;
-    property HandleId;
+    property HandleID;
     property Layout;
     property ParentColor;
     property ParentFont;
@@ -356,21 +379,20 @@ type
   TImage = class(TCustomImage)
   published
     property Align;
-    property Anchors;
     property AutoSize;
     property BorderSpacing;
     property Center;
     property Enabled;
     property HandleClass;
-    property HandleId;
+    property HandleID;
     property ParentShowHint;
+    property Picture;
     property Proportional;
     property ShowHint;
     property Stretch;
     property StretchOutEnabled;
     property StretchInEnabled;
     property Transparent;
-    property URL;
     property Visible;
     property OnClick;
     property OnDblClick;
@@ -391,7 +413,6 @@ type
   published
     property Align;
     property Alignment;
-    property Anchors;
     property AutoSize;
     property BevelColor;
     property BevelInner;
@@ -405,7 +426,7 @@ type
     property Enabled;
     property Font;
     property HandleClass;
-    property HandleId;
+    property HandleID;
     property ParentColor;
     property ParentFont;
     property ParentShowHint;
@@ -413,7 +434,7 @@ type
     property TabOrder;
     property TabStop;
     property Visible;
-    property Wordwrap;
+    property WordWrap;
     property OnClick;
     property OnDblClick;
     property OnEnter;
@@ -428,29 +449,17 @@ type
     property OnResize;
   end;
 
-  { TTimer }
-
-  TTimer = class(TCustomTimer)
-  published
-    property Enabled;
-    property Interval;
-    property OnTimer;
-    property OnStartTimer;
-    property OnStopTimer;
-  end;
-
   { TPageControl }
 
   TPageControl = class(TCustomPageControl)
   published
     property ActivePage;
     property Align;
-    property Anchors;
     property BorderSpacing;
     property Enabled;
     property Font;
     property HandleClass;
-    property HandleId;
+    property HandleID;
     property ParentFont;
     property ParentShowHint;
     property ShowHint;
@@ -483,7 +492,6 @@ type
   published
     property Align;
     property Alignment;
-    property Anchors;
     property AutoSize;
     property BorderSpacing;
     property BorderStyle;
@@ -492,7 +500,7 @@ type
     property Enabled;
     property Font;
     property HandleClass;
-    property HandleId;
+    property HandleID;
     property ParentColor;
     property ParentFont;
     property ParentShowHint;
@@ -522,9 +530,9 @@ type
     property OnResize;
   end;
 
-  { TIntegerEdit }
+  { TIntegertEdit }
 
-  TIntegerEdit = class(TCustomNumericEdit)
+  TIntegertEdit = class(TCustomNumericEdit)
   private
     function GetValue: NativeInt;
     procedure SetValue(AValue: NativeInt);
@@ -535,7 +543,6 @@ type
   published
     property Align;
     property Alignment;
-    property Anchors;
     property AutoSize;
     property BorderSpacing;
     property BorderStyle;
@@ -543,7 +550,7 @@ type
     property Enabled;
     property Font;
     property HandleClass;
-    property HandleId;
+    property HandleID;
     property ParentColor;
     property ParentFont;
     property ParentShowHint;
@@ -585,7 +592,6 @@ type
   published
     property Align;
     property Alignment;
-    property Anchors;
     property AutoSize;
     property BorderSpacing;
     property BorderStyle;
@@ -593,7 +599,7 @@ type
     property Enabled;
     property Font;
     property HandleClass;
-    property HandleId;
+    property HandleID;
     property ParentColor;
     property ParentFont;
     property ParentShowHint;
@@ -635,7 +641,6 @@ type
   published
     property Align;
     property Alignment;
-    property Anchors;
     property AutoSize;
     property BorderSpacing;
     property BorderStyle;
@@ -643,7 +648,7 @@ type
     property Enabled;
     property Font;
     property HandleClass;
-    property HandleId;
+    property HandleID;
     property ParentColor;
     property ParentFont;
     property ParentShowHint;
@@ -678,7 +683,6 @@ type
   TFileButton = class(TCustomFileButton)
   published
     property Align;
-    property Anchors;
     property AutoSize;
     property BorderSpacing;
     property Caption;
@@ -687,8 +691,8 @@ type
     property Filter;
     property Font;
     property HandleClass;
-    property HandleId;
-    //property ModalResult;
+    property HandleID;
+    // property ModalResult;
     property ParentFont;
     property ParentShowHint;
     property ShowHint;
@@ -716,7 +720,6 @@ type
   TDataGrid = class(TCustomDataGrid)
   published
     property Align;
-    property Anchors;
     property BorderSpacing;
     property Columns;
     property ColumnClickSorts;
@@ -725,7 +728,7 @@ type
     property Enabled;
     property Font;
     property HandleClass;
-    property HandleId;
+    property HandleID;
     property ParentFont;
     property ParentShowHint;
     property ShowHint;
@@ -754,13 +757,12 @@ type
   TPagination = class(TCustomPagination)
   published
     property Align;
-    property Anchors;
     property BorderSpacing;
     property CurrentPage;
     property Enabled;
     property Font;
     property HandleClass;
-    property HandleId;
+    property HandleID;
     property ParentFont;
     property ParentShowHint;
     property RecordsPerPage;
@@ -782,9 +784,111 @@ type
     property OnPageClick;
   end;
 
+  TListBox = class(TCustomPanel)
+    Items: TStringList;
+    ItemIndex: integer;
+    ItemHeight: integer;
+  public
+    constructor Create(AOwner: TComponent); override;
+    procedure Clear;
+    property OnDblClick;
+  end;
 
+  TGroupBox = class(TCustomPanel);
+
+  TOpenOption = (ofReadOnly, ofOverwritePrompt, ofHideReadOnly, ofNoChangeDir,
+    ofShowHelp, ofNoValidate, ofAllowMultiSelect, ofExtensionDifferent,
+    ofPathMustExist, ofFileMustExist, ofCreatePrompt, ofShareAware,
+    ofNoReadOnlyReturn, ofNoTestFileCreate, ofNoNetworkButton, ofNoLongNames,
+    ofOldStyleDialog, ofNoDereferenceLinks, ofEnableIncludeNotify,
+    ofEnableSizing, ofDontAddToRecent, ofForceShowHidden, ofViewDetail,
+    ofAutoPreview);
+  TOpenOptions = set of TOpenOption;
+
+  TOpenDialog = class(TCustomPanel)
+    FileName: string;
+    Filter: string;
+    FilterIndex: integer;
+    InitialDir: string;
+    Options: TOpenOptions;
+    Title: string;
+    function Execute: boolean;
+  end;
+
+
+  TSaveDialog = class(TCustomPanel)
+    FileName: string;
+    Filter: string;
+    FilterIndex: integer;
+    InitialDir: string;
+    Options: TOpenOptions;
+    Title: string;
+    function Execute: boolean;
+  end;
+
+  TRadioButton = class(TCustomPanel)
+    Checked: boolean;
+  end;
+
+  TStaticBorderStyle =
+    (sbsNone, sbsSingle, sbsSunken);
+
+  TStaticText = class(TCustomPanel)
+    BorderStyle: TStaticBorderStyle;
+  end;
+
+  TProgressBar = class(TCustomPanel)
+    Position: integer;
+    procedure StepIt;
+  end;
+
+  TTimer = class(TCustomPanel)
+    OnTimer: TNotifyEvent;
+  end;
+
+  TMainMenu = class(TCustomPanel);
+
+  TMenuItem = class(TCustomPanel)
+    AutoCheck: boolean;
+    Checked: boolean;
+  end;
+
+  TPopupMenu = class(TCustomPanel)
+    procedure Popup(X, Y: integer);
+  end;
+
+  TTrackBar = class(TCustomPanel)
+    Position: integer;
+    Max: integer;
+  private
+    FOnChange: TNotifyEvent;
+  published
+    property OnChange: TNotifyEvent read FOnChange write FOnChange;
+  end;
+
+  TXPManifest = class(TCustomPanel);
+
+  TMouse = class(TWinControl)
+    CursorPos: TPoint;
+  end;
+
+  TMyApplication = class(TBrowserApplication)
+    ActiveForm: TForm;
+    procedure doRun; override;
+  end;
+
+var
+  Mouse: TMouse;
+//  Application: TMyApplication;
 
 implementation
+
+procedure TMyApplication.doRun;
+
+begin
+  // Your code here
+  Terminate;
+end;
 
 { TFloatEdit }
 
@@ -804,25 +908,25 @@ begin
     20, DecimalPlaces));
 end;
 
-{ TIntegerEdit }
+{ TIntegertEdit }
 
-function TIntegerEdit.GetValue: NativeInt;
+function TIntegertEdit.GetValue: NativeInt;
 begin
   Result := StrToIntDef(RealGetText, 0);
 end;
 
-procedure TIntegerEdit.SetValue(AValue: NativeInt);
+procedure TIntegertEdit.SetValue(AValue: NativeInt);
 begin
   RealSetText(FloatToStrF(AValue, ffFixed, 20, DecimalPlaces));
 end;
 
-procedure TIntegerEdit.RealSetText(const AValue: string);
+procedure TIntegertEdit.RealSetText(const AValue: string);
 begin
   inherited RealSetText(FloatToStrF(StrToFloatDef(AValue, 0), ffFixed,
     20, DecimalPlaces));
 end;
 
-constructor TIntegerEdit.Create(AOwner: TComponent);
+constructor TIntegertEdit.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
   BeginUpdate;
@@ -876,5 +980,38 @@ procedure TTimeEditBox.RealSetText(const AValue: string);
 begin
   inherited RealSetText(FormatDateTime(ShortTimeFormat, StrToTimeDef(AValue, 0)));
 end;
+
+
+constructor TListBox.Create(AOwner: TComponent);
+begin
+  inherited Create(AOwner);
+  Items := TStringList.Create;
+end;
+
+procedure TListBox.Clear;
+begin
+  Items.Clear;
+end;
+
+procedure TPopupMenu.Popup(X, Y: integer);
+begin
+
+end;
+
+procedure TProgressBar.StepIt;
+begin
+
+end;
+
+function TOpenDialog.Execute: boolean;
+begin
+
+end;
+
+function TSaveDialog.Execute: boolean;
+begin
+
+end;
+
 
 end.

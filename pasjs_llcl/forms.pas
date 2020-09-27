@@ -91,6 +91,7 @@ type
     FAlphaBlend: boolean;
     FAlphaBlendValue: byte;
     FChildForm: TCustomForm;
+    FDesignTimePPI: Integer;
     FFormType: TFormType;
     FKeyPreview: boolean;   
     FModalResult: TModalResult;
@@ -128,10 +129,12 @@ type
   protected
     procedure Changed; override;
     function CreateHandleElement: TJSHTMLElement; override;
+    procedure ProcessResource; virtual;
   protected
     class function GetControlClassDefaultSize: TSize; override;
   public
     constructor Create(AOwner: TComponent); override;
+    constructor CreateNew(AOwner: TComponent; Num: Integer = 0); virtual;
     destructor Destroy; override;
     procedure AfterConstruction; override;
     procedure BeforeDestruction; override;
@@ -149,6 +152,7 @@ type
     property AlphaBlendValue: byte read FAlphaBlendValue write SetAlphaBlendValue;
     property FormType: TFormType read FFormType;
     property KeyPreview: boolean read FKeyPreview write FKeyPreview;
+    property DesignTimePPI: Integer read FDesignTimePPI write FDesignTimePPI;
     property ModalResult: TModalResult read FModalResult write SetModalResult;
     property OnActivate: TNotifyEvent read FOnActivate write FOnActivate;
     property OnClose: TCloseEvent read FOnClose write FOnClose;
@@ -192,6 +196,7 @@ type
     function HandleError(AEvent: TJSErrorEvent): boolean;
     function HandleResize(AEvent: TJSEvent): boolean;
     function HandleUnload(AEvent: TJSUIEvent): boolean;
+    procedure HandleException(AException: TObject);
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
@@ -216,12 +221,101 @@ type
     property OnUnload: TNotifyEvent read FOnUnload write FOnUnload;
   end;
 
+  { TForm }
+
+  TForm = class(TCustomForm)
+  published
+    property ActiveControl;
+    property Align;
+    property AlphaBlend;
+    property AlphaBlendValue;
+    property Caption;
+    property ClientHeight;
+    property ClientWidth;
+    property Color;
+    property DesignTimePPI;
+    property Enabled;
+    property Font;
+    property HandleClass;
+    property HandleID;
+    property KeyPreview;
+    property ShowHint;
+    property Visible;
+    property OnActivate;
+    property OnClick;
+    property OnClose;
+    property OnCloseQuery;
+    property OnCreate;
+    property OnDblClick;
+    property OnDeactivate;
+    property OnDestroy;
+    property OnHide;
+    property OnKeyDown;
+    property OnKeyPress;
+    property OnKeyUp;
+    property OnMouseDown;
+    property OnMouseEnter;
+    property OnMouseLeave;
+    property OnMouseMove;
+    property OnMouseUp;
+    property OnMouseWheel;
+    property OnResize;
+    property OnScroll;
+    property OnShow;
+  end;
+  TFormClass = class of TForm;
+
+  { TFrame }
+
+  TFrame = class(TCustomFrame)
+  private
+    /// Fake
+    FDesignLeft: LongInt;
+    FDesignTop: LongInt;
+  published
+    property Align;
+    property Anchors;
+    property AutoSize;
+    property BorderSpacing;
+    property ClientHeight;
+    property ClientWidth;
+    property Color;
+    property Enabled;
+    property Font;
+    property ParentColor;
+    property ParentFont;
+    property ParentShowHint;
+    property ShowHint;
+    property TabOrder;
+    property TabStop;
+    property Visible;
+    property OnClick;
+    property OnDblClick;
+    property OnEnter;
+    property OnExit;
+    property OnMouseDown;
+    property OnMouseEnter;
+    property OnMouseLeave;
+    property OnMouseMove;
+    property OnMouseUp;
+    property OnMouseWheel;
+    property OnResize;
+  published
+    /// Fake
+    property DesignLeft: LongInt read FDesignLeft write FDesignLeft;
+    property DesignTop: LongInt read FDesignTop write FDesignTop;
+  end;
+  TFrameClass = class of TFrame;
+
 { TODO: TScreen }
 
 function Application: TApplication;
 
 implementation
 
+uses  LResources, LCLStrConsts, p2jsres;
+
+{$push}
 {$hints off}
 
 procedure DefaultModalProc(Sender: TObject; ModalResult: TModalResult);
@@ -233,7 +327,7 @@ begin
   end;
 end;
 
-{$hints on}
+{$pop}
 
 var
   VAppInstance: TApplication;
@@ -321,7 +415,7 @@ end;
 procedure TCustomDataModule.Changed;
 begin
   inherited Changed;  
-  if (not IsUpdating) then
+  if (not IsUpdating) and not (csLoading in ComponentState) then
   begin
     with HandleElement do
     begin
@@ -378,7 +472,7 @@ end;
 procedure TCustomFrame.Changed;
 begin
   inherited Changed;
-  if (not IsUpdating) then
+  if (not IsUpdating) and not (csLoading in ComponentState) then
   begin
     with HandleElement do
     begin
@@ -404,16 +498,21 @@ end;
 constructor TCustomFrame.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
-  BeginUpdate;
-  try
-    ParentFont := False;
-    ParentShowHint := False;
-    with GetControlClassDefaultSize do
-    begin
-      SetBounds(0, 0, Cx, Cy);
+  if (ClassType<>TFrame) and ([csDesignInstance, csDesigning]*ComponentState=[]) then begin
+    if not InitResourceComponent(Self, TFrame) then
+      raise EResNotFound.CreateFmt(rsResourceNotFound, [ClassName]);
+  end else begin
+    BeginUpdate;
+    try
+      ParentFont := False;
+      ParentShowHint := False;
+      with GetControlClassDefaultSize do
+      begin
+        SetBounds(0, 0, Cx, Cy);
+      end;
+    finally
+      EndUpdate;
     end;
-  finally
-    EndUpdate;
   end;
 end;
 
@@ -565,7 +664,7 @@ end;
 procedure TCustomForm.Changed;
 begin
   inherited Changed;
-  if (not IsUpdating) then
+  if (not IsUpdating) and not (csLoading in ComponentState) then
   begin
     with HandleElement do
     begin
@@ -591,6 +690,13 @@ begin
   Result := TJSHTMLElement(Document.CreateElement('div'));
 end;
 
+procedure TCustomForm.ProcessResource;
+begin
+  if not InitResourceComponent(Self, TForm) then
+    raise EResNotFound.CreateFmt(
+      rsFormResourceSNotFoundForResourcelessFormsCreateNew, [ClassName]);
+end;
+
 class function TCustomForm.GetControlClassDefaultSize: TSize;
 begin
   Result.Cx := 320;
@@ -599,10 +705,19 @@ end;
 
 constructor TCustomForm.Create(AOwner: TComponent);
 begin
+  CreateNew(AOwner, 1);
+  //if (ClassType <> TForm) and not (csDesigning in ComponentState) then begin
+  //  ProcessResource;
+ // end;
+end;
+
+constructor TCustomForm.CreateNew(AOwner: TComponent; Num: Integer);
+begin
   inherited Create(AOwner);
   FActiveControl := nil;
   FAlphaBlend := False;
   FAlphaBlendValue := 255;
+  FDesignTimePPI := 96;
   FChildForm := nil;
   FFormType := ftWindow;
   FKeyPreview := False;
@@ -917,6 +1032,17 @@ begin
   Result := False;
 end;
 
+procedure TApplication.HandleException(AException: TObject);
+begin
+  if AException is Exception then begin
+    Window.Alert(Format(rsErrUncaughtException, [AException.ClassName, Exception(AException).Message]));
+  end else begin
+    Window.Alert(Format(rsErrUncaughtObject, [AException.ClassName]));
+  end;
+  if FStopOnException then
+    Terminate;
+end;
+
 function TApplication.HandleResize(AEvent: TJSEvent): boolean;
 var
   VControl: TControl;
@@ -947,9 +1073,21 @@ begin
   end;
 end;
 
+procedure DoUncaughtPascalException(E: TObject);
+begin
+  Application.HandleException(E);
+end;
+
 constructor TApplication.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
+  SetResourceSource(rsJS);
+{$if PAS2JS_FULLVERSION >= 10501}
+  SetOnUnCaughtExceptionHandler(@DoUncaughtPascalException);
+  asm
+    rtl.showUncaughtExceptions=true;
+  end;
+{$endif}
   FModules := TJSArray.New;
   FMainForm := nil;
   FStopOnException := True;
@@ -965,14 +1103,11 @@ end;
 
 procedure TApplication.CreateForm(AInstanceClass: TControlClass; out AReference);
 begin
-  try        
+  try
     AReference := AInstanceClass.Create(Self);
   except
-    on E: Exception do
-    begin
-      { TODO: Exception? }
-      AReference := nil;
-    end;
+    AReference := Nil;
+    raise;
   end;
 end;
 

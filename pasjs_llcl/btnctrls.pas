@@ -72,6 +72,9 @@ type
 
 implementation
 
+uses
+  LCLStrConsts;
+
 { TCustomFileButton }
 
 procedure TCustomFileButton.SetFilter(AValue: string);
@@ -111,12 +114,7 @@ begin
     if (VList.Length = 0) then
     begin
       FFileSelect := nil;
-      {$ifdef lang_en}
-      Caption := 'Not file selected.';
-      {$endif}
-      {$ifdef lang_pt}
-      Caption := 'Nenhum arquivo selecionado.';
-      {$endif}
+      Caption := rsFileButtonNoFileSelected;
       Changed;
       Exit(False);
     end;
@@ -133,7 +131,7 @@ end;
 procedure TCustomFileButton.Changed;
 begin
   inherited Changed;
-  if (not IsUpdating) then
+  if (not IsUpdating) and not (csLoading in ComponentState) then
   begin
     with HandleElement do
     begin
@@ -166,6 +164,7 @@ begin
   Result := TJSHTMLInputElement(HandleElement.AppendChild(Document.CreateElement('input')));
 end;
 
+{$push}
 {$hints off}
 
 function TCustomFileButton.CheckChildClassAllowed(AChildClass: TClass): boolean;
@@ -173,7 +172,7 @@ begin
   Result := False;
 end;
 
-{$hints on}
+{$pop}
 
 class function TCustomFileButton.GetControlClassDefaultSize: TSize;
 begin
@@ -190,12 +189,7 @@ begin
   FFileSelect := nil;
   BeginUpdate;
   try
-    {$ifdef lang_en}  
-    Caption := 'Not file selected.';
-    {$endif}
-    {$ifdef lang_pt}
-    Caption := 'Nenhum arquivo selecionado.';
-    {$endif}
+    Caption := rsFileButtonNoFileSelected;
     Hint := Caption;
     with GetControlClassDefaultSize do
     begin

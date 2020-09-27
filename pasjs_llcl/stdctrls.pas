@@ -48,15 +48,16 @@ type
     FDropDownCount: integer;
     FItemHeight: NativeInt;
     FItemIndex: NativeInt;
-    FItems: TStringList;
+    FItems: TStrings;
     FOnChange: TNotifyEvent;
     FSorted: boolean;
-     FDroppedDown: boolean;
     procedure SetDropDownCount(AValue: integer);
     procedure SetItemHeight(AValue: NativeInt);
     procedure SetItemIndex(AValue: NativeInt);
-    procedure SetItems(AValue: TStringList);
+    procedure SetItems(AValue: TStrings);
     procedure SetSorted(AValue: boolean);
+  private
+    procedure ItemsChange(ASender: TObject);
   protected
     procedure Change; virtual;
   protected
@@ -83,9 +84,64 @@ type
     property DropDownCount: integer read FDropDownCount write SetDropDownCount;
     property ItemHeight: NativeInt read FItemHeight write SetItemHeight;
     property ItemIndex: NativeInt read FItemIndex write SetItemIndex;
-    property Items: TStringList read FItems write SetItems;
+    property Items: TStrings read FItems write SetItems;
     property Sorted: boolean read FSorted write SetSorted;
-    property  DroppedDown:boolean read FDroppedDown write FDroppedDown;
+  end;
+
+  { TCustomListBox }
+
+  TSelectionChangeEvent = procedure(Sender: TObject; User: boolean) of object;
+
+  TCustomListBox = class(TWinControl)
+  private
+    FItemHeight: NativeInt;
+    FItemIndex: NativeInt;
+    FItems: TStrings;
+    FMultiSelect: Boolean;
+    FSelectionChanged: Boolean;
+    FSelected: array of Boolean;
+    FSorted: Boolean;
+    FOnSelectionChange: TSelectionChangeEvent;
+    function GetSelCount: integer;
+    function GetSelected(Index: Integer): Boolean;
+    procedure SetItemHeight(AValue: NativeInt);
+    procedure SetItemIndex(AValue: NativeInt);
+    procedure SetItems(AValue: TStrings);
+    procedure SetMultiSelect(AValue: Boolean);
+    procedure SetSelected(Index: Integer; AValue: Boolean);
+    procedure SetSorted(AValue: Boolean);
+  private
+    procedure ItemsChanged(ASender: TObject);
+  protected
+    procedure SelectionChange(AUser: Boolean); virtual;
+  protected
+    function HandleChange(AEvent: TJSEvent): boolean; virtual;
+  protected
+    procedure Changed; override;
+    function CreateHandleElement: TJSHTMLElement; override;
+    procedure RegisterHandleEvents; override;
+    procedure UnRegisterHandleEvents; override;
+    function CheckChildClassAllowed(AChildClass: TClass): boolean; override;
+    procedure UpdateSorted; virtual;
+  protected
+    class function GetControlClassDefaultSize: TSize; override;
+  public
+    constructor Create(AOwner: TComponent); override;
+    destructor Destroy; override;
+    procedure AddItem(const AItem: String; AObject: TObject); virtual;
+    procedure Append(const AItem: String);
+    procedure Clear;
+    procedure ClearSelection;
+    procedure SelectAll; virtual;
+    procedure SelectRange(ALow, AHigh: Integer; ASelected: boolean); virtual;
+    property ItemHeight: NativeInt read FItemHeight write SetItemHeight;
+    property ItemIndex: NativeInt read FItemIndex write SetItemIndex;
+    property Items: TStrings read FItems write SetItems;
+    property MultiSelect: Boolean read FMultiSelect write SetMultiSelect default False;
+    property SelCount: integer read GetSelCount;
+    property Selected[Index: Integer]: Boolean read GetSelected write SetSelected;
+    property Sorted: Boolean read FSorted write SetSorted default False;
+    property OnSelectionChange: TSelectionChangeEvent read FOnSelectionChange write FOnSelectionChange;
   end;
 
   { TCustomEdit }
@@ -164,7 +220,7 @@ type
   private
     FAlignment: TAlignment;
     FCharCase: TEditCharCase;
-    FLines: TStringList;
+    FLines: TStrings;
     FMaxLength: NativeInt;
     FModified: boolean;
     FReadOnly: boolean;
@@ -180,7 +236,7 @@ type
     function GetSelText: string;
     procedure SetAlignment(AValue: TAlignment);
     procedure SetCharCase(AValue: TEditCharCase);
-    procedure SetLines(AValue: TStringList);
+    procedure SetLines(AValue: TStrings);
     procedure SetMaxLength(AValue: NativeInt);
     procedure SetModified(AValue: boolean);
     procedure SetReadOnly(AValue: boolean);
@@ -193,7 +249,7 @@ type
     procedure SetWordWrap(AValue: boolean);
   protected
     procedure Change; virtual;
-    procedure KeyDown(var Key: Word; Shift: TShiftState); override;
+    procedure KeyDown(var Key: NativeInt; Shift: TShiftState); override;
   protected
     function HandleChange(AEvent: TJSEvent): boolean; virtual;
   protected
@@ -215,7 +271,7 @@ type
   public
     property Alignment: TAlignment read FAlignment write SetAlignment;
     property CharCase: TEditCharCase read FCharCase write SetCharCase;
-    property Lines: TStringList read FLines write SetLines;
+    property Lines: TStrings read FLines write SetLines;
     property MaxLength: NativeInt read FMaxLength write SetMaxLength;
     property Modified: boolean read FModified write SetModified;
     property ReadOnly: boolean read FReadOnly write SetReadOnly;
@@ -254,8 +310,9 @@ type
     property ModalResult: TModalResult read FModalResult write FModalResult;
   end;
 
-//  TCheckBoxState = (cbUnchecked, cbChecked);
-   TCheckBoxState = (cbUnchecked, cbChecked, cbGrayed);
+ // TCheckBoxState = (cbUnchecked, cbChecked);
+    TCheckBoxState = (cbUnchecked, cbChecked, cbGrayed);
+
   TLeftRight = taLeftJustify..taRightJustify;
 
   { TCustomCheckbox }
@@ -292,8 +349,8 @@ type
   public
     constructor Create(AOwner: TComponent); override;
   public
-    property Alignment: TLeftRight read FAlignment write SetAlignment;
-    property State: TCheckBoxState read GetState write SetState;
+    property Alignment: TLeftRight read FAlignment write SetAlignment default taRightJustify;
+    property State: TCheckBoxState read GetState write SetState default cbUnchecked;
   end;
 
   { TCustomLabel }
@@ -329,26 +386,30 @@ type
   public
     constructor Create(AOwner: TComponent); override;
     procedure AdjustSize; override;
+    property AutoSize default True;
   end;
 
 implementation
+
+uses
+  RTLConsts;
 
 { TCustomComboBox }
 
 procedure TCustomComboBox.SetDropDownCount(AValue: integer);
 begin
-  if (FItemHeight <> AValue) then
+  if (FDropDownCount <> AValue) then
   begin
-    FItemHeight := AValue;
+    FDropDownCount := AValue;
     Changed;
   end;
 end;
 
 procedure TCustomComboBox.SetItemHeight(AValue: NativeInt);
 begin
-  if (FDropDownCount = AValue) then
+  if (FItemHeight <> AValue) then
   begin
-    FDropDownCount := AValue;
+    FItemHeight := AValue;
     Change;
   end;
 end;
@@ -362,7 +423,7 @@ begin
   end;
 end;
 
-procedure TCustomComboBox.SetItems(AValue: TStringList);
+procedure TCustomComboBox.SetItems(AValue: TStrings);
 begin
   FItems.Assign(AValue);
   Changed;
@@ -375,6 +436,11 @@ begin
     FSorted := AValue;
     UpdateSorted;
   end;
+end;
+
+procedure TCustomComboBox.ItemsChange(ASender: TObject);
+begin
+  Changed;
 end;
 
 procedure TCustomComboBox.Change;
@@ -400,7 +466,7 @@ var
   VValue: string;
 begin
   inherited Changed;
-  if (not IsUpdating) then
+  if (not IsUpdating) and not (csLoading in ComponentState) then
   begin
     /// Remove old items
     for VIndex := (TJSHTMLSelectElement(HandleElement).Length - 1) downto 0 do
@@ -415,6 +481,16 @@ begin
       VOptionElement.Value := VValue;
       VOptionElement.Text := VValue;
       VOptionElement.Selected := (VIndex = FItemIndex);
+      TJSHTMLSelectElement(HandleElement).Add(VOptionElement);
+    end;
+    { add dummy item at the end to avoid problems with the ItemIndex }
+    if FItemIndex < 0 then begin
+      VOptionElement := TJSHTMLOptionElement(Document.CreateElement('option'));
+      VOptionElement.Value := '';
+      VOptionElement.Text := '';
+      VOptionElement.Selected := True;
+      VOptionElement.Disabled := True;
+      VOptionElement.style.setProperty('display', 'none');
       TJSHTMLSelectElement(HandleElement).Add(VOptionElement);
     end;
   end;
@@ -443,6 +519,7 @@ begin
   end;
 end;
 
+{$push}
 {$hints off}
 
 function TCustomComboBox.CheckChildClassAllowed(AChildClass: TClass): boolean;
@@ -450,7 +527,7 @@ begin
   Result := False;
 end;
 
-{$hints on}
+{$pop}
 
 function TCustomComboBox.RealGetText: string;
 begin
@@ -474,7 +551,7 @@ var
   VText: string;
 begin
   VText := RealGetText;
-  FItems.Sorted := FSorted;
+  TStringList(FItems).Sorted := FSorted;
   Text := VText;
 end;
 
@@ -491,6 +568,7 @@ begin
   FItemHeight := 0;
   FItemIndex := -1;
   FItems := TStringList.Create;
+  TStringList(FItems).OnChange := ItemsChange;
   FSorted := False;
   BeginUpdate;
   try
@@ -525,7 +603,297 @@ end;
 procedure TCustomComboBox.Clear;
 begin
   FItems.Clear;
+  FItemIndex := -1;
   Changed;
+end;
+
+{ TCustomListBox }
+
+procedure TCustomListBox.SetItemHeight(AValue: NativeInt);
+begin
+  if FItemHeight <> AValue then begin
+    FItemHeight := AValue;
+    Changed;
+  end;
+end;
+
+procedure TCustomListBox.SetItemIndex(AValue: NativeInt);
+begin
+  if (AValue > -1) and (AValue < FItems.Count) then begin
+    BeginUpdate;
+    try
+      if FMultiSelect then
+        ClearSelection;
+      FItemIndex := AValue;
+      Changed;
+    finally
+      EndUpdate;
+    end;
+  end;
+end;
+
+procedure TCustomListBox.SetItems(AValue: TStrings);
+begin
+  FItems.Assign(AValue);
+  Changed;
+end;
+
+procedure TCustomListBox.SetSorted(AValue: Boolean);
+begin
+  if FSorted <> AValue then begin
+    FSorted := AValue;
+    UpdateSorted;
+  end;
+end;
+
+function TCustomListBox.GetSelCount: integer;
+var
+  b: Boolean;
+begin
+  Result := 0;
+  if FMultiSelect then begin
+    for b in FSelected do
+      if b then
+        Inc(Result);
+  end else if ItemIndex <> -1 then
+    Inc(Result);
+end;
+
+function TCustomListBox.GetSelected(Index: Integer): Boolean;
+begin
+  if (Index < 0) or (Index >= FItems.Count) then
+    raise EListError.CreateFmt(SListIndexError, [Index]);
+  Result := FSelected[Index];
+end;
+
+procedure TCustomListBox.ItemsChanged(ASender: TObject);
+begin
+  if Length(FSelected) <> FItems.Count then
+    SetLength(FSelected, FItems.Count);
+  Changed;
+end;
+
+procedure TCustomListBox.SetMultiSelect(AValue: Boolean);
+begin
+  if FMultiSelect <> AValue then begin
+    ClearSelection;
+    FMultiSelect := AValue;
+    if not (csLoading in ComponentState) then
+      FSelectionChanged := True;
+    Changed;
+  end;
+end;
+
+procedure TCustomListBox.SetSelected(Index: Integer; AValue: Boolean);
+var
+  i: NativeInt;
+begin
+  if Index > High(FSelected) then
+    raise EListError.CreateFmt(SListIndexError, [Index]);
+  if AValue and not FMultiSelect then begin
+    for i := 0 to High(FSelected) do
+      if FSelected[i] then
+        FSelected[i] := False;
+  end;
+  FSelected[Index] := AValue;
+  if AValue then
+    FItemIndex := Index
+  else begin
+    FItemIndex := -1;
+    if FMultiSelect then begin
+      for i := 0 to High(FSelected) do
+        if FSelected[i] then begin
+          FItemIndex := i;
+          Break;
+        end;
+    end;
+  end;
+  if not (csLoading in ComponentState) then
+    FSelectionChanged := True;
+  Changed;
+end;
+
+procedure TCustomListBox.SelectionChange(AUser: Boolean);
+begin
+  if Assigned(FOnSelectionChange) then
+    FOnSelectionChange(Self, AUser);
+end;
+
+function TCustomListBox.HandleChange(AEvent: TJSEvent): boolean;
+var
+  i: NativeInt;
+begin
+  AEvent.StopPropagation;
+  with TJSHTMLSelectElement(HandleElement) do begin
+    FItemIndex := selectedIndex;
+    for i := 0 to length - 1 do
+      FSelected[i] := item(i).selected;
+  end;
+  SelectionChange(True);
+  Result := True;
+end;
+
+procedure TCustomListBox.Changed;
+var
+  idx: NativeInt;
+  v: String;
+  opt: TJSHTMLOptionElement;
+begin
+  inherited Changed;
+  if not IsUpdating and not (csLoading in ComponentState) then begin
+    if FSelectionChanged then begin
+      SelectionChange(False);
+      FSelectionChanged := False;
+    end;
+    with TJSHTMLSelectElement(HandleElement) do begin
+      multiple := FMultiSelect;
+      { use 2, so that it isn't shown as a dropdown }
+      size := 2;
+      { remove old items }
+      for idx := TJSHTMLSelectElement(HandleElement).Length - 1 downto 0 do
+        Remove(idx);
+      { add new items }
+      for idx := 0 to FItems.Count - 1 do begin
+        v := FItems[idx];
+        opt := TJSHTMLOptionElement(Document.CreateElement('option'));
+        opt.Value := v;
+        opt.Text := v;
+        if FMultiselect then
+          opt.Selected := FSelected[idx]
+        else
+          opt.Selected := idx = FItemIndex;
+        Add(opt);
+      end;
+    end;
+  end;
+end;
+
+function TCustomListBox.CreateHandleElement: TJSHTMLElement;
+begin
+  Result := TJSHTMLElement(Document.CreateElement('select'));
+end;
+
+procedure TCustomListBox.RegisterHandleEvents;
+begin
+  inherited RegisterHandleEvents;
+  with HandleElement do
+  begin
+    AddEventListener('change', @HandleChange);
+  end;
+end;
+
+procedure TCustomListBox.UnRegisterHandleEvents;
+begin
+  inherited UnRegisterHandleEvents;
+  with HandleElement do
+  begin
+    RemoveEventListener('change', @HandleChange);
+  end;
+end;
+
+function TCustomListBox.CheckChildClassAllowed(AChildClass: TClass): boolean;
+begin
+  Result := False;
+end;
+
+procedure TCustomListBox.UpdateSorted;
+begin
+  TStringList(FItems).Sorted := FSorted;
+end;
+
+class function TCustomListBox.GetControlClassDefaultSize: TSize;
+begin
+  Result.Cx := 100;
+  Result.Cy := 70;
+end;
+
+constructor TCustomListBox.Create(AOwner: TComponent);
+begin
+  inherited Create(AOwner);
+  FItemHeight := 0;
+  FItemIndex := -1;
+  FItems := TStringList.Create;
+  TStringList(FItems).OnChange := @ItemsChanged;
+  FMultiSelect := False;
+  FSorted := False;
+  BeginUpdate;
+  try
+    with GetControlClassDefaultSize do begin
+      SetBounds(0, 0, Cx, Cy);
+    end;
+  finally
+    EndUpdate;
+  end;
+end;
+
+destructor TCustomListBox.Destroy;
+begin
+  FItems.Free;
+  inherited Destroy;
+end;
+
+procedure TCustomListBox.AddItem(const AItem: String; AObject: TObject);
+begin
+  FItems.AddObject(AItem, AObject);
+  Changed;
+end;
+
+procedure TCustomListBox.Append(const AItem: String);
+begin
+  FItems.Append(AItem);
+  Changed;
+end;
+
+procedure TCustomListBox.Clear;
+begin
+  FItems.Clear;
+  FItemIndex := -1;
+  FSelected := Nil;
+  Changed;
+end;
+
+procedure TCustomListBox.ClearSelection;
+var
+  i: Integer;
+begin
+  if FMultiSelect then begin
+    BeginUpdate;
+    try
+      for i := 0 to FItems.Count - 1 do
+        Selected[i] := False;
+    finally
+      EndUpdate;
+    end;
+  end else
+    ItemIndex := -1;
+end;
+
+procedure TCustomListBox.SelectAll;
+begin
+  if not FMultiSelect then
+    Exit;
+  SelectRange(0, FItems.Count - 1, True);
+end;
+
+procedure TCustomListBox.SelectRange(ALow, AHigh: Integer; ASelected: boolean);
+var
+  i: Integer;
+begin
+  if not FMultiSelect then
+    Exit;
+  if ALow < 0 then
+    ALow := 0;
+  if AHigh >= FItems.Count then
+    AHigh := FItems.Count - 1;
+  if AHigh < ALow then
+    Exit;
+  BeginUpdate;
+  try
+    for i := ALow to AHigh do
+      Selected[i] := ASelected;
+  finally
+    EndUpdate;
+  end;
 end;
 
 { TCustomEdit }
@@ -724,7 +1092,7 @@ end;
 procedure TCustomEdit.Changed;
 begin
   inherited Changed;
-  if (not IsUpdating) then
+  if (not IsUpdating) and not (csLoading in ComponentState) then
   begin
     with TJSHTMLInputElement(HandleElement) do
     begin
@@ -884,6 +1252,61 @@ begin
   end;
 end;
 
+
+
+
+type
+
+  TCustomMemoStrings = class(TStringList);
+    {
+  protected
+    procedure DoReadData(Reader: TReader); virtual;
+    procedure DoWriteData(Writer: TWriter); virtual;
+    procedure DefineProperties(Filer: TFiler); override;
+  end;
+
+
+procedure TCustomMemoStrings.DoReadData(Reader: TReader);
+begin
+  Reader.ReadListBegin;
+  BeginUpdate;
+  try
+    Clear;
+    while not Reader.EndOfList do
+      Add(Reader.ReadString);
+  finally
+    EndUpdate;
+  end;
+  Reader.ReadListEnd;
+end;
+
+procedure TCustomMemoStrings.DoWriteData(Writer: TWriter);
+var
+  i: Integer;
+  lStringsNoWordWrap: TStringList;
+begin
+  lStringsNoWordWrap := TStringList.Create;
+  try
+    lStringsNoWordWrap.Text := Text;
+
+    Writer.WriteListBegin;
+    for i := 0 to lStringsNoWordWrap.Count - 1 do
+      Writer.WriteString(lStringsNoWordWrap.Strings[i]);
+    Writer.WriteListEnd;
+  finally
+    lStringsNoWordWrap.Free;
+  end;
+end;
+
+procedure TCustomMemoStrings.DefineProperties(Filer: TFiler);
+var
+  HasData: Boolean;
+begin
+  HasData := Count > 0;
+  Filer.DefineProperty('Strings', @DoReadData, @DoWriteData, HasData);
+end;
+
+
 { TCustomMemo }
 
 procedure TCustomMemo.SetAlignment(AValue: TAlignment);
@@ -933,7 +1356,7 @@ begin
   end;
 end;
 
-procedure TCustomMemo.SetLines(AValue: TStringList);
+procedure TCustomMemo.SetLines(AValue: TStrings);
 begin
   FLines.Assign(AValue);
   Changed;
@@ -1057,7 +1480,7 @@ begin
   end;
 end;
 
-procedure TCustomMemo.KeyDown(var Key: Word; Shift: TShiftState);
+procedure TCustomMemo.KeyDown(var Key: NativeInt; Shift: TShiftState);
 begin
   inherited KeyDown(Key, Shift);
   if (not FWantReturns) and (Key = 13) then
@@ -1086,7 +1509,7 @@ end;
 procedure TCustomMemo.Changed;
 begin
   inherited Changed;
-  if (not IsUpdating) then
+  if (not IsUpdating) and not (csLoading in ComponentState) then
   begin
     with TJSHTMLTextAreaElement(HandleElement) do
     begin
@@ -1166,6 +1589,7 @@ begin
   end;
 end;
 
+{$push}
 {$hints off}
 
 function TCustomMemo.CheckChildClassAllowed(AChildClass: TClass): boolean;
@@ -1173,7 +1597,7 @@ begin
   Result := False;
 end;
 
-{$hints on}
+{$pop}
 
 function TCustomMemo.RealGetText: string;
 begin
@@ -1196,7 +1620,7 @@ end;
 constructor TCustomMemo.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
-  FLines := TStringList.Create;
+  FLines := TCustomMemoStrings.Create;
   FMaxLength := 0;
   FModified := False;
   FReadOnly := False;
@@ -1269,7 +1693,7 @@ end;
 procedure TCustomButton.Changed;
 begin
   inherited Changed;
-  if (not IsUpdating) then
+  if (not IsUpdating) and not (csLoading in ComponentState) then
   begin
     with HandleElement do
     begin
@@ -1286,6 +1710,7 @@ begin
   Result := TJSHTMLElement(Document.CreateElement('button'));
 end;
 
+{$push}
 {$hints off}
 
 function TCustomButton.CheckChildClassAllowed(AChildClass: TClass): boolean;
@@ -1293,7 +1718,7 @@ begin
   Result := False;
 end;
 
-{$hints on}
+{$pop}
 
 class function TCustomButton.GetControlClassDefaultSize: TSize;
 begin
@@ -1405,7 +1830,7 @@ end;
 procedure TCustomCheckbox.Changed;
 begin
   inherited Changed;
-  if (not IsUpdating) then
+  if (not IsUpdating) and not (csLoading in ComponentState) then
   begin
     with HandleElement do
     begin
@@ -1448,6 +1873,7 @@ begin
   Result := TJSHTMLElement(HandleElement.AppendChild(Document.CreateElement('span')));
 end;
 
+{$push}
 {$hints off}
 
 function TCustomCheckbox.CheckChildClassAllowed(AChildClass: TClass): boolean;
@@ -1455,7 +1881,7 @@ begin
   Result := False;
 end;
 
-{$hints on}
+{$pop}
 
 class function TCustomCheckbox.GetControlClassDefaultSize: TSize;
 begin
@@ -1541,12 +1967,9 @@ begin
 end;
 
 procedure TCustomLabel.Changed;
-var
-  VTr: TJSHTMLTableRowElement;
-  VTd: TJSHTMLTableCellElement;
 begin
   inherited Changed;
-  if (not IsUpdating) then
+  if (not IsUpdating) and not (csLoading in ComponentState) then
   begin
     with HandleElement do
     begin
@@ -1563,46 +1986,42 @@ begin
       Style.SetProperty('-ms-user-select', 'none');
       Style.SetProperty('-khtml-user-select', 'none');
       Style.SetProperty('-webkit-user-select', 'none');
+      if AutoSize then begin
+        Style.removeProperty('height');
+        Style.removeProperty('width');
+      end;
     end;
     with FContentElement do
     begin
       /// Clear
       InnerHTML := '';
-      Style.SetProperty('height', '100%');
-      Style.SetProperty('width', '100%');
-      Style.SetProperty('table-layout', 'fixed');
-      VTr := TJSHTMLTableRowElement(FContentElement.AppendChild(Document.CreateElement('tr')));
-      VTd := TJSHTMLTableCellElement(VTr.AppendChild(Document.CreateElement('td')));
-      with VTd do
-      begin
-        /// Aligment
-        case FAlignment of
-          taCenter: Style.SetProperty('text-align', 'center');
-          taLeftJustify: Style.SetProperty('text-align', 'left');
-          taRightJustify: Style.SetProperty('text-align', 'right');
-        end;
-        /// Layout
-        case FLayout of
-          tlBottom: Style.SetProperty('vertical-align', 'bottom');
-          tlCenter: Style.SetProperty('vertical-align', 'middle');
-          tlTop: Style.SetProperty('vertical-align', 'top');
-        end;
-        /// WordWrap
-        if (FWordWrap) then
-        begin
-          Style.SetProperty('word-wrap', 'break-word');
-        end
-        else
-        begin
-          Style.removeProperty('word-wrap');
-        end;
-        /// Scroll
-        Style.SetProperty('overflow', 'hidden');
-        /// Specifies how overflowed content
-        Style.SetProperty('text-overflow', 'ellipsis');
-        /// Caption
-        InnerHTML := Self.Caption;
+      /// Aligment
+      case FAlignment of
+        taCenter: Style.SetProperty('text-align', 'center');
+        taLeftJustify: Style.SetProperty('text-align', 'left');
+        taRightJustify: Style.SetProperty('text-align', 'right');
       end;
+      /// Layout
+      case FLayout of
+        tlBottom: Style.SetProperty('vertical-align', 'bottom');
+        tlCenter: Style.SetProperty('vertical-align', 'middle');
+        tlTop: Style.SetProperty('vertical-align', 'top');
+      end;
+      /// WordWrap
+      if (FWordWrap) then
+      begin
+        Style.SetProperty('word-wrap', 'break-word');
+      end
+      else
+      begin
+        Style.removeProperty('word-wrap');
+      end;
+      /// Scroll
+      Style.SetProperty('overflow', 'hidden');
+      /// Specifies how overflowed content
+      Style.SetProperty('text-overflow', 'ellipsis');
+      /// Caption
+      InnerHTML := Self.Caption;
     end;
   end;
 end;
@@ -1614,9 +2033,10 @@ end;
 
 function TCustomLabel.CreateContentElement: TJSHTMLTableElement;
 begin
-  Result := TJSHTMLTableElement(HandleElement.AppendChild(Document.CreateElement('table')));
+  Result := TJSHTMLTableElement(HandleElement.AppendChild(Document.CreateElement('label')));
 end;
 
+{$push}
 {$hints off}
 
 function TCustomLabel.CheckChildClassAllowed(AChildClass: TClass): boolean;
@@ -1624,7 +2044,7 @@ begin
   Result := False;
 end;
 
-{$hints on}
+{$pop}
 
 class function TCustomLabel.GetControlClassDefaultSize: TSize;
 begin
@@ -1644,6 +2064,7 @@ begin
   BeginUpdate;
   try
     TabStop := False;
+    AutoSize := True;
     with GetControlClassDefaultSize do
     begin
       SetBounds(0, 0, Cx, Cy);
@@ -1654,12 +2075,9 @@ begin
 end;
 
 procedure TCustomLabel.AdjustSize;
-var
-  VSize: TSize;
 begin
   inherited AdjustSize;
-  VSize := Font.TextExtent(Caption);
-  SetBounds(Left, Top, VSize.Cx + 4, VSize.Cy + 4);
+  Changed;
 end;
 
 end.

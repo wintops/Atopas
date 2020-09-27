@@ -152,7 +152,7 @@ type
   protected
     FActiveCell: TJSHTMLTableCellElement;
   protected
-    procedure KeyDown(var Key: Word; Shift: TShiftState); override;
+    procedure KeyDown(var Key: NativeInt; Shift: TShiftState); override;
     procedure DoEnter; override;
     procedure CellClick(ACol, ARow: NativeInt); virtual;
     procedure HeaderClick(ACol: NativeInt); virtual;
@@ -385,6 +385,7 @@ begin
   end;
 end;
 
+{$push}
 {$hints off}
 
 procedure TDataColumn.FontChanged(Sender: TObject);
@@ -392,7 +393,7 @@ begin
   ColumnChanged;
 end;
 
-{$hints on}
+{$pop}
 
 function TDataColumn.GetDefaultValueChecked: string;
 begin
@@ -585,7 +586,7 @@ begin
   end;
 end;
 
-procedure TCustomDataGrid.KeyDown(var Key: Word; Shift: TShiftState);
+procedure TCustomDataGrid.KeyDown(var Key: NativeInt; Shift: TShiftState);
 begin
   inherited KeyDown(Key, Shift);
   { TODO: NavigatePageDown, NavigatePageUp }
@@ -914,7 +915,7 @@ end;
 procedure TCustomDataGrid.Changed;
 begin
   inherited Changed;
-  if (not IsUpdating) then
+  if (not IsUpdating) and not (csLoading in ComponentState) then
   begin
     with HandleElement do
     begin
@@ -1285,6 +1286,7 @@ begin
   end;
 end;
 
+{$push}
 {$hints off}
 
 procedure TCustomDataGrid.ColumnsChanged(AColumn: TDataColumn);
@@ -1292,7 +1294,7 @@ begin
   Changed;
 end;
 
-{$hints on}
+{$pop}
 
 function TCustomDataGrid.CalcDefaultRowHeight: NativeInt;
 begin
@@ -1389,7 +1391,7 @@ function TCustomPagination.HandlePageClick(AEvent: TJSMouseEvent): boolean;
 var
   VValue: string;
 begin
-  VValue := AEvent.Target.InnerHTML; /// Element value
+  VValue := AEvent.targetElement.InnerHTML; /// Element value
   if (VValue <> '') then
   begin
     if (VValue = '«') then
@@ -1425,7 +1427,7 @@ var
   VValue: NativeInt;
 begin
   inherited Changed;
-  if (not IsUpdating) then
+  if (not IsUpdating) and not (csLoading in ComponentState) then
   begin
     with HandleElement do
     begin
@@ -1534,6 +1536,7 @@ begin
   end;
 end;
 
+{$push}
 {$hints off}
 
 function TCustomPagination.CheckChildClassAllowed(AChildClass: TClass): boolean;
@@ -1541,7 +1544,7 @@ begin
   Result := False;
 end;
 
-{$hints on}
+{$pop}
 
 class function TCustomPagination.GetControlClassDefaultSize: TSize;
 begin

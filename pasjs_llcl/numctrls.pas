@@ -53,7 +53,7 @@ type
     procedure Changed; override;
   public
     constructor Create(AOwner: TComponent); override;
-    property DecimalPlaces: NativeInt read FDecimals write FDecimals;
+    property DecimalPlaces: NativeInt read FDecimals write FDecimals default 2;
   end;
 
 implementation
@@ -104,7 +104,7 @@ end;
 procedure TCustomNumericEdit.Changed;
 begin
   inherited Changed;
-  if (not IsUpdating) then
+  if (not IsUpdating) and not (csLoading in ComponentState) then
   begin
     with TJSHTMLInputElement(HandleElement) do
     begin

@@ -27,14 +27,16 @@ unit Graphics;
 
 interface
 
-uses
+uses UIConsts,
   Classes,
   SysUtils,
   Types,
   Web;
 
 type
-  TColor = NativeUInt;
+
+
+  TColor = LongInt;
 
   TFontCharSet = 0..255;
   TFontName = string;
@@ -230,7 +232,7 @@ const
   clDefault = $20000000;
 
   //// System colors
-  clBase = $80000000;
+  clBase = LongInt($80000000);
   clScrollBar = clBase + 0;
   clBackground = clBase + 1;
   clActiveCaption = clBase + 2;
@@ -279,6 +281,10 @@ function JSColor(const AColor: TColor): string;
 function JSFont(const AFont: TFont): string;
 function JSMeasureText(const AText: string; const AFontName: string; const AFontSize: NativeInt; const AFixedWidth: NativeInt = 0): TSize; overload;
 
+function IdentEntry(Entry: Longint; out MapEntry: TIdentMapEntry): boolean;
+function ColorToIdent(Color: Longint; out Ident: String): Boolean;
+function IdentToColor(const Ident: string; out Color: Longint): Boolean;
+function ColorIndex(Color: Longint; out Index: Integer): Boolean;
 
 implementation
 
@@ -376,7 +382,7 @@ end;
 function TFont.GetHeight: NativeInt;
 begin                            
   /// https://stackoverflow.com/questions/139655/convert-pixels-to-points
-  Result := Round((FSize * 96) / 72);
+  Result := Round((- FSize * 72) / 96);
 end;
 
 procedure TFont.SetCharSet(AValue: TFontCharSet);
@@ -400,7 +406,7 @@ end;
 procedure TFont.SetHeight(AValue: NativeInt);
 begin
   /// https://stackoverflow.com/questions/139655/convert-pixels-to-points
-  SetSize(Round((AValue * 72) / 96));
+  SetSize(Round((- AValue * 96) / 72));
 end;
 
 procedure TFont.SetName(AValue: string);
@@ -442,8 +448,8 @@ constructor TFont.Create;
 begin
   inherited Create;
   FColor := clBlack;
-  FName := ffMonospace;
-  FSize := 16;
+  FName := ffSans;
+  FSize := 10;
   FStyle := [];
   FUpdateCount := 0;
 end;
@@ -948,5 +954,108 @@ begin
   Result := TextExtent(AText).Cx;
 end;
 
+const
+  Colors: array[0..46] of TIdentMapEntry = (
+    // standard colors
+    (Value: clBlack; Name: 'clBlack'),
+    (Value: clMaroon; Name: 'clMaroon'),
+    (Value: clGreen; Name: 'clGreen'),
+    (Value: clOlive; Name: 'clOlive'),
+    (Value: clNavy; Name: 'clNavy'),
+    (Value: clPurple; Name: 'clPurple'),
+    (Value: clTeal; Name: 'clTeal'),
+    (Value: clGray; Name: 'clGray'),
+    (Value: clSilver; Name: 'clSilver'),
+    (Value: clRed; Name: 'clRed'),
+    (Value: clLime; Name: 'clLime'),
+    (Value: clYellow; Name: 'clYellow'),
+    (Value: clBlue; Name: 'clBlue'),
+    (Value: clFuchsia; Name: 'clFuchsia'),
+    (Value: clAqua; Name: 'clAqua'),
+    (Value: clWhite; Name: 'clWhite'),
+
+    // extended colors
+    (Value: clMoneyGreen; Name: 'clMoneyGreen'),
+    (Value: clSkyBlue; Name: 'clSkyBlue'),
+    (Value: clCream; Name: 'clCream'),
+    (Value: clMedGray; Name: 'clMedGray'),
+
+    // special colors
+    (Value: clNone; Name: 'clNone'),
+    (Value: clDefault; Name: 'clDefault'),
+
+    // system colors
+    (Value: clScrollBar; Name: 'clScrollBar'),
+    (Value: clBackground; Name: 'clBackground'),
+    (Value: clActiveCaption; Name: 'clActiveCaption'),
+    (Value: clInactiveCaption; Name: 'clInactiveCaption'),
+    (Value: clMenu; Name: 'clMenu'),
+    //(Value: clMenuBar; Name: 'clMenuBar'),
+    //(Value: clMenuHighlight; Name: 'clMenuHighlight'),
+    (Value: clMenuText; Name: 'clMenuText'),
+    (Value: clWindow; Name: 'clWindow'),
+    (Value: clWindowFrame; Name: 'clWindowFrame'),
+    (Value: clWindowText; Name: 'clWindowText'),
+    (Value: clCaptionText; Name: 'clCaptionText'),
+    (Value: clActiveBorder; Name: 'clActiveBorder'),
+    (Value: clInactiveBorder; Name: 'clInactiveBorder'),
+    (Value: clAppWorkspace; Name: 'clAppWorkspace'),
+    (Value: clHighlight; Name: 'clHighlight'),
+    (Value: clHighlightText; Name: 'clHighlightText'),
+    (Value: clBtnFace; Name: 'clBtnFace'),
+    (Value: clBtnShadow; Name: 'clBtnShadow'),
+    (Value: clGrayText; Name: 'clGrayText'),
+    (Value: clBtnText; Name: 'clBtnText'),
+    (Value: clInactiveCaptionText; Name: 'clInactiveCaptionText'),
+    (Value: clBtnHighlight; Name: 'clBtnHighlight'),
+    (Value: cl3DDkShadow; Name: 'cl3DDkShadow'),
+    (Value: cl3DLight; Name: 'cl3DLight'),
+    (Value: clInfoText; Name: 'clInfoText'),
+    (Value: clInfoBk; Name: 'clInfoBk')
+
+    //(Value: clHotLight; Name: 'clHotLight'),
+    //(Value: clGradientActiveCaption; Name: 'clGradientActiveCaption'),
+    //(Value: clGradientInactiveCaption; Name: 'clGradientInactiveCaption'),
+
+    // one our special color
+    //(Value: clForm; Name: 'clForm')
+    );
+
+function IdentEntry(Entry: Longint; out MapEntry: TIdentMapEntry): boolean;
+begin
+  Result := False;
+  if (Entry >= 0) and (Entry <= High(Colors)) then
+  begin
+    MapEntry := Colors[Entry];
+    Result := True;
+  end;
+end;
+
+function ColorToIdent(Color: Longint; out Ident: String): Boolean;
+begin
+  Result := IntToIdent(Color, Ident, Colors);
+end;
+
+function IdentToColor(const Ident: string; out Color: Longint): Boolean;
+begin
+  Result := IdentToInt(Ident, Color, Colors);
+end;
+
+function ColorIndex(Color: Longint; out Index: Integer): Boolean;
+var
+  i: integer;
+begin
+  for i := Low(Colors) to High(Colors) do
+    if Colors[i].Value = Color then
+    begin
+      Result := True;
+      Index := i;
+      exit;
+    end;
+  Result := False;
+end;
+
+initialization
+ // RegisterIntegerConsts(TypeInfo(TColor), TIdentToInt(@IdentToColor), TIntToIdent(@ColorToIdent));
 end.
 

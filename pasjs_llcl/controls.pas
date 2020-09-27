@@ -107,8 +107,10 @@ type
   TControl = class;
   TControlClass = class of TControl;
 
-  TAlign = (alNone, alTop, alBottom, alLeft, alRight, alClient, alCustomd);
+  TAlign = (alNone, alTop, alBottom, alLeft, alRight, alClient, alCustom);
   TAlignSet = set of TAlign;
+  TAnchorKind = (akTop, akLeft, akRight, akBottom);
+  TAnchors = set of TAnchorKind;
 
   TBevelCut = (bvNone, bvLowered, bvRaised, bvSpace);
 
@@ -137,17 +139,21 @@ type
   TShiftStateEnum = (ssShift, ssAlt, ssCtrl, ssLeft, ssRight, ssMIDdle, ssDouble);
   TShiftState = set of TShiftStateEnum;
 
-//  TKeyEvent = procedure(Sender: TObject; var Key: NativeInt; Shift: TShiftState) of object;
-  TKeyEvent = procedure(Sender: TObject; var Key: Word; Shift: TShiftState) of object;
+  TKeyEvent = procedure(Sender: TObject; var Key: NativeInt; Shift: TShiftState) of object;
   TKeyPressEvent = procedure(Sender: TObject; var Key: char) of object;
 
   TMouseButton = (mbLeft, mbRight, mbMiddle);
 
-  TMouseEvent = procedure(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: integer) of object;
+  TMouseEvent = procedure(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: NativeInt) of object;
   TMouseMoveEvent = procedure(Sender: TObject; Shift: TShiftState; X, Y: NativeInt) of object;
   TMouseWheelEvent = procedure(Sender: TObject; Shift: TShiftState; WheelDelta: NativeInt; MousePos: TPoint; var Handled: boolean) of object;
 
   TFocusSearchDirection = (fsdFirst, fsdLast, fsdNext, fsdPrev);
+
+  TControlFlag = (
+    cfInAlignControls
+  );
+  TControlFlags = set of TControlFlag;
 
   { TControlBorderSpacing }
 
@@ -186,13 +192,16 @@ type
   TControl = class(TComponent)
   private
     FAlign: TAlign;
+    FAnchors: TAnchors;
     FAutoSize: boolean;
     FBorderSpacing: TControlBorderSpacing;
     FBorderStyle: TBorderStyle;
     FCaption: TCaption;
     FColor: TColor;
+    FControlFlags: TControlFlags;
     FControls: TJSArray; /// The child controls
     FCursor: TCursor;
+    FDesignRect: TRect;
     FEnabled: boolean;
     FFont: TFont;
     FHandleClass: string;
@@ -228,6 +237,7 @@ type
     function GetClientWidth: NativeInt;
     function GetText: TCaption;
     procedure SetAlign(AValue: TAlign);
+    procedure SetAnchors(AValue: TAnchors);
     procedure SetAutoSize(AValue: boolean);
     procedure SetBorderSpacing(AValue: TControlBorderSpacing);
     procedure SetBorderStyle(AValue: TBorderStyle);
@@ -290,6 +300,7 @@ type
     function HandleResize(AEvent: TJSEvent): boolean; virtual;
     function HandleScroll(AEvent: TJSEvent): boolean; virtual;
   protected
+    procedure Loaded; override;
     procedure Changed; virtual;
     function CreateHandleElement: TJSHTMLElement; virtual;
     procedure RegisterHandleEvents; virtual;
@@ -307,6 +318,7 @@ type
     function TabOrderArray: TJSArray; virtual;
     function CompareTabOrder(A, B: JSValue): NativeInt; virtual;
     procedure UpdateTabOrder(const AValue: TControl); virtual;
+    procedure SetParentComponent(AValue: TComponent); override;
   protected
     class function GetControlClassDefaultSize: TSize; virtual;
   public
@@ -326,7 +338,8 @@ type
     procedure SetBounds(ALeft, ATop, AWidth, AHeight: NativeInt); virtual;
   public
     property Align: TAlign read FAlign write SetAlign;
-    property AutoSize: boolean read FAutoSize write SetAutoSize;
+    property Anchors: TAnchors read FAnchors write SetAnchors;
+    property AutoSize: boolean read FAutoSize write SetAutoSize default False;
     property BorderSpacing: TControlBorderSpacing read FBorderSpacing write SetBorderSpacing;
     property Caption: TCaption read GetText write SetText;
     property ClientHeight: NativeInt read GetClientHeight write SetClientHeight;
@@ -371,9 +384,9 @@ type
   protected
     procedure DoEnter; virtual;
     procedure DoExit; virtual;
-    procedure KeyDown(var Key: Word; Shift: TShiftState); virtual;
+    procedure KeyDown(var Key: NativeInt; Shift: TShiftState); virtual;
     procedure KeyPress(var Key: char); virtual;
-    procedure KeyUp(var Key: Word; Shift: TShiftState); virtual;
+    procedure KeyUp(var Key: NativeInt; Shift: TShiftState); virtual;
   protected
     function HandleEnter(AEvent: TJSFocusEvent): boolean; virtual;
     function HandleExit(AEvent: TJSEvent): boolean; virtual;
@@ -420,6 +433,17 @@ type
     property OnPaint: TNotifyEvent read FOnPaint write FOnPaint;
   end;
 
+const
+  AnchorAlign: array[TAlign] of TAnchors = (
+    [],                                // alNone
+    [akLeft, akTop, akRight],          // alTop
+    [akLeft, akRight, akBottom],       // alBottom
+    [akLeft, akTop, akBottom],         // alLeft
+    [akRight, akTop, akBottom],        // alRight
+    [akLeft, akTop, akRight, akBottom],// alClient
+    []                                 // alCustom
+    );
+
 function FromCharCode(ACode: NativeInt): char; external Name 'String.fromCharCode';
 
 function CompareString(A, B: string): integer; assembler;
@@ -434,8 +458,9 @@ function IfThen(const AExpression: boolean; const AConsequence, AAlternative: st
 function ScrollbarWidth: NativeInt;
 
 function OffSets(const AElement: TJSHTMLElement): TRect;
+procedure UpdateHtmlElementFont(AElement: TJSHTMLElement; AFont: TFont; AClear: Boolean = False);
 
-function ExtractKeyCode(const AEvent: TJSKeyBoardEvent): Word;//NativeInt;
+function ExtractKeyCode(const AEvent: TJSKeyBoardEvent): NativeInt;
 function ExtractKeyChar(const AEvent: TJSKeyBoardEvent): char;
 function ExtractShiftState(const AEvent: TJSKeyboardEvent): TShiftState; overload;
 function ExtractShiftState(const AEvent: TJSMouseEvent): TShiftState; overload;
@@ -571,7 +596,47 @@ begin
   end;
 end;
 
-function ExtractKeyCode(const AEvent: TJSKeyBoardEvent): Word;//NativeInt;
+procedure UpdateHtmlElementFont(AElement: TJSHTMLElement; AFont: TFont; AClear: Boolean);
+var
+  s: String;
+begin
+  with AElement.style do begin
+    if AClear then begin
+      removeProperty('font-family');
+      removeProperty('font-size');
+      removeProperty('font-weight');
+      removeProperty('font-style');
+      removeProperty('text-decoration');
+    end else begin
+      setProperty('font-family', AFont.Name);
+      setProperty('font-size', IntToStr(AFont.Size) + 'pt');
+      if fsBold in AFont.Style then
+        setProperty('font-weight', 'bold')
+      else
+        setProperty('font-weight', '');
+      setProperty('font-style', 'normal');
+      s := '';
+      if fsItalic in AFont.Style then
+        s := 'italic';
+      if fsUnderline in AFont.Style then begin
+        if s <> '' then
+          s := s + ' ';
+        s := s + 'underline';
+      end;
+      if fsStrikeOut in AFont.Style then begin
+        if s <> '' then
+          s := s + ' ';
+        s := s + 'line-through';
+      end;
+      if s <> '' then
+        setProperty('text-decoration', s)
+      else
+        removeProperty('text-decoration');
+    end;
+  end;
+end;
+
+function ExtractKeyCode(const AEvent: TJSKeyBoardEvent): NativeInt;
 var
   VLocation: NativeInt;
   VKey: string;
@@ -960,7 +1025,7 @@ end;
 
 function TControl.GetClientRect: TRect;
 begin
-  Result := Rect(0, 0, FWidth, FHeight);
+  Result := Rect(0, 0, FWidth - 1, FHeight - 1);
 end;
 
 function TControl.GetClientWidth: NativeInt;
@@ -978,8 +1043,23 @@ begin
   if (FAlign <> AValue) then
   begin
     FAlign := AValue;
-    ReAlign;
+    { if we have a parent we need to get our new size which the parent needs to
+      calculate first }
+    if Assigned(FParent) then
+      FParent.ReAlign
+    else
+      ReAlign;
   end;
+end;
+
+procedure TControl.SetAnchors(AValue: TAnchors);
+begin
+  if FAnchors = AValue then
+    Exit;
+  FAnchors := AValue;
+  { changing the anchors per se does not change the position of any control
+    inside of it }
+  //ReAlign;
 end;
 
 procedure TControl.SetAutoSize(AValue: boolean);
@@ -1241,9 +1321,9 @@ end;
 
 procedure TControl.DoResize;
 begin
-  if (Assigned(FOnScroll)) then
+  if (Assigned(FOnResize)) then
   begin
-    FOnScroll(Self);
+    FOnResize(Self);
   end;
 end;
 
@@ -1412,10 +1492,43 @@ begin
   Result := True;
 end;
 
-procedure TControl.Changed;
+procedure TControl.Loaded;
 begin
-  if (not IsUpdating) then
+  inherited Loaded;
+  FDesignRect := Rect(Left, Top, Left + Width - 1, Top + Height - 1);
+  Changed;
+end;
+
+procedure TControl.Changed;
+var
+  form: TCustomForm;
+
+  function AdjustWithPPI(aValue: Integer): Integer;
   begin
+    if Assigned(form) then
+      Result := Trunc(96 * aValue / form.DesignTimePPI)
+    else
+      Result := aValue;
+  end;
+
+  function FindParentForm: TCustomForm;
+  var
+    p: TWinControl;
+  begin
+    p := Parent;
+    while Assigned(p) and not (p is TCustomForm) do
+      p := p.Parent;
+    if p is TCustomForm then
+      Result := TCustomForm(p)
+    else
+      Result := Nil;
+  end;
+
+begin
+  if (not IsUpdating) and not (csLoading in ComponentState) then
+  begin
+    form := FindParentForm;
+
     with FHandleElement do
     begin
       /// Id
@@ -1443,11 +1556,7 @@ begin
       begin      
         /// Font
         Style.SetProperty('color', JSColor(FFont.Color));
-        Style.SetProperty('font-family', FFont.Name);
-        Style.SetProperty('font-size', IntToStr(FFont.Size) + 'px');
-        Style.SetProperty('font-style', 'normal');
-        Style.SetProperty('font-weight', IfThen(fsBold in FFont.Style, 'bold', 'normal'));
-        Style.SetProperty('text-decoration', IfThen(fsUnderline in FFont.Style, 'underline', 'normal'));
+        UpdateHtmlElementFont(FHandleElement, FFont, False);
         /// Color
         if (FColor in [clDefault, clNone]) then
         begin
@@ -1460,10 +1569,10 @@ begin
       end;
 
       /// Bounds
-      Style.SetProperty('left', IntToStr(FLeft) + 'px');
-      Style.SetProperty('top', IntToStr(FTop) + 'px');
-      Style.SetProperty('width', IntToStr(FWidth) + 'px');
-      Style.SetProperty('height', IntToStr(FHeight) + 'px');
+      Style.SetProperty('left', IntToStr(AdjustWithPPI(FLeft)) + 'px');
+      Style.SetProperty('top', IntToStr(AdjustWithPPI(FTop)) + 'px');
+      Style.SetProperty('width', IntToStr(AdjustWithPPI(FWidth)) + 'px');
+      Style.SetProperty('height', IntToStr(AdjustWithPPI(FHeight)) + 'px');
 
       /// Cursor
       Style.SetProperty('cursor', JSCursor(FCursor));
@@ -1529,6 +1638,7 @@ begin
   end;
 end;
 
+{$push}
 {$hints off}
 
 function TControl.CreateHandleElement: TJSHTMLElement;
@@ -1536,7 +1646,7 @@ begin
   raise TJSError.New(Format('%s.CreateHandleElement=nil', [ClassName]));
 end;
 
-{$hints on}
+{$pop}
 
 procedure TControl.RegisterHandleEvents;
 begin
@@ -1572,6 +1682,7 @@ begin
   end;
 end;
 
+{$push}
 {$hints off}
 
 function TControl.CheckChildClassAllowed(AChildClass: TClass): boolean;
@@ -1579,7 +1690,7 @@ begin
   Result := False;
 end;
 
-{$hints on}
+{$pop}
 
 procedure TControl.CheckNewParent(AParent: TWinControl);
 begin
@@ -1640,6 +1751,24 @@ begin
 end;
 
 procedure TControl.AlignControls;
+
+  function AnchorsToStr(const aAnchors: TAnchors): String;
+  const
+    AnchorStr: array[TAnchorKind] of String = (
+      'Top', 'Left', 'Right', 'Bottom'
+    );
+  var
+    anchor: TAnchorKind;
+  begin
+    Result := '';
+    for anchor := Low(TAnchorKind) to High(TAnchorKind) do
+      if anchor in aAnchors then begin
+        if Result <> '' then
+          Result := Result + ', ';
+        Result := Result + AnchorStr[anchor];
+      end;
+  end;
+
 var
   VControl: TControl;
   VSpacing: TControlBorderSpacing;
@@ -1649,7 +1778,11 @@ var
   VRight: NativeInt;
   VBotton: NativeInt;
   VWidth: NativeInt;
+  newleft, newtop, newright, newbottom: NativeInt;
 begin
+  if cfInAlignControls in FControlFlags then
+    Exit;
+  Include(FControlFlags, cfInAlignControls);
   BeginUpdate;
   try
     VLeft := 0;
@@ -1680,7 +1813,7 @@ begin
     begin
       VTop := 0;
     end;
-    /// Botton
+    /// Bottom
     for VIndex := 0 to (FControls.Length - 1) do
     begin
       VControl := TControl(FControls[VIndex]);
@@ -1690,7 +1823,8 @@ begin
         try
           VSpacing := VControl.BorderSpacing;
           VControl.Left := VLeft + VSpacing.Left + VSpacing.Around;
-          VControl.Top := VBotton - VControl.Height - VSpacing.Bottom - VSpacing.Around;
+          if not (akBottom in VControl.Anchors) then
+            VControl.Top := VBotton - VControl.Height - VSpacing.Bottom - VSpacing.Around;
           VControl.Width := VWidth - VSpacing.Left - VSpacing.Right - (VSpacing.Around * 2);
           VControl.Height := VControl.Height;
         finally
@@ -1735,7 +1869,8 @@ begin
         VControl.BeginUpdate;
         try
           VSpacing := VControl.BorderSpacing;
-          VControl.Left := VRight - VControl.Width - VSpacing.Right - VSpacing.Around;
+          if not (akLeft in VControl.Anchors) then
+            VControl.Left := VRight - VControl.Width - VSpacing.Right - VSpacing.Around;
           VControl.Top := VTop + VSpacing.Top + VSpacing.Around;
           VControl.Width := VControl.Width;
           VControl.Height := VBotton - VTop - VSpacing.Top - VSpacing.Bottom - (VSpacing.Around * 2);
@@ -1767,7 +1902,43 @@ begin
         end;
       end;
     end;
+    { alNone, but anchored }
+    for VIndex := 0 to (FControls.Length - 1) do begin
+      VControl := TControl(FControls[VIndex]);
+      if Assigned(VControl) and (VControl.Align = alNone) and VControl.Visible and (VControl.Anchors <> []) then begin
+        VControl.BeginUpdate;
+        try
+          if akLeft in VControl.Anchors then
+            newleft := VControl.Left;
+          if akTop in VControl.Anchors then
+            newtop := VControl.Top;
+          if akBottom in VControl.Anchors then
+            newbottom := Height - (FDesignRect.Bottom - VControl.FDesignRect.Bottom);
+          if akRight in VControl.Anchors then
+            newright := Width - (FDesignRect.Right - VControl.FDesignRect.Right);
+
+          if [akLeft, akRight] <= VControl.Anchors then begin
+            VControl.Left := newleft;
+            VControl.Width := newright - newleft + 1;
+          end else if akLeft in VControl.Anchors then
+            VControl.Left := newleft
+          else if akRight in VControl.Anchors then
+            VControl.Left := newright - VControl.Width;
+
+          if [akTop, akBottom] <= VControl.Anchors then begin
+            VControl.Top := newtop;
+            VControl.Height := newbottom - newtop + 1;
+          end else if akTop in VControl.Anchors then
+            VControl.Top := newtop
+          else if akBottom in VControl.Anchors then
+            VControl.Top := newbottom - VControl.Height;
+        finally
+          VControl.EndUpdate;
+        end;
+      end;
+    end;
   finally
+    Exclude(FControlFlags, cfInAlignControls);
     EndUpdate;
   end;
 end;
@@ -1786,6 +1957,7 @@ begin
   end;
 end;
 
+{$push}
 {$hints off}
 
 procedure TControl.BorderSpacingChanged(Sender: TObject);
@@ -1796,9 +1968,9 @@ begin
   end;
 end;
 
-{$hints on}
+{$pop}
 
-
+{$push}
 {$hints off}
 
 procedure TControl.ColorChanged(Sender: TObject);
@@ -1806,8 +1978,9 @@ begin
   Changed;
 end;
 
-{$hints on}
+{$pop}
 
+{$push}
 {$hints off}
 
 procedure TControl.FontChanged(Sender: TObject);
@@ -1815,7 +1988,7 @@ begin
   Changed;
 end;
 
-{$hints on}
+{$pop}
 
 function TControl.TabOrderArray: TJSArray;
 begin
@@ -1873,6 +2046,12 @@ begin
   end;
 end;
 
+procedure TControl.SetParentComponent(AValue: TComponent);
+begin
+  if AValue is TWinControl then
+    SetParent(TWinControl(AValue));
+end;
+
 class function TControl.GetControlClassDefaultSize: TSize;
 begin
   Result.Cx := 75;
@@ -1880,6 +2059,8 @@ begin
 end;
 
 constructor TControl.Create(AOwner: TComponent);
+var
+  sz: TSize;
 begin
   inherited Create(AOwner);
   FHandleElement := CreateHandleElement;
@@ -1893,10 +2074,13 @@ begin
   FFont := TFont.Create;
   FFont.OnChange := @FontChanged;
   FAlign := alNone;
+  FAnchors := [akLeft, akTop];
   FAutoSize := False;
   FCaption := '';
   FColor := clDefault;
   FCursor := crDefault;
+  sz := GetControlClassDefaultSize;
+  FDesignRect := Rect(0, 0, sz.cx - 1, sz.cy - 1);
   FEnabled := True;
   FLeft := 0;
   FParent := nil;
@@ -1914,7 +2098,8 @@ end;
 destructor TControl.Destroy;
 begin
   DestroyComponents;
-  UnRegisterHandleEvents;
+  if Assigned(FHandleElement) then
+    UnRegisterHandleEvents;
   if (Assigned(FParent)) then
   begin
     FParent.UnRegisterChild(Self);
@@ -2092,9 +2277,7 @@ begin
   end;
 end;
 
-
-
-procedure TWinControl.KeyDown(var Key: Word; Shift: TShiftState);
+procedure TWinControl.KeyDown(var Key: NativeInt; Shift: TShiftState);
 begin
   if (Assigned(FOnKeyDown)) then
   begin
@@ -2110,7 +2293,7 @@ begin
   end;
 end;
 
-procedure TWinControl.KeyUp(var Key: Word; Shift: TShiftState);
+procedure TWinControl.KeyUp(var Key: NativeInt; Shift: TShiftState);
 begin
   if (Assigned(FOnKeyUp)) then
   begin
@@ -2148,7 +2331,7 @@ function TWinControl.HandleKeyDown(AEvent: TJSKeyBoardEvent): boolean;
 var
   VControl: TWinControl;
   VForm: TCustomForm;
-  VKey: Word;//NativeInt;
+  VKey: NativeInt;
   VParent: TControl;
   VShift: TShiftState;
 begin
@@ -2219,7 +2402,7 @@ end;
 function TWinControl.HandleKeyUp(AEvent: TJSKeyBoardEvent): boolean;
 var
   VForm: TCustomForm;
-  VKey: Word;
+  VKey: NativeInt;
   VParent: TControl;
   VShift: TShiftState;
 begin
