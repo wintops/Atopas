@@ -24,6 +24,7 @@ begin
     Form1.Caption := 'LLCL - Just testing...';
     Form1.ClientHeight := 541;
     Form1.ClientWidth := 408;
+    Form1.Font.Size:=9;
     Form1.KeyPreview := True;
     //  Form1.Menu := MainMenu1;
     Form1.OnCreate := FormCreate;
@@ -43,7 +44,6 @@ begin
     GroupBox1.ClientHeight := 110;
     GroupBox1.ClientWidth := 125;
     GroupBox1.Font.Color := clBlack;
-    GroupBox1.Font.Size := 9;
     GroupBox1.Font.Name := 'Tahoma';
     GroupBox1.ParentFont := False;
     RadioButton1 := TRadioButton.Create(GroupBox1);
@@ -55,7 +55,6 @@ begin
     RadioButton1.Width := 87;
     RadioButton1.Caption := 'RadioButton1';
     RadioButton1.Font.Color := clBlack;
-    RadioButton1.Font.Size := 9;
     RadioButton1.Font.Name := 'Tahoma';
     RadioButton1.Font.Style := [fsItalic];
     RadioButton1.ParentFont := False;
@@ -71,7 +70,6 @@ begin
     RadioButton2.Caption := 'RadioButton2';
     RadioButton2.Checked := True;
     RadioButton2.Font.Color := clBlack;
-    RadioButton2.Font.Size := 9;
     RadioButton2.Font.Name := 'Tahoma';
     RadioButton2.ParentFont := False;
     RadioButton2.EndUpdate;
@@ -86,7 +84,6 @@ begin
     ComboBox1.Top := 12;
     ComboBox1.Width := 133;
     ComboBox1.Font.Color := clBlack;
-    ComboBox1.Font.Size := 12;
     ComboBox1.Font.Name := 'Tahoma';
     ComboBox1.Font.Style := [fsBold];
     ComboBox1.ItemHeight := 13;
@@ -173,7 +170,6 @@ begin
     Button2.Width := 53;
     Button2.Caption := 'GetText';
     Button2.OnClick := Button2Click;
-    Button2.Font.Size := 10;
     Button2.EndUpdate;
 
     Button4 := TButton.Create(Form1);
@@ -184,7 +180,6 @@ begin
     Button4.Top := 44;
     Button4.Width := 53;
     Button4.Caption := 'SetText';
-    Button4.Font.Size := 10;
     Button4.OnClick := Button4Click;
     Button4.EndUpdate;
 
@@ -195,7 +190,6 @@ begin
     CheckBox1.Height := 21;
     CheckBox1.Top := 76;
     CheckBox1.Width := 100;
-    CheckBox1.Font.Size := 10;
     CheckBox1.AllowGrayed := True;
     CheckBox1.Caption := 'CheckBox1';
     CheckBox1.State := cbGrayed;
@@ -209,7 +203,6 @@ begin
     Button6.Top := 92;
     Button6.Width := 53;
     Button6.Caption := 'Grayed';
-    Button6.Font.Size := 10;
 
     Button6.OnClick := Button6Click;
     Button6.EndUpdate;
@@ -222,7 +215,6 @@ begin
     Button7.Top := 12;
     Button7.Width := 29;
     Button7.Caption := 'DD';
-    Button7.Font.Size := 10;
 
     Button7.OnClick := Button7Click;
     Button7.EndUpdate;
@@ -235,7 +227,6 @@ begin
     Button8.Top := 44;
     Button8.Width := 61;
     Button8.Caption := 'Disabled';
-    Button8.Font.Size := 10;
 
     Button8.Enabled := False;
     Button8.OnClick := Button8Click;
@@ -249,7 +240,6 @@ begin
     Button9.Top := 180;
     Button9.Width := 33;
     Button9.Caption := 'Sh/H';
-    Button9.Font.Size := 10;
 
     Button9.OnClick := Button9Click;
     Button9.EndUpdate;
@@ -274,7 +264,6 @@ begin
     CheckBox2.Top := 96;
     CheckBox2.Width := 100;
     CheckBox2.Caption := 'CheckBox2';
-    CheckBox2.Font.Size := 10;
     CheckBox2.Checked := True;
     CheckBox2.State := cbChecked;
     CheckBox2.EndUpdate;
@@ -287,7 +276,6 @@ begin
     CheckBox3.Top := 116;
     CheckBox3.Width := 100;
     CheckBox3.Caption := 'CheckBox3';
-    CheckBox3.Font.Size := 10;
     CheckBox3.EndUpdate;
 
     ComboBox2 := TComboBox.Create(Form1);
@@ -301,7 +289,6 @@ begin
     ComboBox2.Items.CommaText := '5,4,3,2,1';
     ComboBox2.Style := csSimple;
     ComboBox2.Text := '10';
-    ComboBox2.Font.Size := 9;
     ComboBox2.EndUpdate;
 
     StaticText1 := TStaticText.Create(Form1);
@@ -314,7 +301,6 @@ begin
     StaticText1.Alignment := taCenter;
     StaticText1.BorderStyle := sbsSunken;
     StaticText1.Caption := 'StaticText';
-    StaticText1.Font.Size:=9;
     StaticText1.EndUpdate;
 
     Label1 := TLabel.Create(Form1);
@@ -370,7 +356,6 @@ begin
     StaticText2.Width := 217;
     StaticText2.Alignment := taCenter;
     StaticText2.Caption := '(Reserved for dynamic control)';
-    StaticText2.Font.Size:=10;
     StaticText2.Visible := False;
     StaticText2.EndUpdate;
 
