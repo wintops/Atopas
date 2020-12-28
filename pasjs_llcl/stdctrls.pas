@@ -39,12 +39,16 @@ uses
 
 type
   TEditCharCase = (ecNormal, ecUppercase, ecLowerCase);
+  TComboBoxStyle =
+    (csDropDown, csSimple, csDropDownList, csOwnerDrawFixed, csOwnerDrawVariable);
 
   { TCustomComboBox }
 
   TCustomComboBox = class(TWinControl)
     { TODO: DropDownCount, ItemHeight, ItemWidth...  }
   private
+    fStyle: TComboBoxStyle;
+    EidtElement: TJSHTMLElement;
     FDropDownCount: integer;
     FItemHeight: NativeInt;
     FItemIndex: NativeInt;
@@ -78,7 +82,7 @@ type
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
-    procedure AddItem(const AItem: string; AObject: TObject); virtual;   
+    procedure AddItem(const AItem: string; AObject: TObject); virtual;
     procedure Append(const AItem: string);
     procedure Clear; virtual;
     property DropDownCount: integer read FDropDownCount write SetDropDownCount;
@@ -86,6 +90,7 @@ type
     property ItemIndex: NativeInt read FItemIndex write SetItemIndex;
     property Items: TStrings read FItems write SetItems;
     property Sorted: boolean read FSorted write SetSorted;
+    property Style: TComboBoxStyle read fStyle write fStyle;
   end;
 
   { TCustomListBox }
@@ -97,23 +102,23 @@ type
     FItemHeight: NativeInt;
     FItemIndex: NativeInt;
     FItems: TStrings;
-    FMultiSelect: Boolean;
-    FSelectionChanged: Boolean;
-    FSelected: array of Boolean;
-    FSorted: Boolean;
+    FMultiSelect: boolean;
+    FSelectionChanged: boolean;
+    FSelected: array of boolean;
+    FSorted: boolean;
     FOnSelectionChange: TSelectionChangeEvent;
     function GetSelCount: integer;
-    function GetSelected(Index: Integer): Boolean;
+    function GetSelected(Index: integer): boolean;
     procedure SetItemHeight(AValue: NativeInt);
     procedure SetItemIndex(AValue: NativeInt);
     procedure SetItems(AValue: TStrings);
-    procedure SetMultiSelect(AValue: Boolean);
-    procedure SetSelected(Index: Integer; AValue: Boolean);
-    procedure SetSorted(AValue: Boolean);
+    procedure SetMultiSelect(AValue: boolean);
+    procedure SetSelected(Index: integer; AValue: boolean);
+    procedure SetSorted(AValue: boolean);
   private
     procedure ItemsChanged(ASender: TObject);
   protected
-    procedure SelectionChange(AUser: Boolean); virtual;
+    procedure SelectionChange(AUser: boolean); virtual;
   protected
     function HandleChange(AEvent: TJSEvent): boolean; virtual;
   protected
@@ -128,20 +133,21 @@ type
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
-    procedure AddItem(const AItem: String; AObject: TObject); virtual;
-    procedure Append(const AItem: String);
+    procedure AddItem(const AItem: string; AObject: TObject); virtual;
+    procedure Append(const AItem: string);
     procedure Clear;
     procedure ClearSelection;
     procedure SelectAll; virtual;
-    procedure SelectRange(ALow, AHigh: Integer; ASelected: boolean); virtual;
+    procedure SelectRange(ALow, AHigh: integer; ASelected: boolean); virtual;
     property ItemHeight: NativeInt read FItemHeight write SetItemHeight;
     property ItemIndex: NativeInt read FItemIndex write SetItemIndex;
     property Items: TStrings read FItems write SetItems;
-    property MultiSelect: Boolean read FMultiSelect write SetMultiSelect default False;
+    property MultiSelect: boolean read FMultiSelect write SetMultiSelect default False;
     property SelCount: integer read GetSelCount;
-    property Selected[Index: Integer]: Boolean read GetSelected write SetSelected;
-    property Sorted: Boolean read FSorted write SetSorted default False;
-    property OnSelectionChange: TSelectionChangeEvent read FOnSelectionChange write FOnSelectionChange;
+    property Selected[Index: integer]: boolean read GetSelected write SetSelected;
+    property Sorted: boolean read FSorted write SetSorted default False;
+    property OnSelectionChange: TSelectionChangeEvent
+      read FOnSelectionChange write FOnSelectionChange;
   end;
 
   { TCustomEdit }
@@ -179,7 +185,7 @@ type
   protected
     procedure Change; virtual;
     procedure DoEnter; override;
-    procedure DoInput(ANewValue:string); virtual;
+    procedure DoInput(ANewValue: string); virtual;
   protected
     function HandleInput(AEvent: TJSEvent): boolean; virtual;
   protected
@@ -310,8 +316,8 @@ type
     property ModalResult: TModalResult read FModalResult write FModalResult;
   end;
 
- // TCheckBoxState = (cbUnchecked, cbChecked);
-    TCheckBoxState = (cbUnchecked, cbChecked, cbGrayed);
+  // TCheckBoxState = (cbUnchecked, cbChecked);
+  TCheckBoxState = (cbUnchecked, cbChecked, cbGrayed);
 
   TLeftRight = taLeftJustify..taRightJustify;
 
@@ -349,7 +355,8 @@ type
   public
     constructor Create(AOwner: TComponent); override;
   public
-    property Alignment: TLeftRight read FAlignment write SetAlignment default taRightJustify;
+    property Alignment: TLeftRight read FAlignment write SetAlignment default
+      taRightJustify;
     property State: TCheckBoxState read GetState write SetState default cbUnchecked;
   end;
 
@@ -468,6 +475,9 @@ begin
   inherited Changed;
   if (not IsUpdating) and not (csLoading in ComponentState) then
   begin
+
+
+
     /// Remove old items
     for VIndex := (TJSHTMLSelectElement(HandleElement).Length - 1) downto 0 do
     begin
@@ -484,7 +494,8 @@ begin
       TJSHTMLSelectElement(HandleElement).Add(VOptionElement);
     end;
     { add dummy item at the end to avoid problems with the ItemIndex }
-    if FItemIndex < 0 then begin
+    if FItemIndex < 0 then
+    begin
       VOptionElement := TJSHTMLOptionElement(Document.CreateElement('option'));
       VOptionElement.Value := '';
       VOptionElement.Text := '';
@@ -498,6 +509,17 @@ end;
 
 function TCustomComboBox.CreateHandleElement: TJSHTMLElement;
 begin
+
+    if Style = csSimple then
+  begin
+
+    EidtElement := TJSHTMLElement(Document.CreateElement('input'));
+
+  Result := TJSHTMLElement(Document.CreateElement('span'));
+  Result.AppendChild(EidtElement);
+  Result.AppendChild(Document.CreateElement('select'));
+  end
+  else
   Result := TJSHTMLElement(Document.CreateElement('select'));
 end;
 
@@ -564,6 +586,8 @@ end;
 constructor TCustomComboBox.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
+
+
   FDropDownCount := 8;
   FItemHeight := 0;
   FItemIndex := -1;
@@ -611,7 +635,8 @@ end;
 
 procedure TCustomListBox.SetItemHeight(AValue: NativeInt);
 begin
-  if FItemHeight <> AValue then begin
+  if FItemHeight <> AValue then
+  begin
     FItemHeight := AValue;
     Changed;
   end;
@@ -619,7 +644,8 @@ end;
 
 procedure TCustomListBox.SetItemIndex(AValue: NativeInt);
 begin
-  if (AValue > -1) and (AValue < FItems.Count) then begin
+  if (AValue > -1) and (AValue < FItems.Count) then
+  begin
     BeginUpdate;
     try
       if FMultiSelect then
@@ -638,9 +664,10 @@ begin
   Changed;
 end;
 
-procedure TCustomListBox.SetSorted(AValue: Boolean);
+procedure TCustomListBox.SetSorted(AValue: boolean);
 begin
-  if FSorted <> AValue then begin
+  if FSorted <> AValue then
+  begin
     FSorted := AValue;
     UpdateSorted;
   end;
@@ -648,18 +675,20 @@ end;
 
 function TCustomListBox.GetSelCount: integer;
 var
-  b: Boolean;
+  b: boolean;
 begin
   Result := 0;
-  if FMultiSelect then begin
+  if FMultiSelect then
+  begin
     for b in FSelected do
       if b then
         Inc(Result);
-  end else if ItemIndex <> -1 then
+  end
+  else if ItemIndex <> -1 then
     Inc(Result);
 end;
 
-function TCustomListBox.GetSelected(Index: Integer): Boolean;
+function TCustomListBox.GetSelected(Index: integer): boolean;
 begin
   if (Index < 0) or (Index >= FItems.Count) then
     raise EListError.CreateFmt(SListIndexError, [Index]);
@@ -673,9 +702,10 @@ begin
   Changed;
 end;
 
-procedure TCustomListBox.SetMultiSelect(AValue: Boolean);
+procedure TCustomListBox.SetMultiSelect(AValue: boolean);
 begin
-  if FMultiSelect <> AValue then begin
+  if FMultiSelect <> AValue then
+  begin
     ClearSelection;
     FMultiSelect := AValue;
     if not (csLoading in ComponentState) then
@@ -684,13 +714,14 @@ begin
   end;
 end;
 
-procedure TCustomListBox.SetSelected(Index: Integer; AValue: Boolean);
+procedure TCustomListBox.SetSelected(Index: integer; AValue: boolean);
 var
   i: NativeInt;
 begin
   if Index > High(FSelected) then
     raise EListError.CreateFmt(SListIndexError, [Index]);
-  if AValue and not FMultiSelect then begin
+  if AValue and not FMultiSelect then
+  begin
     for i := 0 to High(FSelected) do
       if FSelected[i] then
         FSelected[i] := False;
@@ -698,11 +729,14 @@ begin
   FSelected[Index] := AValue;
   if AValue then
     FItemIndex := Index
-  else begin
+  else
+  begin
     FItemIndex := -1;
-    if FMultiSelect then begin
+    if FMultiSelect then
+    begin
       for i := 0 to High(FSelected) do
-        if FSelected[i] then begin
+        if FSelected[i] then
+        begin
           FItemIndex := i;
           Break;
         end;
@@ -713,7 +747,7 @@ begin
   Changed;
 end;
 
-procedure TCustomListBox.SelectionChange(AUser: Boolean);
+procedure TCustomListBox.SelectionChange(AUser: boolean);
 begin
   if Assigned(FOnSelectionChange) then
     FOnSelectionChange(Self, AUser);
@@ -724,7 +758,8 @@ var
   i: NativeInt;
 begin
   AEvent.StopPropagation;
-  with TJSHTMLSelectElement(HandleElement) do begin
+  with TJSHTMLSelectElement(HandleElement) do
+  begin
     FItemIndex := selectedIndex;
     for i := 0 to length - 1 do
       FSelected[i] := item(i).selected;
@@ -736,16 +771,21 @@ end;
 procedure TCustomListBox.Changed;
 var
   idx: NativeInt;
-  v: String;
+  v: string;
   opt: TJSHTMLOptionElement;
 begin
   inherited Changed;
-  if not IsUpdating and not (csLoading in ComponentState) then begin
-    if FSelectionChanged then begin
+
+  if not IsUpdating and not (csLoading in ComponentState) then
+  begin
+    if FSelectionChanged then
+    begin
       SelectionChange(False);
       FSelectionChanged := False;
     end;
-    with TJSHTMLSelectElement(HandleElement) do begin
+    with TJSHTMLSelectElement(HandleElement) do
+    begin
+      Style.SetProperty('overflow-y', 'scroll');
       multiple := FMultiSelect;
       { use 2, so that it isn't shown as a dropdown }
       size := 2;
@@ -753,7 +793,8 @@ begin
       for idx := TJSHTMLSelectElement(HandleElement).Length - 1 downto 0 do
         Remove(idx);
       { add new items }
-      for idx := 0 to FItems.Count - 1 do begin
+      for idx := 0 to FItems.Count - 1 do
+      begin
         v := FItems[idx];
         opt := TJSHTMLOptionElement(Document.CreateElement('option'));
         opt.Value := v;
@@ -818,7 +859,8 @@ begin
   FSorted := False;
   BeginUpdate;
   try
-    with GetControlClassDefaultSize do begin
+    with GetControlClassDefaultSize do
+    begin
       SetBounds(0, 0, Cx, Cy);
     end;
   finally
@@ -832,13 +874,13 @@ begin
   inherited Destroy;
 end;
 
-procedure TCustomListBox.AddItem(const AItem: String; AObject: TObject);
+procedure TCustomListBox.AddItem(const AItem: string; AObject: TObject);
 begin
   FItems.AddObject(AItem, AObject);
   Changed;
 end;
 
-procedure TCustomListBox.Append(const AItem: String);
+procedure TCustomListBox.Append(const AItem: string);
 begin
   FItems.Append(AItem);
   Changed;
@@ -848,15 +890,16 @@ procedure TCustomListBox.Clear;
 begin
   FItems.Clear;
   FItemIndex := -1;
-  FSelected := Nil;
+  FSelected := nil;
   Changed;
 end;
 
 procedure TCustomListBox.ClearSelection;
 var
-  i: Integer;
+  i: integer;
 begin
-  if FMultiSelect then begin
+  if FMultiSelect then
+  begin
     BeginUpdate;
     try
       for i := 0 to FItems.Count - 1 do
@@ -864,7 +907,8 @@ begin
     finally
       EndUpdate;
     end;
-  end else
+  end
+  else
     ItemIndex := -1;
 end;
 
@@ -875,9 +919,9 @@ begin
   SelectRange(0, FItems.Count - 1, True);
 end;
 
-procedure TCustomListBox.SelectRange(ALow, AHigh: Integer; ASelected: boolean);
+procedure TCustomListBox.SelectRange(ALow, AHigh: integer; ASelected: boolean);
 var
-  i: Integer;
+  i: integer;
 begin
   if not FMultiSelect then
     Exit;

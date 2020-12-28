@@ -10,14 +10,14 @@ uses
   Types,
   Graphics,
   Controls,
-    StdCtrls,
+  StdCtrls,
   ExtCtrls,
   Forms,
   browserapp;
 
 type
 
-    TGroupBox = class(TCustomPanel);
+  TGroupBox = class(TCustomPanel);
 
   TOpenOption = (ofReadOnly, ofOverwritePrompt, ofHideReadOnly, ofNoChangeDir,
     ofShowHelp, ofNoValidate, ofAllowMultiSelect, ofExtensionDifferent,
@@ -58,10 +58,17 @@ type
 
   TStaticText = class(TCustomPanel)
     BorderStyle: TStaticBorderStyle;
+  protected
+    procedure Changed; override;
+
   end;
 
   TProgressBar = class(TCustomPanel)
     Position: integer;
+    BorderWidth:integer;
+      protected
+    procedure Changed; override;
+    public
     procedure StepIt;
   end;
 
@@ -83,6 +90,8 @@ type
     Max: integer;
   private
     FOnChange: TNotifyEvent;
+          protected
+    procedure Changed; override;
   published
     property OnChange: TNotifyEvent read FOnChange write FOnChange;
   end;
@@ -95,7 +104,7 @@ type
 
   TMyApplication = class(TBrowserApplication)
     ActiveForm: TForm;
-   // procedure doRun; override;
+    // procedure doRun; override;
   end;
 
 var
@@ -103,13 +112,70 @@ var
 
 implementation
 
+procedure TStaticText.Changed;
+begin
+  case BorderStyle of
+    sbsNone:
+    begin
+     BevelWidth:=1;
+      BevelOuter := bvNone;
+    end;
+    sbsSingle:
+    begin
+      BevelWidth := 1;
+      BevelColor := clBlack;
+      BevelOuter := bvSpace;
+    end;
+    sbsSunken:
+    begin
+      BevelWidth := 1;
+      BevelOuter := bvLowered;
+    end;
+  end;
 
+  inherited Changed;
+
+end;
 
 procedure TPopupMenu.Popup(X, Y: integer);
 begin
 
 end;
 
+procedure TProgressBar.Changed;
+begin
+
+  case BorderWidth of
+    0:
+    begin
+     BevelWidth:=1;
+      BevelOuter := bvNone;
+    end;
+    else
+    begin
+      BevelWidth := BorderWidth;
+      BevelColor := clBlack;
+      BevelOuter := bvSpace;
+    end;
+  end;
+
+  inherited Changed;
+
+end;
+
+
+procedure TTrackBar.Changed;
+begin
+
+
+      BevelWidth := 1;
+      BevelColor := clBlack;
+      BevelOuter := bvSpace;
+
+
+  inherited Changed;
+
+end;
 procedure TProgressBar.StepIt;
 begin
 
@@ -124,6 +190,10 @@ function TSaveDialog.Execute: boolean;
 begin
 
 end;
+
+initialization
+Mouse:=TMouse.create;
+
 
 end.
 

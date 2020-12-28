@@ -86,6 +86,7 @@ type
 
   TCustomPanel = class(TCustomControl)
   private
+     FContentElement: TJSHTMLTableElement;
     FAlignment: TAlignment;
     FBevelColor: TColor;
     FBevelInner: TPanelBevel;
@@ -538,6 +539,44 @@ begin
       Style.SetProperty('-ms-user-select', 'none');
       Style.SetProperty('-khtml-user-select', 'none');
       Style.SetProperty('-webkit-user-select', 'none');
+
+      if Self.Caption>'' then
+      begin
+
+      with FContentElement do
+         begin
+           /// Clear
+           InnerHTML := '';
+           /// Aligment
+           case FAlignment of
+             taCenter: Style.SetProperty('text-align', 'center');
+             taLeftJustify: Style.SetProperty('text-align', 'left');
+             taRightJustify: Style.SetProperty('text-align', 'right');
+           end;
+           /// Layout
+           case FLayout of
+             tlBottom: Style.SetProperty('vertical-align', 'bottom');
+             tlCenter: Style.SetProperty('vertical-align', 'middle');
+             tlTop: Style.SetProperty('vertical-align', 'top');
+           end;
+           /// WordWrap
+           if (FWordWrap) then
+           begin
+             Style.SetProperty('word-wrap', 'break-word');
+           end
+           else
+           begin
+             Style.removeProperty('word-wrap');
+           end;
+           /// Scroll
+           Style.SetProperty('overflow', 'hidden');
+           /// Specifies how overflowed content
+           Style.SetProperty('text-overflow', 'ellipsis');
+           /// Caption
+           InnerHTML := Self.Caption;
+         end;
+
+      end;
     end;
   end;
 end;
@@ -549,16 +588,17 @@ end;
 
 class function TCustomPanel.GetControlClassDefaultSize: TSize;
 begin
-  Result.Cx := 170;
-  Result.Cy := 50;
+  Result.Cx := 1;
+  Result.Cy := 1;
 end;
 
 constructor TCustomPanel.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
+    FContentElement :=  TJSHTMLTableElement(HandleElement.AppendChild(Document.CreateElement('label')));
   FAlignment := taCenter;
   FBevelColor := clDefault;
-  FBevelOuter := bvRaised;
+  FBevelOuter :=bvNone;// bvRaised;
   FBevelInner := bvNone;
   FBevelWidth := 1;
   FLayout := tlCenter;
