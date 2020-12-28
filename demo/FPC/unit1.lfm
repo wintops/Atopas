@@ -1,11 +1,11 @@
 object Form1: TForm1
-  Left = 563
+  Left = 324
   Height = 561
-  Top = 247
-  Width = 408
+  Top = 239
+  Width = 430
   Caption = 'LLCL - Just testing...'
   ClientHeight = 541
-  ClientWidth = 408
+  ClientWidth = 430
   KeyPreview = True
   Menu = MainMenu1
   OnCreate = FormCreate
@@ -14,7 +14,7 @@ object Form1: TForm1
   OnKeyUp = FormKeyUp
   OnMouseDown = FormMouseDown
   OnMouseUp = FormMouseUp
-  LCLVersion = '2.0.8.0'
+  LCLVersion = '2.0.10.0'
   object GroupBox1: TGroupBox
     Left = 8
     Height = 65
@@ -310,10 +310,10 @@ object Form1: TForm1
   end
   object Timer1: TTimer
     OnTimer = Timer1Timer
-    left = 368
+    Left = 368
   end
   object MainMenu1: TMainMenu
-    left = 336
+    Left = 336
     object MenuItem1: TMenuItem
       Caption = '&Menu1'
       object MenuItem3: TMenuItem
@@ -357,7 +357,7 @@ object Form1: TForm1
     end
   end
   object PopupMenu1: TPopupMenu
-    left = 304
+    Left = 304
     object MenuItem9: TMenuItem
       Caption = 'Popup1'
       OnClick = MenuItem9Click
@@ -368,9 +368,9 @@ object Form1: TForm1
     end
   end
   object OpenDialog1: TOpenDialog
-    left = 240
+    Left = 240
   end
   object SaveDialog1: TSaveDialog
-    left = 272
+    Left = 272
   end
 end

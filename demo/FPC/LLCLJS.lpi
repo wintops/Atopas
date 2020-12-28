@@ -114,7 +114,6 @@
     </Linking>
     <Other>
       <CustomOptions Value="-Jeutf-8
--Jirtl.js
 -Jc
 -Jminclude
 -Fu..\..\pasjs_llcl

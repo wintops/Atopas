@@ -1,13 +1,67 @@
 <!doctype html>
-<html lang="en">
+<html>
 <head>
   <meta http-equiv="Content-type" content="text/html; charset=utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>LLCLJS</title>
+  <link rel="stylesheet" href="../layui/css/layui.css">
+  <script src="rtl.js"></script>
   <script src="llcljs.js"></script>
+
+  <script src="../layui/layui.js"></script>
 </head>
 <body>
   <script>
+
+layui.use(['layer', 'form'], function(){
+//;!function(){	
+  var $=layui.jquery, layer = layui.layer ,form = layui.form;
+
+
+ //加载层
+
+var index = layer.load(0, {shade: false}); //0代表加载的风格，支持0-2
+//loading层
+var index = layer.load(1, {  shade: [0.1,'#fff'] }); 	
+  	
+  
+
+ index2=layer.open({
+  type: 1,
+  title :'Stock',
+    maxmin:false,
+    closeBtn: false,
+  scrollbar: false,
+  content: 'test'
+});
+
+ layer.full(index2);
+ 
+ layer.open({
+  type:1,
+  title :'Test',
+  area:[($('#form1').width()+20)+'px',($('#form1').height()+50)+'px'], 
+  maxmin: true,
+  scrollbar: false,
+      //closeBtn: false,
+      shade:0,
+  content: $('#form1') 
+});
+
+ layer.open({
+  type:1,
+  title :'Test',
+  area:[($('#mchart').width()+20)+'px',($('#mchart').height()+50)+'px'], 
+  maxmin: true,
+  scrollbar: false,
+      //closeBtn: false,
+      shade:0,
+  content: $('#mchart') 
+});
+ 
+  //layer.msg('Hello World');
+});
+
   window.addEventListener("load", rtl.run);
 
   </script>

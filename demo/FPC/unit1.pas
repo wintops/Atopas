@@ -2,32 +2,31 @@ unit Unit1;
 
 //
 // From original Synopse test program (http://synopse.info/)
-//   (Indicate a valid search path for the LLCL files before compiling)
+// (Indicate a valid search path for the LLCL files before compiling)
 //
-
+{$IFDEF PASJS}
 {$mode delphi}{$H+}
-
+{$ENDIF}
 {$IFDEF FPC}
-
-  {$H+}
-//  {$mode delphi}
-//  {$mode objfpc}{$modeswitch unicodestrings}{$H+}   // Requires FPC 2.7.1+
-//  {$mode delphiunicode}{$codepage UTF8}             //   (See LLCL README.txt)
+{$H+}
+// {$mode delphi}
+// {$mode objfpc}{$modeswitch unicodestrings}{$H+}   // Requires FPC 2.7.1+
+// {$mode delphiunicode}{$codepage UTF8}             //   (See LLCL README.txt)
 {$ENDIF}
 {$IFDEF FPC_OBJFPC} {$DEFINE IS_FPC_OBJFPC_MODE} {$ENDIF}
 
 interface
 
-uses  SysUtils, Classes, Dialogs, Controls, StdCtrls, Forms,
- {$IFDEF PASJS}
-   WebCtrls,WebCtrlsMore
- {$ELSE}
-
-  {$IFDEF FPC}LazUTF8, LCLType,{$ELSE} Variants, XPMan,{$ENDIF}
-  Graphics,    ExtCtrls,
+uses SysUtils, Classes, Dialogs, Controls, StdCtrls, Forms,
+{$IFDEF PASJS}
+  WebCtrls, WebCtrlsMore
+{$ELSE}
+{$IFDEF FPC}LazUTF8, LCLType, {$ELSE} Variants, XPMan, {$ENDIF}
+  Graphics, ExtCtrls,
   ComCtrls, Menus
 {$ENDIF}
-  ;
+    ;
+
 type
 
   { TForm1 }
@@ -76,10 +75,10 @@ type
     MenuItem12: TMenuItem;
     MenuItem13: TMenuItem;
     PopupMenu1: TPopupMenu;
-    {$IFDEF FPC}
-    {$ELSE}
+{$IFDEF FPC}
+{$ELSE}
     XPManifest1: TXPManifest;
-    {$ENDIF}
+{$ENDIF}
     procedure Button10Click(Sender: TObject);
     procedure Button8Click(Sender: TObject);
     procedure FormCreate(Sender: TObject);
@@ -100,10 +99,10 @@ type
       Shift: TShiftState; X, Y: {$IFDEF PASJS}NativeInt{$ELSE}Integer{$ENDIF});
     procedure FormMouseUp(Sender: TObject; Button: TMouseButton;
       Shift: TShiftState; X, Y: {$IFDEF PASJS}NativeInt{$ELSE}Integer{$ENDIF});
-    procedure FormKeyDown(Sender: TObject; var Key: {$IFDEF PASJS}NativeInt{$ELSE}Word{$ENDIF};
-      Shift: TShiftState);
-    procedure FormKeyUp(Sender: TObject; var Key: {$IFDEF PASJS}NativeInt{$ELSE}Word{$ENDIF};
-      Shift: TShiftState);
+    procedure FormKeyDown(Sender: TObject; var Key:
+{$IFDEF PASJS}NativeInt{$ELSE}Word{$ENDIF}; Shift: TShiftState);
+    procedure FormKeyUp(Sender: TObject; var Key:
+{$IFDEF PASJS}NativeInt{$ELSE}Word{$ENDIF}; Shift: TShiftState);
     procedure FormKeyPress(Sender: TObject; var Key: Char);
     procedure Timer1Timer(Sender: TObject);
     procedure TrackBar1Change(Sender: TObject);
@@ -117,13 +116,13 @@ type
   private
     { Private declarations }
     TrackBar1: TTrackBar;
-  // Workaround for FPC (TCheckBox and TRadioButton don't have any alignment property)
-  {$IFDEF FPC}
-  {$IF Declared(LLCLVersion)}
+    // Workaround for FPC (TCheckBox and TRadioButton don't have any alignment property)
+{$IFDEF FPC}
+{$IF Declared(LLCLVersion)}
   protected
-    procedure CreateParams(var Params : TCreateParams); override;
-  {$IFEND}
-  {$ENDIF}
+    procedure CreateParams(var Params: TCreateParams); override;
+{$IFEND}
+{$ENDIF}
   public
     { Public declarations }
 
@@ -135,24 +134,23 @@ var
 implementation
 
 {$IFDEF FPC}
-  {$R *.lfm}
+{$R *.lfm}
 {$ELSE}
-  {$R *.dfm}
+{$R *.dfm}
 {$ENDIF}
-
-
 
 //
 // Format an output string with various input values,
-//    And add it to Memo1
+// And add it to Memo1
 //
-procedure MemoAddLineFmt(MemoCtrl: TMemo; const s: string; const Args: array of const);
+procedure MemoAddLineFmt(MemoCtrl: TMemo; const s: string;
+  const Args: array of const);
 begin
-   {$IFDEF PASJS}
+{$IFDEF PASJS}
   MemoCtrl.Append(s);
 
-  {$ELSE}
-    MemoCtrl.Lines.Add(Format(s, Args));
+{$ELSE}
+  MemoCtrl.Lines.Add(Format(s, Args));
 {$ENDIF}
 end;
 
@@ -160,11 +158,13 @@ end;
 {$IFDEF FPC}
 // Sample of how to use specific code for LLCL (Not recommended)
 {$IF Declared(LLCLVersion)}
-procedure TForm1.CreateParams(var Params : TCreateParams);
+
+procedure TForm1.CreateParams(var Params: TCreateParams);
 begin
   inherited;
-  Form1.CheckBox1.Alignment := taLeftJustify;    // Note: TCheckBox has an alignment
-  Form1.CheckBox3.Alignment := taLeftJustify;    //    property since Lazarus 1.4
+  Form1.CheckBox1.Alignment := taLeftJustify;
+  // Note: TCheckBox has an alignment
+  Form1.CheckBox3.Alignment := taLeftJustify; // property since Lazarus 1.4
   Form1.RadioButton2.Alignment := taLeftJustify;
 end;
 {$IFEND}
@@ -174,21 +174,22 @@ procedure TForm1.FormCreate(Sender: TObject);
 begin
 
   // Called after form (and its controls) is created, but before it is shown
-  //    Timer disabled when application started (see Cancel/Default pushbuttons)
+  // Timer disabled when application started (see Cancel/Default pushbuttons)
   Timer1.Enabled := false;
-  //    Sample of a control created at runtime
+  // Sample of a control created at runtime
   TrackBar1 := TTrackBar.Create(self);
   with TrackBar1 do
-    begin
-      Name := 'TrackBar1';    // (Optional)
-      Left := 184;
-      Height := {$IFDEF FPC}22{$ELSE}28{$ENDIF};
-      Top := 184;
-      Width := 215;
-      OnChange := {$IFDEF IS_FPC_OBJFPC_MODE}@{$ENDIF}TrackBar1Change;
-      Parent := self;
-      TabOrder := ListBox1.TabOrder+1;
-    end;
+  begin
+    Name := 'TrackBar1'; // (Optional)
+    Left := 184;
+    Height := {$IFDEF FPC}22{$ELSE}28{$ENDIF};
+    Top := 184;
+    Width := 215;
+    OnChange := {$IFDEF IS_FPC_OBJFPC_MODE}@{$ENDIF}TrackBar1Change;
+    Parent := self;
+    Visible:=True;
+    TabOrder := ListBox1.TabOrder + 1;
+  end;
 end;
 
 procedure TForm1.Button10Click(Sender: TObject);
@@ -206,12 +207,12 @@ end;
 procedure TForm1.Button1Click(Sender: TObject);
 begin
   // PushButton 1 has been clicked (mouse, keyboard ...)
-  //    Adds Edit1 current text to ComboBox1 (choices list) and ListBox1
+  // Adds Edit1 current text to ComboBox1 (choices list) and ListBox1
   ComboBox1.Items.Add(Edit1.Text);
   ListBox1.Items.Add(Edit1.Text);
-     {$IFDEF PASJS}
+{$IFDEF PASJS}
   ComboBox1.Text := Edit1.Text;
-  {$ENDIF}
+{$ENDIF}
 end;
 
 procedure TForm1.Button2Click(Sender: TObject);
@@ -225,9 +226,9 @@ begin
   // Clears both ComboBox1 (only choices list) and ListBox1
   ComboBox1.Items.Clear;
   ListBox1.Clear;
-       {$IFDEF PASJS}
+{$IFDEF PASJS}
   ComboBox1.Text := '';
-  {$ENDIF}
+{$ENDIF}
 end;
 
 procedure TForm1.Button4Click(Sender: TObject);
@@ -239,14 +240,14 @@ end;
 procedure TForm1.Button5Click(Sender: TObject);
 begin
   // PushButton 'Cancel Button' (defined with 'Cancel' property = Escape key)
-  //    Clears ProgressBar1 and stops Timer1
+  // Clears ProgressBar1 and stops Timer1
   Memo1.Lines.Add('Escape/Cancel');
   if Timer1.Enabled then
-    begin
-      Timer1.Enabled := false;
-      ProgressBar1.Position := 0;
-      ShowMessage('Timer is now stopped.');
-    end;
+  begin
+    Timer1.Enabled := false;
+    ProgressBar1.Position := 0;
+    ShowMessage('Timer is now stopped.');
+  end;
 end;
 
 procedure TForm1.Button6Click(Sender: TObject);
@@ -273,20 +274,20 @@ end;
 procedure TForm1.Button11Click(Sender: TObject);
 begin
   // PushButton 'Default Button' (defined with 'Default' property = Return key)
-  //    Starts Timer1
+  // Starts Timer1
   Memo1.Lines.Add('Return/Default');
   if not Timer1.Enabled then
-    begin
-      Timer1.Enabled := true;
-      ShowMessage('Timer is started. See progress bar...'+sLineBreak+sLineBreak+
-                'Escape (Cancel button) to stop it.');
-    end;
+  begin
+    Timer1.Enabled := true;
+    ShowMessage('Timer is started. See progress bar...' + sLineBreak +
+      sLineBreak + 'Escape (Cancel button) to stop it.');
+  end;
 end;
 
 procedure TForm1.Edit1Change(Sender: TObject);
 begin
   // Text has been changed for Edit1
-  Memo1.Lines.Add('Edit1: '+Edit1.Text);
+  Memo1.Lines.Add('Edit1: ' + Edit1.Text);
 end;
 
 procedure TForm1.Edit1DblClick(Sender: TObject);
@@ -298,79 +299,84 @@ end;
 procedure TForm1.ComboBox1Change(Sender: TObject);
 begin
   // New selection for ComboBox1 (form choices list, left click)
-  Memo1.Lines.Add('ComboBox1Change '+IntToStr(ComboBox1.ItemIndex));
+  Memo1.Lines.Add('ComboBox1Change ' + IntToStr(ComboBox1.ItemIndex));
 end;
 
 procedure TForm1.ListBox1DblClick(Sender: TObject);
 begin
   // Double (left) click (i.e. new selection) for one line of ListBox1
-  Memo1.Lines.Add('ListBox1DblClick '+IntToStr(ListBox1.ItemIndex));
+  Memo1.Lines.Add('ListBox1DblClick ' + IntToStr(ListBox1.ItemIndex));
 end;
 
 procedure TForm1.FormMouseDown(Sender: TObject; Button: TMouseButton;
   Shift: TShiftState; X, Y: {$IFDEF PASJS}NativeInt{$ELSE}Integer{$ENDIF});
-var s: String;
+var
+  s: String;
 begin
   // Mouse button down (any button) over Form1
-  if ssDouble in Shift then s := ' (Double click)' else s := '';
-  MemoAddLineFmt(Memo1,'FormMouseDown at %d %d'+s, [x,y]);
+  if ssDouble in Shift then
+    s := ' (Double click)'
+  else
+    s := '';
+  MemoAddLineFmt(Memo1, 'FormMouseDown at %d %d' + s, [X, Y]);
 end;
 
 procedure TForm1.FormMouseUp(Sender: TObject; Button: TMouseButton;
   Shift: TShiftState; X, Y: {$IFDEF PASJS}NativeInt{$ELSE}Integer{$ENDIF});
 begin
   // Mouse button up (any button) over Form1
-  MemoAddLineFmt(Memo1,'FormMouseUp at %d %d', [x,y]);
+  MemoAddLineFmt(Memo1, 'FormMouseUp at %d %d', [X, Y]);
   // If right button (i.e. right click), shows a popup menu
-  if Button=mbRight then
-    PopupMenu1.Popup(Mouse.CursorPos.X,Mouse.CursorPos.Y);
+  if Button = mbRight then
+    PopupMenu1.Popup(Mouse.CursorPos.X, Mouse.CursorPos.Y);
 end;
 
-procedure TForm1.FormKeyDown(Sender: TObject; var Key: {$IFDEF PASJS}NativeInt{$ELSE}Word{$ENDIF};
-  Shift: TShiftState);
+procedure TForm1.FormKeyDown(Sender: TObject; var Key:
+{$IFDEF PASJS}NativeInt{$ELSE}Word{$ENDIF}; Shift: TShiftState);
 begin
   // Keyboard key down (in most of controls)
-  //    (Because Form1 has KeyPreview=True property)
-  MemoAddLineFmt(Memo1,'FormKeyDown %d', [key]);
+  // (Because Form1 has KeyPreview=True property)
+  MemoAddLineFmt(Memo1, 'FormKeyDown %d', [Key]);
 end;
 
-procedure TForm1.FormKeyUp(Sender: TObject; var Key: {$IFDEF PASJS}NativeInt{$ELSE}Word{$ENDIF};
-  Shift: TShiftState);
+procedure TForm1.FormKeyUp(Sender: TObject; var Key:
+{$IFDEF PASJS}NativeInt{$ELSE}Word{$ENDIF}; Shift: TShiftState);
 begin
   // Keyboard key up (in most of controls)
-  //    (Because Form1 has KeyPreview=True property)
-  MemoAddLineFmt(Memo1,'FormKeyUp %d', [key]);
+  // (Because Form1 has KeyPreview=True property)
+  MemoAddLineFmt(Memo1, 'FormKeyUp %d', [Key]);
 end;
 
 procedure TForm1.FormKeyPress(Sender: TObject; var Key: Char);
 begin
   // Keyboard key pressed (in most of controls)
-  //    (Because Form1 has KeyPreview=True property)
-  //    Only the character code is present here (see FormKeyDown, FormKeyUp)
-  MemoAddLineFmt(Memo1,'FormKeyPress #%d ''%s''', [Ord(Key),
-    {$if Defined(FPC) and not Defined(UNICODE)}SysToUTF8(Key){$else}Key{$ifend}]);  // Char type is not UTF8
+  // (Because Form1 has KeyPreview=True property)
+  // Only the character code is present here (see FormKeyDown, FormKeyUp)
+  MemoAddLineFmt(Memo1, 'FormKeyPress #%d ''%s''', [Ord(Key),
+{$IF Defined(FPC) and not Defined(UNICODE)}SysToUTF8(Key){$ELSE}Key{$IFEND}]);
+  // Char type is not UTF8
 end;
 
 procedure TForm1.Timer1Timer(Sender: TObject);
 begin
   // Timer fall
-  //    Increments ProgressBar1 with one 'stepit' value (1/10 by default - SetStep to modify it)
-  //    (ProgressBar1 automatically resets to 0 when maximum reached)
+  // Increments ProgressBar1 with one 'stepit' value (1/10 by default - SetStep to modify it)
+  // (ProgressBar1 automatically resets to 0 when maximum reached)
   ProgressBar1.StepIt;
-  Memo1.Lines.Add('Timer Tick: ProgressBar='+IntToStr(ProgressBar1.Position));
+  Memo1.Lines.Add('Timer Tick: ProgressBar=' + IntToStr(ProgressBar1.Position));
 end;
-
 
 procedure TForm1.TrackBar1Change(Sender: TObject);
 begin
   // TrackBar position modified
-  Memo1.Lines.Add('TrackBar: New value='+IntToStr(TTrackBar(Sender).Position)+'/'+IntToStr(TTrackBar(Sender).Max));
+  Memo1.Lines.Add('TrackBar: New value=' + IntToStr(TTrackBar(Sender).Position)
+    + '/' + IntToStr(TTrackBar(Sender).Max));
 end;
 
 procedure TForm1.MenuItem6Click(Sender: TObject);
 begin
   // 'Quit' in main menu
-  //    End of program
+  // End of program
   Application.Terminate;
 end;
 
@@ -389,23 +395,26 @@ end;
 procedure TForm1.MenuItem11Click(Sender: TObject);
 begin
   // Main menu: Open a file...
-  OpenDialog1.Options := OpenDialog1.Options+[ofPathMustExist, ofFileMustExist];
+  OpenDialog1.Options := OpenDialog1.Options +
+    [ofPathMustExist, ofFileMustExist];
   OpenDialog1.Filter := 'Text files (*.txt)|*.txt|All files|*.*';
   OpenDialog1.FilterIndex := 1;
   OpenDialog1.Title := 'File to open';
   if OpenDialog1.Execute then
-    ShowMessage('File to open: '+OpenDialog1.FileName);
+    ShowMessage('File to open: ' + OpenDialog1.FileName);
 end;
 
 procedure TForm1.MenuItem12Click(Sender: TObject);
 begin
   // Main menu: Save a File...
-  SaveDialog1.Options := SaveDialog1.Options+[ofPathMustExist, ofOverwritePrompt];
-  SaveDialog1.Filter := 'Text files (*.txt)|*.txt|Temporary files (*.tmp)|*.tmp|All files|*.*';
+  SaveDialog1.Options := SaveDialog1.Options +
+    [ofPathMustExist, ofOverwritePrompt];
+  SaveDialog1.Filter :=
+    'Text files (*.txt)|*.txt|Temporary files (*.tmp)|*.tmp|All files|*.*';
   SaveDialog1.FilterIndex := 2;
   SaveDialog1.FileName := 'MyFile.tmp';
   if SaveDialog1.Execute then
-    ShowMessage('File to save: '+SaveDialog1.FileName);
+    ShowMessage('File to save: ' + SaveDialog1.FileName);
 end;
 
 procedure TForm1.MenuItem9Click(Sender: TObject);
@@ -419,7 +428,5 @@ begin
   // Popup menu selection
   Memo1.Lines.Add('Popup2');
 end;
-
-
 
 end.

@@ -14,6 +14,9 @@ uses unit1;
 
 procedure Loaded;
 begin
+  form1.HandleId:='form1';
+  form1.FormType:=ftTop;
+
   with Form1 do
   begin
     Form1.BeginUpdate;
@@ -22,17 +25,18 @@ begin
     Form1.Top := 114;
     Form1.Width := 408;
     Form1.Caption := 'LLCL - Just testing...';
-    Form1.ClientHeight := 541;
-    Form1.ClientWidth := 408;
+    Form1.ClientHeight := 600;
+    Form1.ClientWidth := 450;
     Form1.Font.Size:=9;
     Form1.KeyPreview := True;
-    //  Form1.Menu := MainMenu1;
+   // Form1.Menu := MainMenu1;
     Form1.OnCreate := FormCreate;
     Form1.OnKeyDown := FormKeyDown;
     Form1.OnKeyPress := FormKeyPress;
     Form1.OnKeyUp := FormKeyUp;
     Form1.OnMouseDown := FormMouseDown;
     Form1.OnMouseUp := FormMouseUp;
+
     GroupBox1 := TGroupBox.Create(Form1);
     GroupBox1.BeginUpdate;
     GroupBox1.Parent := Form1;
@@ -46,12 +50,13 @@ begin
     GroupBox1.Font.Color := clBlack;
     GroupBox1.Font.Name := 'Tahoma';
     GroupBox1.ParentFont := False;
+
     RadioButton1 := TRadioButton.Create(GroupBox1);
     RadioButton1.BeginUpdate;
     RadioButton1.Parent := GroupBox1;
     RadioButton1.Left := 18;
     RadioButton1.Height := 21;
-    RadioButton1.Top := 3;
+    RadioButton1.Top := 13;
     RadioButton1.Width := 87;
     RadioButton1.Caption := 'RadioButton1';
     RadioButton1.Font.Color := clBlack;
@@ -65,7 +70,7 @@ begin
     RadioButton2.Parent := GroupBox1;
     RadioButton2.Left := 18;
     RadioButton2.Height := 21;
-    RadioButton2.Top := 22;
+    RadioButton2.Top := 32;
     RadioButton2.Width := 87;
     RadioButton2.Caption := 'RadioButton2';
     RadioButton2.Checked := True;
@@ -115,7 +120,7 @@ begin
     Button1.Width := 75;
     Button1.Caption := 'Add';
     Button1.Font.Color := clBlack;
-    Button1.Font.Height := -13;
+    Button1.Font.Height := -10;
     Button1.Font.Name := 'Tahoma';
     Button1.Font.Style := [fsBold];
     Button1.OnClick := Button1Click;
@@ -141,7 +146,7 @@ begin
     ListBox1.Top := 76;
     ListBox1.Width := 217;
     ListBox1.Font.Color := clBlack;
-    ListBox1.Font.Height := -11;
+    ListBox1.Font.Height := -10;
     ListBox1.Font.Name := 'Tahoma';
     ListBox1.Font.Style := [fsBold];
     ListBox1.Items.CommaText := '444,111,333,222';
@@ -287,7 +292,7 @@ begin
     ComboBox2.Width := 25;
     ComboBox2.ItemHeight := 17;
     ComboBox2.Items.CommaText := '5,4,3,2,1';
-//    ComboBox2.Style := csSimple;
+    ComboBox2.Style := csSimple;
     ComboBox2.Text := '10';
     ComboBox2.EndUpdate;
 
@@ -341,6 +346,7 @@ begin
     ProgressBar1 := TProgressBar.Create(Form1);
     ProgressBar1.BeginUpdate;
     ProgressBar1.Parent := Form1;
+    ProgressBar1.BorderWidth:=2;
     ProgressBar1.Left := 320;
     ProgressBar1.Height := 16;
     ProgressBar1.Top := 516;
@@ -356,6 +362,7 @@ begin
     StaticText2.Width := 217;
     StaticText2.Alignment := taCenter;
     StaticText2.Caption := '(Reserved for dynamic control)';
+
     StaticText2.Visible := False;
     StaticText2.EndUpdate;
 
@@ -363,7 +370,7 @@ begin
     Timer1 := TTimer.Create(Form1);
     Timer1.OnTimer := Timer1Timer;
 
-  {
+
   MainMenu1 := TMainMenu.Create(Form1);
   MainMenu1.BeginUpdate;
   MainMenu1.Parent := Form1;
@@ -445,6 +452,7 @@ begin
 
   MainMenu1.EndUpdate;
 
+
   PopupMenu1 := TPopupMenu.Create(Form1);
   PopupMenu1.BeginUpdate;
   PopupMenu1.Parent := Form1;
@@ -476,8 +484,9 @@ begin
   SaveDialog1.Parent := Form1;
   SaveDialog1.Left := 272;
   SaveDialog1.EndUpdate;
-  }
+
     Form1.EndUpdate;
+    Form1.FormCreate(nil);
   end;
 end;
 
