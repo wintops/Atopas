@@ -4,14 +4,13 @@
     <PathDelim Value="\"/>
     <Version Value="11"/>
     <BuildModes Active="Default"/>
-    <Units Count="41">
+    <Units Count="62">
       <Unit0>
         <Filename Value="MiniCalcJS.pas"/>
         <IsPartOfProject Value="True"/>
-        <EditorIndex Value="1"/>
-        <CursorPos X="16" Y="8"/>
+        <EditorIndex Value="-1"/>
+        <CursorPos X="13" Y="10"/>
         <UsageCount Value="412"/>
-        <Loaded Value="True"/>
         <DefaultSyntaxHighlighter Value="Delphi"/>
       </Unit0>
       <Unit1>
@@ -20,80 +19,71 @@
         <CustomData Count="1">
           <Item0 Name="PasJSIsProjectHTMLFile" Value="1"/>
         </CustomData>
-        <CursorPos X="18" Y="6"/>
+        <EditorIndex Value="-1"/>
+        <CursorPos X="2" Y="8"/>
         <UsageCount Value="412"/>
-        <Loaded Value="True"/>
         <DefaultSyntaxHighlighter Value="HTML"/>
       </Unit1>
       <Unit2>
-        <Filename Value="MiniCalcJS.js"/>
+        <Filename Value="unit1.pas"/>
         <IsPartOfProject Value="True"/>
+        <ComponentName Value="Form1"/>
+        <HasResources Value="True"/>
+        <ResourceBaseClass Value="Form"/>
+        <UnitName Value="Unit1"/>
+        <EditorIndex Value="-1"/>
+        <UsageCount Value="24"/>
+        <DefaultSyntaxHighlighter Value="Delphi"/>
+      </Unit2>
+      <Unit3>
+        <Filename Value="u1.pas"/>
+        <IsPartOfProject Value="True"/>
+        <EditorIndex Value="-1"/>
+        <CursorPos X="6" Y="7"/>
+        <UsageCount Value="24"/>
+        <DefaultSyntaxHighlighter Value="Delphi"/>
+      </Unit3>
+      <Unit4>
+        <Filename Value="MiniCalcJS.js"/>
         <EditorIndex Value="-1"/>
         <TopLine Value="3087"/>
         <CursorPos X="56" Y="3091"/>
         <UsageCount Value="412"/>
         <DefaultSyntaxHighlighter Value="JScript"/>
-      </Unit2>
-      <Unit3>
+      </Unit4>
+      <Unit5>
         <Filename Value="..\..\..\pasjs_llcl\p2jsres.pas"/>
-        <IsPartOfProject Value="True"/>
         <EditorIndex Value="-1"/>
         <TopLine Value="242"/>
         <CursorPos X="3" Y="379"/>
         <UsageCount Value="314"/>
         <DefaultSyntaxHighlighter Value="Delphi"/>
-      </Unit3>
-      <Unit4>
+      </Unit5>
+      <Unit6>
         <Filename Value="..\..\..\pasjs_llcl\web.pas"/>
-        <IsPartOfProject Value="True"/>
         <UnitName Value="Web"/>
         <EditorIndex Value="-1"/>
         <TopLine Value="83"/>
         <CursorPos X="24" Y="111"/>
         <UsageCount Value="313"/>
         <DefaultSyntaxHighlighter Value="Delphi"/>
-      </Unit4>
-      <Unit5>
+      </Unit6>
+      <Unit7>
         <Filename Value="..\..\..\pasjs_llcl\classesmore.pas"/>
-        <IsPartOfProject Value="True"/>
         <UnitName Value="ClassesMore"/>
         <EditorIndex Value="-1"/>
         <TopLine Value="38"/>
         <CursorPos Y="61"/>
         <UsageCount Value="312"/>
         <DefaultSyntaxHighlighter Value="Delphi"/>
-      </Unit5>
-      <Unit6>
+      </Unit7>
+      <Unit8>
         <Filename Value="..\..\..\pasjs_llcl\webctrlsmore.pas"/>
-        <IsPartOfProject Value="True"/>
         <UnitName Value="WebCtrlsMore"/>
         <EditorIndex Value="-1"/>
         <TopLine Value="66"/>
         <CursorPos X="3" Y="77"/>
         <UsageCount Value="311"/>
-        <DefaultSyntaxHighlighter Value="Delphi"/>
-      </Unit6>
-      <Unit7>
-        <Filename Value="unit1.pas"/>
-        <IsPartOfProject Value="True"/>
-        <HasResources Value="True"/>
-        <UnitName Value="Unit1"/>
-        <IsVisibleTab Value="True"/>
-        <EditorIndex Value="4"/>
-        <TopLine Value="224"/>
-        <CursorPos X="99" Y="251"/>
-        <UsageCount Value="20"/>
-        <Loaded Value="True"/>
-        <DefaultSyntaxHighlighter Value="Delphi"/>
-      </Unit7>
-      <Unit8>
-        <Filename Value="u1.pas"/>
-        <IsPartOfProject Value="True"/>
-        <EditorIndex Value="2"/>
-        <TopLine Value="18"/>
-        <CursorPos X="24" Y="35"/>
-        <UsageCount Value="20"/>
-        <Loaded Value="True"/>
         <DefaultSyntaxHighlighter Value="Delphi"/>
       </Unit8>
       <Unit9>
@@ -117,7 +107,7 @@
         <DefaultSyntaxHighlighter Value="Delphi"/>
       </Unit10>
       <Unit11>
-        <Filename Value="..\..\..\..\PASJS\pas2js\packages\rtl\classes.pas"/>
+        <Filename Value="C:\PASJS\pas2js\packages\rtl\classes.pas"/>
         <UnitName Value="Classes"/>
         <EditorIndex Value="-1"/>
         <TopLine Value="3659"/>
@@ -168,7 +158,7 @@
         <DefaultSyntaxHighlighter Value="Delphi"/>
       </Unit16>
       <Unit17>
-        <Filename Value="..\..\..\..\PASJS\pas2js\packages\rtl\sysutils.pas"/>
+        <Filename Value="C:\PASJS\pas2js\packages\rtl\sysutils.pas"/>
         <UnitName Value="SysUtils"/>
         <EditorIndex Value="-1"/>
         <TopLine Value="186"/>
@@ -195,7 +185,7 @@
         <DefaultSyntaxHighlighter Value="Delphi"/>
       </Unit19>
       <Unit20>
-        <Filename Value="..\..\..\..\PASJS\pas2js\packages\fcl-base\browserapp.pas"/>
+        <Filename Value="C:\PASJS\pas2js\packages\fcl-base\browserapp.pas"/>
         <EditorIndex Value="-1"/>
         <TopLine Value="51"/>
         <CursorPos Y="143"/>
@@ -203,7 +193,7 @@
         <DefaultSyntaxHighlighter Value="Delphi"/>
       </Unit20>
       <Unit21>
-        <Filename Value="..\..\..\..\PASJS\pas2js\packages\fcl-base\custapp.pas"/>
+        <Filename Value="C:\PASJS\pas2js\packages\fcl-base\custapp.pas"/>
         <UnitName Value="CustApp"/>
         <EditorIndex Value="-1"/>
         <TopLine Value="30"/>
@@ -256,7 +246,7 @@
         <DefaultSyntaxHighlighter Value="Delphi"/>
       </Unit26>
       <Unit27>
-        <Filename Value="..\..\..\..\PASJS\pas2js\packages\rtl\math.pas"/>
+        <Filename Value="C:\PASJS\pas2js\packages\rtl\math.pas"/>
         <UnitName Value="Math"/>
         <EditorIndex Value="-1"/>
         <TopLine Value="29"/>
@@ -282,11 +272,10 @@
       <Unit30>
         <Filename Value="..\..\..\pasjs_llcl\forms.pas"/>
         <UnitName Value="Forms"/>
-        <EditorIndex Value="3"/>
+        <EditorIndex Value="-1"/>
         <TopLine Value="212"/>
         <CursorPos X="29" Y="254"/>
         <UsageCount Value="153"/>
-        <Loaded Value="True"/>
         <DefaultSyntaxHighlighter Value="Delphi"/>
       </Unit30>
       <Unit31>
@@ -376,81 +365,169 @@
         <UsageCount Value="6"/>
         <DefaultSyntaxHighlighter Value="Delphi"/>
       </Unit40>
+      <Unit41>
+        <Filename Value="..\..\..\PASJS\pas2js-windows-2.0.0RC7\packages\rtl\Rtl.BrowserLoadHelper.pas"/>
+        <EditorIndex Value="-1"/>
+        <TopLine Value="20"/>
+        <CursorPos X="57" Y="32"/>
+        <UsageCount Value="10"/>
+        <DefaultSyntaxHighlighter Value="Delphi"/>
+      </Unit41>
+      <Unit42>
+        <Filename Value="..\..\..\PASJS\pas2js-windows-2.0.0RC7\packages\webwidget\webwidget.pas"/>
+        <EditorIndex Value="-1"/>
+        <TopLine Value="1336"/>
+        <UsageCount Value="10"/>
+        <DefaultSyntaxHighlighter Value="Delphi"/>
+      </Unit42>
+      <Unit43>
+        <Filename Value="..\..\..\PASJS\pas2js-windows-2.0.0RC7\packages\webwidget\htmlwidgets.pp"/>
+        <EditorIndex Value="-1"/>
+        <WindowIndex Value="-1"/>
+        <TopLine Value="3151"/>
+        <UsageCount Value="10"/>
+        <DefaultSyntaxHighlighter Value="Delphi"/>
+      </Unit43>
+      <Unit44>
+        <Filename Value="..\..\..\PASJS\pas2js2\packages\rtl\Rtl.BrowserLoadHelper.pas"/>
+        <EditorIndex Value="-1"/>
+        <TopLine Value="20"/>
+        <CursorPos X="16" Y="38"/>
+        <UsageCount Value="11"/>
+        <DefaultSyntaxHighlighter Value="Delphi"/>
+      </Unit44>
+      <Unit45>
+        <Filename Value="..\..\..\PASJS\pas2js2\packages\rtl\web.pas"/>
+        <UnitName Value="Web"/>
+        <EditorIndex Value="-1"/>
+        <TopLine Value="2059"/>
+        <CursorPos X="72" Y="2099"/>
+        <UsageCount Value="10"/>
+        <DefaultSyntaxHighlighter Value="Delphi"/>
+      </Unit45>
+      <Unit46>
+        <Filename Value="..\..\..\PASJS\pas2js\packages\rtl\web.pas"/>
+        <UnitName Value="Web"/>
+        <EditorIndex Value="-1"/>
+        <TopLine Value="1961"/>
+        <CursorPos X="41" Y="2591"/>
+        <UsageCount Value="10"/>
+        <DefaultSyntaxHighlighter Value="Delphi"/>
+      </Unit46>
+      <Unit47>
+        <Filename Value="..\..\..\PASJS\pas2js2\packages\rtl\rtti.pas"/>
+        <UnitName Value="RTTI"/>
+        <EditorIndex Value="-1"/>
+        <TopLine Value="257"/>
+        <CursorPos X="14" Y="257"/>
+        <UsageCount Value="10"/>
+        <DefaultSyntaxHighlighter Value="Delphi"/>
+      </Unit47>
+      <Unit48>
+        <Filename Value="..\..\..\PASJS\pas2js2\packages\rtl\webrouter.pp"/>
+        <EditorIndex Value="-1"/>
+        <TopLine Value="189"/>
+        <CursorPos X="32" Y="207"/>
+        <UsageCount Value="10"/>
+        <DefaultSyntaxHighlighter Value="Delphi"/>
+      </Unit48>
+      <Unit49>
+        <Filename Value="C:\dev\lazarus\components\pas2js\frmpas2jswebservers.pp"/>
+        <EditorIndex Value="-1"/>
+        <UsageCount Value="10"/>
+      </Unit49>
+      <Unit50>
+        <Filename Value="C:\dev\lazarus\components\pas2js\frmpas2jsnodejsprojectoptions.pp"/>
+        <EditorIndex Value="-1"/>
+        <UsageCount Value="10"/>
+      </Unit50>
+      <Unit51>
+        <Filename Value="C:\dev\lazarus\components\pas2js\pjsdsgnoptions.pas"/>
+        <UnitName Value="PJSDsgnOptions"/>
+        <EditorIndex Value="-1"/>
+        <TopLine Value="367"/>
+        <UsageCount Value="10"/>
+      </Unit51>
+      <Unit52>
+        <Filename Value="C:\dev\lazarus\components\pas2js\pjsprojectoptions.pp"/>
+        <EditorIndex Value="-1"/>
+        <UsageCount Value="10"/>
+      </Unit52>
+      <Unit53>
+        <Filename Value="C:\dev\lazarus\components\pas2js\pjsdsgnregister.pas"/>
+        <UnitName Value="PJSDsgnRegister"/>
+        <EditorIndex Value="-1"/>
+        <TopLine Value="49"/>
+        <UsageCount Value="10"/>
+      </Unit53>
+      <Unit54>
+        <Filename Value="C:\dev\lazarus\components\pas2js\pjsdsgnoptsframe.pas"/>
+        <UnitName Value="PJSDsgnOptsFrame"/>
+        <EditorIndex Value="-1"/>
+        <TopLine Value="49"/>
+        <UsageCount Value="10"/>
+      </Unit54>
+      <Unit55>
+        <Filename Value="C:\dev\lazarus\components\pas2js\pjscontroller.pp"/>
+        <EditorIndex Value="-1"/>
+        <TopLine Value="94"/>
+        <UsageCount Value="10"/>
+      </Unit55>
+      <Unit56>
+        <Filename Value="..\..\..\PASJS\pas2js\packages\rtl\rtti.pas"/>
+        <UnitName Value="RTTI"/>
+        <IsVisibleTab Value="True"/>
+        <EditorIndex Value="-1"/>
+        <TopLine Value="239"/>
+        <CursorPos X="14" Y="257"/>
+        <UsageCount Value="10"/>
+        <DefaultSyntaxHighlighter Value="Delphi"/>
+      </Unit56>
+      <Unit57>
+        <Filename Value="..\..\..\PASJS\pas2js1\packages\rtl\system.pas"/>
+        <UnitName Value="System"/>
+        <EditorIndex Value="-1"/>
+        <TopLine Value="48"/>
+        <CursorPos X="28" Y="60"/>
+        <UsageCount Value="10"/>
+        <DefaultSyntaxHighlighter Value="Delphi"/>
+      </Unit57>
+      <Unit58>
+        <Filename Value="..\..\pasjs_llcl\webctrlsmore.pas"/>
+        <UnitName Value="WebCtrlsMore"/>
+        <EditorIndex Value="-1"/>
+        <TopLine Value="83"/>
+        <CursorPos X="28" Y="105"/>
+        <UsageCount Value="10"/>
+        <DefaultSyntaxHighlighter Value="Delphi"/>
+      </Unit58>
+      <Unit59>
+        <Filename Value="..\..\..\PASJS\pas2js\packages\rtl\webutils.pas"/>
+        <EditorIndex Value="-1"/>
+        <UsageCount Value="10"/>
+        <DefaultSyntaxHighlighter Value="Delphi"/>
+      </Unit59>
+      <Unit60>
+        <Filename Value="..\..\..\PASJS\pas2js\packages\rtl\browserconsole.pas"/>
+        <EditorIndex Value="-1"/>
+        <UsageCount Value="10"/>
+        <DefaultSyntaxHighlighter Value="Delphi"/>
+      </Unit60>
+      <Unit61>
+        <Filename Value="..\..\..\PASJS\pas2js\packages\rtl\timer.pas"/>
+        <EditorIndex Value="-1"/>
+        <UsageCount Value="10"/>
+        <DefaultSyntaxHighlighter Value="Delphi"/>
+      </Unit61>
     </Units>
     <OtherDefines Count="2">
       <Define0 Value="PASJS"/>
       <Define1 Value="IS_FPC_OBJFPC_MODE"/>
     </OtherDefines>
-    <JumpHistory Count="17" HistoryIndex="16">
-      <Position1>
-        <Filename Value="u1.pas"/>
-        <Caret Line="7" Column="53"/>
-      </Position1>
-      <Position2>
-        <Filename Value="u1.pas"/>
-        <Caret Line="28" Column="11"/>
-      </Position2>
-      <Position3>
-        <Filename Value="..\..\..\pasjs_llcl\forms.pas"/>
-        <Caret Line="170" Column="82" TopLine="154"/>
-      </Position3>
-      <Position4>
-        <Filename Value="..\..\..\pasjs_llcl\forms.pas"/>
-        <Caret Line="92" Column="9" TopLine="64"/>
-      </Position4>
-      <Position5>
-        <Filename Value="..\..\..\pasjs_llcl\forms.pas"/>
-        <Caret Line="40" Column="2" TopLine="37"/>
-      </Position5>
-      <Position6>
-        <Filename Value="u1.pas"/>
-        <Caret Line="35" Column="4" TopLine="18"/>
-      </Position6>
-      <Position7>
-        <Filename Value="u1.pas"/>
-        <Caret Line="45" Column="39" TopLine="18"/>
-      </Position7>
-      <Position8>
-        <Filename Value="unit1.pas"/>
-        <Caret Line="77" Column="22" TopLine="60"/>
-      </Position8>
-      <Position9>
-        <Filename Value="unit1.pas"/>
-        <Caret Line="362" Column="74" TopLine="350"/>
-      </Position9>
-      <Position10>
-        <Filename Value="unit1.pas"/>
-        <Caret Line="59" Column="11" TopLine="31"/>
-      </Position10>
-      <Position11>
-        <Filename Value="unit1.pas"/>
-        <Caret Line="79" Column="21" TopLine="31"/>
-      </Position11>
-      <Position12>
-        <Filename Value="unit1.pas"/>
-        <Caret Line="273" Column="19" TopLine="230"/>
-      </Position12>
-      <Position13>
-        <Filename Value="..\..\..\pasjs_llcl\forms.pas"/>
-        <Caret Line="144" Column="81" TopLine="128"/>
-      </Position13>
-      <Position14>
-        <Filename Value="..\..\..\pasjs_llcl\forms.pas"/>
-        <Caret Line="257" Column="24" TopLine="209"/>
-      </Position14>
-      <Position15>
-        <Filename Value="..\..\..\pasjs_llcl\forms.pas"/>
-        <Caret Line="254" Column="29" TopLine="209"/>
-      </Position15>
-      <Position16>
-        <Filename Value="unit1.pas"/>
-        <Caret Line="274" Column="195"/>
-      </Position16>
-      <Position17>
-        <Filename Value="MiniCalcJS.pas"/>
-        <Caret Line="8" Column="16"/>
-      </Position17>
-    </JumpHistory>
+    <General>
+      <ActiveWindowIndexAtStart Value="-1"/>
+    </General>
+    <JumpHistory HistoryIndex="-1"/>
     <RunParams>
       <FormatVersion Value="2"/>
       <Modes Count="1" ActiveMode="Default">

@@ -32,7 +32,12 @@
       <FormatVersion Value="2"/>
       <Modes Count="0"/>
     </RunParams>
-    <Units Count="9">
+    <RequiredPackages Count="1">
+      <Item1>
+        <PackageName Value="pas2js_rtl"/>
+      </Item1>
+    </RequiredPackages>
+    <Units Count="4">
       <Unit0>
         <Filename Value="MiniCalcJS.pas"/>
         <IsPartOfProject Value="True"/>
@@ -45,38 +50,17 @@
         </CustomData>
       </Unit1>
       <Unit2>
-        <Filename Value="MiniCalcJS.js"/>
-        <IsPartOfProject Value="True"/>
-      </Unit2>
-      <Unit3>
-        <Filename Value="..\..\..\pasjs_llcl\p2jsres.pas"/>
-        <IsPartOfProject Value="True"/>
-      </Unit3>
-      <Unit4>
-        <Filename Value="..\..\..\pasjs_llcl\web.pas"/>
-        <IsPartOfProject Value="True"/>
-        <UnitName Value="Web"/>
-      </Unit4>
-      <Unit5>
-        <Filename Value="..\..\..\pasjs_llcl\classesmore.pas"/>
-        <IsPartOfProject Value="True"/>
-        <UnitName Value="ClassesMore"/>
-      </Unit5>
-      <Unit6>
-        <Filename Value="..\..\..\pasjs_llcl\webctrlsmore.pas"/>
-        <IsPartOfProject Value="True"/>
-        <UnitName Value="WebCtrlsMore"/>
-      </Unit6>
-      <Unit7>
         <Filename Value="unit1.pas"/>
         <IsPartOfProject Value="True"/>
+        <ComponentName Value="Form1"/>
         <HasResources Value="True"/>
+        <ResourceBaseClass Value="Form"/>
         <UnitName Value="Unit1"/>
-      </Unit7>
-      <Unit8>
+      </Unit2>
+      <Unit3>
         <Filename Value="u1.pas"/>
         <IsPartOfProject Value="True"/>
-      </Unit8>
+      </Unit3>
     </Units>
   </ProjectOptions>
   <CompilerOptions>
@@ -87,7 +71,7 @@
     </Target>
     <SearchPaths>
       <IncludeFiles Value="$(ProjOutDir)"/>
-      <OtherUnitFiles Value="..\..\..\pasjs_llcl"/>
+      <OtherUnitFiles Value="..\..\..\PASJS\pas2js\packages\rtl;..\..\pasjs_llcl"/>
       <UnitOutputDirectory Value="js"/>
     </SearchPaths>
     <Parsing>
@@ -100,9 +84,6 @@
     </Parsing>
     <CodeGeneration>
       <TargetOS Value="browser"/>
-      <Optimizations>
-        <OptimizationLevel Value="0"/>
-      </Optimizations>
     </CodeGeneration>
     <Linking>
       <Debugging>
@@ -113,9 +94,11 @@
     <Other>
       <CustomOptions Value="-Jeutf-8
 -Jc
+-Jirtl.js
 -Jminclude
 -Fu..\..\pasjs_llcl
 -dPASJS
+-dSkipAsync
 -dIS_FPC_OBJFPC_MODE"/>
       <OtherDefines Count="2">
         <Define0 Value="PASJS"/>
