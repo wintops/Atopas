@@ -25,7 +25,7 @@ interface
   WebCtrls, WebCtrlsMore
 {$ELSE}
     StdCtrls
-{$IFNDEF FPC}  XPMan {$ENDIF}
+{$IFNDEF FPC}  ,XPMan {$ENDIF}
 
 {$ENDIF}
     ;
