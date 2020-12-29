@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CONFIG>
+  <ProjectOptions>
+    <Version Value="11"/>
+    <PathDelim Value="\"/>
+    <General>
+      <Flags>
+        <MainUnitHasCreateFormStatements Value="False"/>
+        <MainUnitHasTitleStatement Value="False"/>
+        <MainUnitHasScaledStatement Value="False"/>
+        <Runnable Value="False"/>
+      </Flags>
+      <SessionStorage Value="InProjectDir"/>
+      <MainUnit Value="0"/>
+      <Title Value="MiniCalcJS"/>
+      <UseAppBundle Value="False"/>
+      <ResourceType Value="res"/>
+    </General>
+    <CustomData Count="3">
+      <Item0 Name="MaintainHTML" Value="1"/>
+      <Item1 Name="PasJSWebBrowserProject" Value="1"/>
+      <Item2 Name="RunAtReady" Value="1"/>
+    </CustomData>
+    <BuildModes Count="1">
+      <Item1 Name="Default" Default="True"/>
+    </BuildModes>
+    <PublishOptions>
+      <Version Value="2"/>
+      <UseFileFilters Value="True"/>
+    </PublishOptions>
+    <RunParams>
+      <FormatVersion Value="2"/>
+      <Modes Count="0"/>
+    </RunParams>
+    <Units Count="9">
+      <Unit0>
+        <Filename Value="MiniCalcJS.pas"/>
+        <IsPartOfProject Value="True"/>
+      </Unit0>
+      <Unit1>
+        <Filename Value="MiniCalcJS.html"/>
+        <IsPartOfProject Value="True"/>
+        <CustomData Count="1">
+          <Item0 Name="PasJSIsProjectHTMLFile" Value="1"/>
+        </CustomData>
+      </Unit1>
+      <Unit2>
+        <Filename Value="MiniCalcJS.js"/>
+        <IsPartOfProject Value="True"/>
+      </Unit2>
+      <Unit3>
+        <Filename Value="..\..\..\pasjs_llcl\p2jsres.pas"/>
+        <IsPartOfProject Value="True"/>
+      </Unit3>
+      <Unit4>
+        <Filename Value="..\..\..\pasjs_llcl\web.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="Web"/>
+      </Unit4>
+      <Unit5>
+        <Filename Value="..\..\..\pasjs_llcl\classesmore.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="ClassesMore"/>
+      </Unit5>
+      <Unit6>
+        <Filename Value="..\..\..\pasjs_llcl\webctrlsmore.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="WebCtrlsMore"/>
+      </Unit6>
+      <Unit7>
+        <Filename Value="unit1.pas"/>
+        <IsPartOfProject Value="True"/>
+        <HasResources Value="True"/>
+        <UnitName Value="Unit1"/>
+      </Unit7>
+      <Unit8>
+        <Filename Value="u1.pas"/>
+        <IsPartOfProject Value="True"/>
+      </Unit8>
+    </Units>
+  </ProjectOptions>
+  <CompilerOptions>
+    <Version Value="11"/>
+    <PathDelim Value="\"/>
+    <Target>
+      <Filename Value="MiniCalcJS"/>
+    </Target>
+    <SearchPaths>
+      <IncludeFiles Value="$(ProjOutDir)"/>
+      <OtherUnitFiles Value="..\..\..\pasjs_llcl"/>
+      <UnitOutputDirectory Value="js"/>
+    </SearchPaths>
+    <Parsing>
+      <SyntaxOptions>
+        <SyntaxMode Value="Delphi"/>
+        <AllowLabel Value="False"/>
+        <CPPInline Value="False"/>
+        <UseAnsiStrings Value="False"/>
+      </SyntaxOptions>
+    </Parsing>
+    <CodeGeneration>
+      <TargetOS Value="browser"/>
+      <Optimizations>
+        <OptimizationLevel Value="0"/>
+      </Optimizations>
+    </CodeGeneration>
+    <Linking>
+      <Debugging>
+        <GenerateDebugInfo Value="False"/>
+        <UseLineInfoUnit Value="False"/>
+      </Debugging>
+    </Linking>
+    <Other>
+      <CustomOptions Value="-Jeutf-8
+-Jc
+-Jminclude
+-Fu..\..\pasjs_llcl
+-dPASJS
+-dIS_FPC_OBJFPC_MODE"/>
+      <OtherDefines Count="2">
+        <Define0 Value="PASJS"/>
+        <Define1 Value="IS_FPC_OBJFPC_MODE"/>
+      </OtherDefines>
+      <CompilerPath Value="$(pas2js)"/>
+    </Other>
+  </CompilerOptions>
+  <Debugging>
+    <Exceptions Count="3">
+      <Item1>
+        <Name Value="EAbort"/>
+      </Item1>
+      <Item2>
+        <Name Value="ECodetoolError"/>
+      </Item2>
+      <Item3>
+        <Name Value="EFOpenError"/>
+      </Item3>
+    </Exceptions>
+  </Debugging>
+</CONFIG>

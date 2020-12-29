@@ -1,0 +1,197 @@
+object Form1: TForm1
+  Left = 198
+  Height = 206
+  Top = 114
+  Width = 206
+  BorderStyle = bsSingle
+  Caption = 'Mini Calculator'
+  ClientHeight = 206
+  ClientWidth = 206
+  KeyPreview = True
+  OnCreate = FormCreate
+  OnKeyDown = FormKeyDown
+  OnKeyPress = FormKeyPress
+  Position = poDesktopCenter
+  LCLVersion = '2.0.10.0'
+  object Edit1: TEdit
+    Left = 7
+    Height = 25
+    Top = 7
+    Width = 193
+    Alignment = taRightJustify
+    OnMouseDown = Edit1MouseDown
+    ReadOnly = True
+    TabStop = False
+    TabOrder = 1
+  end
+  object Button1: TButton
+    Left = 10
+    Height = 32
+    Top = 120
+    Width = 40
+    Caption = '1'
+    OnClick = Button1Click
+    TabOrder = 8
+    TabStop = False
+  end
+  object Button2: TButton
+    Left = 58
+    Height = 32
+    Top = 120
+    Width = 40
+    Caption = '2'
+    OnClick = Button2Click
+    TabOrder = 10
+    TabStop = False
+  end
+  object Button3: TButton
+    Left = 106
+    Height = 32
+    Top = 120
+    Width = 40
+    Caption = '3'
+    OnClick = Button3Click
+    TabOrder = 14
+    TabStop = False
+  end
+  object Button4: TButton
+    Left = 10
+    Height = 32
+    Top = 80
+    Width = 40
+    Caption = '4'
+    OnClick = Button4Click
+    TabOrder = 15
+    TabStop = False
+  end
+  object Button5: TButton
+    Left = 58
+    Height = 32
+    Top = 80
+    Width = 40
+    Caption = '5'
+    OnClick = Button5Click
+    TabOrder = 6
+    TabStop = False
+  end
+  object Button6: TButton
+    Left = 106
+    Height = 32
+    Top = 80
+    Width = 40
+    Caption = '6'
+    OnClick = Button6Click
+    TabOrder = 7
+    TabStop = False
+  end
+  object Button7: TButton
+    Left = 10
+    Height = 32
+    Top = 40
+    Width = 40
+    Caption = '7'
+    OnClick = Button7Click
+    TabOrder = 2
+    TabStop = False
+  end
+  object Button8: TButton
+    Left = 58
+    Height = 32
+    Top = 40
+    Width = 40
+    Caption = '8'
+    OnClick = Button8Click
+    TabOrder = 3
+    TabStop = False
+  end
+  object Button9: TButton
+    Left = 106
+    Height = 32
+    Top = 40
+    Width = 40
+    Caption = '9'
+    OnClick = Button9Click
+    TabOrder = 4
+    TabStop = False
+  end
+  object Button10: TButton
+    Left = 10
+    Height = 32
+    Top = 160
+    Width = 40
+    Caption = '0'
+    OnClick = Button10Click
+    TabOrder = 11
+    TabStop = False
+  end
+  object Button11: TButton
+    Left = 58
+    Height = 32
+    Top = 160
+    Width = 40
+    Caption = 'C'
+    OnClick = Button11Click
+    TabOrder = 12
+    TabStop = False
+  end
+  object Button12: TButton
+    Left = 106
+    Height = 32
+    Top = 160
+    Width = 40
+    Caption = '='
+    OnClick = Button12Click
+    TabOrder = 16
+    TabStop = False
+  end
+  object Button13: TButton
+    Left = 154
+    Height = 32
+    Top = 40
+    Width = 40
+    Caption = '/'
+    OnClick = Button13Click
+    TabOrder = 5
+    TabStop = False
+  end
+  object Button14: TButton
+    Left = 154
+    Height = 32
+    Top = 80
+    Width = 40
+    Caption = '*'
+    OnClick = Button14Click
+    TabOrder = 9
+    TabStop = False
+  end
+  object Button15: TButton
+    Left = 154
+    Height = 32
+    Top = 120
+    Width = 40
+    Caption = '-'
+    OnClick = Button15Click
+    TabOrder = 13
+    TabStop = False
+  end
+  object Button16: TButton
+    Left = 154
+    Height = 32
+    Top = 160
+    Width = 40
+    Caption = '+'
+    OnClick = Button16Click
+    TabOrder = 17
+    TabStop = False
+  end
+  object HiddenButton: TButton
+    Left = 106
+    Height = 19
+    Top = 500
+    Width = 88
+    Caption = 'Hidden Focus'
+    Default = True
+    OnClick = HiddenButtonClick
+    TabOrder = 0
+  end
+end
