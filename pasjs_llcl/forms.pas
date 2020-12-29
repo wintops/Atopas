@@ -37,7 +37,8 @@ uses
   Controls;
 
 type
-  TFormType = (ftModalForm, ftWindow);
+
+  TFormType = (ftModalForm, ftWindow,ftTop);
   TCloseAction = (caNone, caHide, caFree);
   TCloseEvent = procedure(Sender: TObject; var CloseAction: TCloseAction) of object;
   TCloseQueryEvent = procedure(Sender: TObject; var CanClose: boolean) of object;
@@ -86,7 +87,8 @@ type
   { TCustomForm }
 
   TCustomForm = class(TCustomControl)
-  private          
+  private
+   fFormBorderStyle: TFormBorderStyle;
     FActiveControl: TWinControl; 
     FAlphaBlend: boolean;
     FAlphaBlendValue: byte;
@@ -150,7 +152,7 @@ type
     property ActiveControl: TWinControl read FActiveControl write SetActiveControl;
     property AlphaBlend: boolean read FAlphaBlend write SetAlphaBlend;
     property AlphaBlendValue: byte read FAlphaBlendValue write SetAlphaBlendValue;
-    property FormType: TFormType read FFormType;
+    property FormType: TFormType read FFormType write FFormType ;
     property KeyPreview: boolean read FKeyPreview write FKeyPreview;
     property DesignTimePPI: Integer read FDesignTimePPI write FDesignTimePPI;
     property ModalResult: TModalResult read FModalResult write SetModalResult;
@@ -164,6 +166,7 @@ type
     property OnResize: TNotifyEvent read FOnResize write FOnResize;
     property OnScroll: TNotifyEvent read FOnScroll write FOnScroll;
     property OnShow: TNotifyEvent read FOnShow write FOnShow;
+    property  BorderStyle: TFormBorderStyle read fFormBorderStyle write fFormBorderStyle;
   end;
   TCustomFormClass = class of TCustomForm;
 
@@ -875,6 +878,11 @@ begin
     ftWindow:
     begin
       SetBounds(0, 0, VWindowWidth, VWindowHeight);
+    end;
+
+        ftTop:
+    begin
+      SetBounds(0, 0, Width, Height);
     end;
   end;
   DoResize;
