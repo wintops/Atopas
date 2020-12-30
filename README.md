@@ -10,7 +10,9 @@ use LLCL/VCL/FMX Forms in JS/Web/Mobile and Windows/Mac/Linux/Android/iOS!
 no install extra web controls!
 
 ### Demo
-  see https://wintops.github.io/llcljs/llcljs.html
+     https://wintops.github.io/llcljs/llcljs.html
+  
+    https://wintops.github.io/llcljs/MiniCalcJS.html
 
 ![image](https:///wintops.github.io/llcljs/image_llcl.png)
 
@@ -33,7 +35,9 @@ uses  SysUtils, Classes, Dialogs, Controls, StdCtrls, Forms,
 ```
 
 ### Links
+
 https://github.com/FChrisF/LLCL
+
 https://github.com/heliosroots/Pas2JS_Widget
 
 
