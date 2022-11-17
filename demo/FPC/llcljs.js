@@ -1,13 +1,1513 @@
-﻿rtl.module("System",[],function () {
+﻿var pas = { $libimports: {}};
+
+var rtl = {
+
+  version: 20200,
+
+  quiet: false,
+  debug_load_units: false,
+  debug_rtti: false,
+
+  $res : {},
+
+  debug: function(){
+    if (rtl.quiet || !console || !console.log) return;
+    console.log(arguments);
+  },
+
+  error: function(s){
+    rtl.debug('Error: ',s);
+    throw s;
+  },
+
+  warn: function(s){
+    rtl.debug('Warn: ',s);
+  },
+
+  checkVersion: function(v){
+    if (rtl.version != v) throw "expected rtl version "+v+", but found "+rtl.version;
+  },
+
+  hiInt: Math.pow(2,53),
+
+  hasString: function(s){
+    return rtl.isString(s) && (s.length>0);
+  },
+
+  isArray: function(a) {
+    return Array.isArray(a);
+  },
+
+  isFunction: function(f){
+    return typeof(f)==="function";
+  },
+
+  isModule: function(m){
+    return rtl.isObject(m) && rtl.hasString(m.$name) && (pas[m.$name]===m);
+  },
+
+  isImplementation: function(m){
+    return rtl.isObject(m) && rtl.isModule(m.$module) && (m.$module.$impl===m);
+  },
+
+  isNumber: function(n){
+    return typeof(n)==="number";
+  },
+
+  isObject: function(o){
+    var s=typeof(o);
+    return (typeof(o)==="object") && (o!=null);
+  },
+
+  isString: function(s){
+    return typeof(s)==="string";
+  },
+
+  getNumber: function(n){
+    return typeof(n)==="number"?n:NaN;
+  },
+
+  getChar: function(c){
+    return ((typeof(c)==="string") && (c.length===1)) ? c : "";
+  },
+
+  getObject: function(o){
+    return ((typeof(o)==="object") || (typeof(o)==='function')) ? o : null;
+  },
+
+  isTRecord: function(type){
+    return (rtl.isObject(type) && type.hasOwnProperty('$new') && (typeof(type.$new)==='function'));
+  },
+
+  isPasClass: function(type){
+    return (rtl.isObject(type) && type.hasOwnProperty('$classname') && rtl.isObject(type.$module));
+  },
+
+  isPasClassInstance: function(type){
+    return (rtl.isObject(type) && rtl.isPasClass(type.$class));
+  },
+
+  hexStr: function(n,digits){
+    return ("000000000000000"+n.toString(16).toUpperCase()).slice(-digits);
+  },
+
+  m_loading: 0,
+  m_loading_intf: 1,
+  m_intf_loaded: 2,
+  m_loading_impl: 3, // loading all used unit
+  m_initializing: 4, // running initialization
+  m_initialized: 5,
+
+  module: function(module_name, intfuseslist, intfcode, impluseslist){
+    if (rtl.debug_load_units) rtl.debug('rtl.module name="'+module_name+'" intfuses='+intfuseslist+' impluses='+impluseslist);
+    if (!rtl.hasString(module_name)) rtl.error('invalid module name "'+module_name+'"');
+    if (!rtl.isArray(intfuseslist)) rtl.error('invalid interface useslist of "'+module_name+'"');
+    if (!rtl.isFunction(intfcode)) rtl.error('invalid interface code of "'+module_name+'"');
+    if (!(impluseslist==undefined) && !rtl.isArray(impluseslist)) rtl.error('invalid implementation useslist of "'+module_name+'"');
+
+    if (pas[module_name])
+      rtl.error('module "'+module_name+'" is already registered');
+
+    var r = Object.create(rtl.tSectionRTTI);
+    var module = r.$module = pas[module_name] = {
+      $name: module_name,
+      $intfuseslist: intfuseslist,
+      $impluseslist: impluseslist,
+      $state: rtl.m_loading,
+      $intfcode: intfcode,
+      $implcode: null,
+      $impl: null,
+      $rtti: r
+    };
+    if (impluseslist) module.$impl = {
+          $module: module,
+          $rtti: r
+        };
+  },
+
+  exitcode: 0,
+
+  run: function(module_name){
+    try {
+      if (!rtl.hasString(module_name)) module_name='program';
+      if (rtl.debug_load_units) rtl.debug('rtl.run module="'+module_name+'"');
+      rtl.initRTTI();
+      var module = pas[module_name];
+      if (!module) rtl.error('rtl.run module "'+module_name+'" missing');
+      rtl.loadintf(module);
+      rtl.loadimpl(module);
+      if ((module_name=='program') || (module_name=='library')){
+        if (rtl.debug_load_units) rtl.debug('running $main');
+        var r = pas[module_name].$main();
+        if (rtl.isNumber(r)) rtl.exitcode = r;
+      }
+    } catch(re) {
+      if (!rtl.showUncaughtExceptions) {
+        throw re
+      } else {  
+        if (!rtl.handleUncaughtException(re)) {
+          rtl.showException(re);
+          rtl.exitcode = 216;
+        }  
+      }
+    } 
+    return rtl.exitcode;
+  },
+  
+  showException : function (re) {
+    var errMsg = rtl.hasString(re.$classname) ? re.$classname : '';
+    errMsg +=  ((errMsg) ? ': ' : '') + (re.hasOwnProperty('fMessage') ? re.fMessage : re);
+    alert('Uncaught Exception : '+errMsg);
+  },
+
+  handleUncaughtException: function (e) {
+    if (rtl.onUncaughtException) {
+      try {
+        rtl.onUncaughtException(e);
+        return true;
+      } catch (ee) {
+        return false; 
+      }
+    } else {
+      return false;
+    }
+  },
+
+  loadintf: function(module){
+    if (module.$state>rtl.m_loading_intf) return; // already finished
+    if (rtl.debug_load_units) rtl.debug('loadintf: "'+module.$name+'"');
+    if (module.$state===rtl.m_loading_intf)
+      rtl.error('unit cycle detected "'+module.$name+'"');
+    module.$state=rtl.m_loading_intf;
+    // load interfaces of interface useslist
+    rtl.loaduseslist(module,module.$intfuseslist,rtl.loadintf);
+    // run interface
+    if (rtl.debug_load_units) rtl.debug('loadintf: run intf of "'+module.$name+'"');
+    module.$intfcode(module.$intfuseslist);
+    // success
+    module.$state=rtl.m_intf_loaded;
+    // Note: units only used in implementations are not yet loaded (not even their interfaces)
+  },
+
+  loaduseslist: function(module,useslist,f){
+    if (useslist==undefined) return;
+    var len = useslist.length;
+    for (var i = 0; i<len; i++) {
+      var unitname=useslist[i];
+      if (rtl.debug_load_units) rtl.debug('loaduseslist of "'+module.$name+'" uses="'+unitname+'"');
+      if (pas[unitname]==undefined)
+        rtl.error('module "'+module.$name+'" misses "'+unitname+'"');
+      f(pas[unitname]);
+    }
+  },
+
+  loadimpl: function(module){
+    if (module.$state>=rtl.m_loading_impl) return; // already processing
+    if (module.$state<rtl.m_intf_loaded) rtl.error('loadimpl: interface not loaded of "'+module.$name+'"');
+    if (rtl.debug_load_units) rtl.debug('loadimpl: load uses of "'+module.$name+'"');
+    module.$state=rtl.m_loading_impl;
+    // load interfaces of implementation useslist
+    rtl.loaduseslist(module,module.$impluseslist,rtl.loadintf);
+    // load implementation of interfaces useslist
+    rtl.loaduseslist(module,module.$intfuseslist,rtl.loadimpl);
+    // load implementation of implementation useslist
+    rtl.loaduseslist(module,module.$impluseslist,rtl.loadimpl);
+    // Note: At this point all interfaces used by this unit are loaded. If
+    //   there are implementation uses cycles some used units might not yet be
+    //   initialized. This is by design.
+    // run implementation
+    if (rtl.debug_load_units) rtl.debug('loadimpl: run impl of "'+module.$name+'"');
+    if (rtl.isFunction(module.$implcode)) module.$implcode(module.$impluseslist);
+    // run initialization
+    if (rtl.debug_load_units) rtl.debug('loadimpl: run init of "'+module.$name+'"');
+    module.$state=rtl.m_initializing;
+    if (rtl.isFunction(module.$init)) module.$init();
+    // unit initialized
+    module.$state=rtl.m_initialized;
+  },
+
+  createCallback: function(scope, fn){
+    var cb;
+    if (typeof(fn)==='string'){
+      if (!scope.hasOwnProperty('$events')) scope.$events = {};
+      cb = scope.$events[fn];
+      if (cb) return cb;
+      scope.$events[fn] = cb = function(){
+        return scope[fn].apply(scope,arguments);
+      };
+    } else {
+      cb = function(){
+        return fn.apply(scope,arguments);
+      };
+    };
+    cb.scope = scope;
+    cb.fn = fn;
+    return cb;
+  },
+
+  createSafeCallback: function(scope, fn){
+    var cb;
+    if (typeof(fn)==='string'){
+      if (!scope.hasOwnProperty('$events')) scope.$events = {};
+      cb = scope.$events[fn];
+      if (cb) return cb;
+      scope.$events[fn] = cb = function(){
+        try{
+          return scope[fn].apply(scope,arguments);
+        } catch (err) {
+          if (!rtl.handleUncaughtException(err)) throw err;
+        }
+      };
+    } else {
+      cb = function(){
+        try{
+          return fn.apply(scope,arguments);
+        } catch (err) {
+          if (!rtl.handleUncaughtException(err)) throw err;
+        }
+      };
+    };
+    cb.scope = scope;
+    cb.fn = fn;
+    return cb;
+  },
+
+  eqCallback: function(a,b){
+    // can be a function or a function wrapper
+    if (a===b){
+      return true;
+    } else {
+      return (a!=null) && (b!=null) && (a.fn) && (a.scope===b.scope) && (a.fn===b.fn);
+    }
+  },
+
+  initStruct: function(c,parent,name){
+    if ((parent.$module) && (parent.$module.$impl===parent)) parent=parent.$module;
+    c.$parent = parent;
+    if (rtl.isModule(parent)){
+      c.$module = parent;
+      c.$name = name;
+    } else {
+      c.$module = parent.$module;
+      c.$name = parent.$name+'.'+name;
+    };
+    return parent;
+  },
+
+  initClass: function(c,parent,name,initfn,rttiname){
+    parent[name] = c;
+    c.$class = c; // Note: o.$class === Object.getPrototypeOf(o)
+    c.$classname = rttiname?rttiname:name;
+    parent = rtl.initStruct(c,parent,name);
+    c.$fullname = parent.$name+'.'+name;
+    // rtti
+    if (rtl.debug_rtti) rtl.debug('initClass '+c.$fullname);
+    var t = c.$module.$rtti.$Class(c.$classname,{ "class": c });
+    c.$rtti = t;
+    if (rtl.isObject(c.$ancestor)) t.ancestor = c.$ancestor.$rtti;
+    if (!t.ancestor) t.ancestor = null;
+    // init members
+    initfn.call(c);
+  },
+
+  createClass: function(parent,name,ancestor,initfn,rttiname){
+    // create a normal class,
+    // ancestor must be null or a normal class,
+    // the root ancestor can be an external class
+    var c = null;
+    if (ancestor != null){
+      c = Object.create(ancestor);
+      c.$ancestor = ancestor;
+      // Note:
+      // if root is an "object" then c.$ancestor === Object.getPrototypeOf(c)
+      // if root is a "function" then c.$ancestor === c.__proto__, Object.getPrototypeOf(c) returns the root
+    } else {
+      c = { $ancestor: null };
+      c.$create = function(fn,args){
+        if (args == undefined) args = [];
+        var o = Object.create(this);
+        o.$init();
+        try{
+          if (typeof(fn)==="string"){
+            o[fn].apply(o,args);
+          } else {
+            fn.apply(o,args);
+          };
+          o.AfterConstruction();
+        } catch($e){
+          // do not call BeforeDestruction
+          if (o.Destroy) o.Destroy();
+          o.$final();
+          throw $e;
+        }
+        return o;
+      };
+      c.$destroy = function(fnname){
+        this.BeforeDestruction();
+        if (this[fnname]) this[fnname]();
+        this.$final();
+      };
+    };
+    rtl.initClass(c,parent,name,initfn,rttiname);
+  },
+
+  createClassExt: function(parent,name,ancestor,newinstancefnname,initfn,rttiname){
+    // Create a class using an external ancestor.
+    // If newinstancefnname is given, use that function to create the new object.
+    // If exist call BeforeDestruction and AfterConstruction.
+    var isFunc = rtl.isFunction(ancestor);
+    var c = null;
+    if (isFunc){
+      // create pascal class descendent from JS function
+      c = Object.create(ancestor.prototype);
+      c.$ancestorfunc = ancestor;
+      c.$ancestor = null; // no pascal ancestor
+    } else if (ancestor.$func){
+      // create pascal class descendent from a pascal class descendent of a JS function
+      isFunc = true;
+      c = Object.create(ancestor);
+      c.$ancestor = ancestor;
+    } else {
+      c = Object.create(ancestor);
+      c.$ancestor = null; // no pascal ancestor
+    }
+    c.$create = function(fn,args){
+      if (args == undefined) args = [];
+      var o = null;
+      if (newinstancefnname.length>0){
+        o = this[newinstancefnname](fn,args);
+      } else if(isFunc) {
+        o = new this.$func(args);
+      } else {
+        o = Object.create(c);
+      }
+      if (o.$init) o.$init();
+      try{
+        if (typeof(fn)==="string"){
+          this[fn].apply(o,args);
+        } else {
+          fn.apply(o,args);
+        };
+        if (o.AfterConstruction) o.AfterConstruction();
+      } catch($e){
+        // do not call BeforeDestruction
+        if (o.Destroy) o.Destroy();
+        if (o.$final) o.$final();
+        throw $e;
+      }
+      return o;
+    };
+    c.$destroy = function(fnname){
+      if (this.BeforeDestruction) this.BeforeDestruction();
+      if (this[fnname]) this[fnname]();
+      if (this.$final) this.$final();
+    };
+    rtl.initClass(c,parent,name,initfn,rttiname);
+    if (isFunc){
+      function f(){}
+      f.prototype = c;
+      c.$func = f;
+    }
+  },
+
+  createHelper: function(parent,name,ancestor,initfn,rttiname){
+    // create a helper,
+    // ancestor must be null or a helper,
+    var c = null;
+    if (ancestor != null){
+      c = Object.create(ancestor);
+      c.$ancestor = ancestor;
+      // c.$ancestor === Object.getPrototypeOf(c)
+    } else {
+      c = { $ancestor: null };
+    };
+    parent[name] = c;
+    c.$class = c; // Note: o.$class === Object.getPrototypeOf(o)
+    c.$classname = rttiname?rttiname:name;
+    parent = rtl.initStruct(c,parent,name);
+    c.$fullname = parent.$name+'.'+name;
+    // rtti
+    var t = c.$module.$rtti.$Helper(c.$classname,{ "helper": c });
+    c.$rtti = t;
+    if (rtl.isObject(ancestor)) t.ancestor = ancestor.$rtti;
+    if (!t.ancestor) t.ancestor = null;
+    // init members
+    initfn.call(c);
+  },
+
+  tObjectDestroy: "Destroy",
+
+  free: function(obj,name){
+    if (obj[name]==null) return null;
+    obj[name].$destroy(rtl.tObjectDestroy);
+    obj[name]=null;
+  },
+
+  freeLoc: function(obj){
+    if (obj==null) return null;
+    obj.$destroy(rtl.tObjectDestroy);
+    return null;
+  },
+
+  hideProp: function(o,p,v){
+    Object.defineProperty(o,p, {
+      enumerable: false,
+      configurable: true,
+      writable: true
+    });
+    if(arguments.length>2){ o[p]=v; }
+  },
+
+  recNewT: function(parent,name,initfn,full){
+    // create new record type
+    var t = {};
+    if (parent) parent[name] = t;
+    var h = rtl.hideProp;
+    if (full){
+      rtl.initStruct(t,parent,name);
+      t.$record = t;
+      h(t,'$record');
+      h(t,'$name');
+      h(t,'$parent');
+      h(t,'$module');
+      h(t,'$initSpec');
+    }
+    initfn.call(t);
+    if (!t.$new){
+      t.$new = function(){ return Object.create(t); };
+    }
+    t.$clone = function(r){ return t.$new().$assign(r); };
+    h(t,'$new');
+    h(t,'$clone');
+    h(t,'$eq');
+    h(t,'$assign');
+    return t;
+  },
+
+  is: function(instance,type){
+    return type.isPrototypeOf(instance) || (instance===type);
+  },
+
+  isExt: function(instance,type,mode){
+    // mode===1 means instance must be a Pascal class instance
+    // mode===2 means instance must be a Pascal class
+    // Notes:
+    // isPrototypeOf and instanceof return false on equal
+    // isPrototypeOf does not work for Date.isPrototypeOf(new Date())
+    //   so if isPrototypeOf is false test with instanceof
+    // instanceof needs a function on right side
+    if (instance == null) return false; // Note: ==null checks for undefined too
+    if ((typeof(type) !== 'object') && (typeof(type) !== 'function')) return false;
+    if (instance === type){
+      if (mode===1) return false;
+      if (mode===2) return rtl.isPasClass(instance);
+      return true;
+    }
+    if (type.isPrototypeOf && type.isPrototypeOf(instance)){
+      if (mode===1) return rtl.isPasClassInstance(instance);
+      if (mode===2) return rtl.isPasClass(instance);
+      return true;
+    }
+    if ((typeof type == 'function') && (instance instanceof type)) return true;
+    return false;
+  },
+
+  Exception: null,
+  EInvalidCast: null,
+  EAbstractError: null,
+  ERangeError: null,
+  EIntOverflow: null,
+  EPropWriteOnly: null,
+
+  raiseE: function(typename){
+    var t = rtl[typename];
+    if (t==null){
+      var mod = pas.SysUtils;
+      if (!mod) mod = pas.sysutils;
+      if (mod){
+        t = mod[typename];
+        if (!t) t = mod[typename.toLowerCase()];
+        if (!t) t = mod['Exception'];
+        if (!t) t = mod['exception'];
+      }
+    }
+    if (t){
+      if (t.Create){
+        throw t.$create("Create");
+      } else if (t.create){
+        throw t.$create("create");
+      }
+    }
+    if (typename === "EInvalidCast") throw "invalid type cast";
+    if (typename === "EAbstractError") throw "Abstract method called";
+    if (typename === "ERangeError") throw "range error";
+    throw typename;
+  },
+
+  as: function(instance,type){
+    if((instance === null) || rtl.is(instance,type)) return instance;
+    rtl.raiseE("EInvalidCast");
+  },
+
+  asExt: function(instance,type,mode){
+    if((instance === null) || rtl.isExt(instance,type,mode)) return instance;
+    rtl.raiseE("EInvalidCast");
+  },
+
+  createInterface: function(module, name, guid, fnnames, ancestor, initfn){
+    //console.log('createInterface name="'+name+'" guid="'+guid+'" names='+fnnames);
+    var i = ancestor?Object.create(ancestor):{};
+    module[name] = i;
+    i.$module = module;
+    i.$name = name;
+    i.$fullname = module.$name+'.'+name;
+    i.$guid = guid;
+    i.$guidr = null;
+    i.$names = fnnames?fnnames:[];
+    if (rtl.isFunction(initfn)){
+      // rtti
+      if (rtl.debug_rtti) rtl.debug('createInterface '+i.$fullname);
+      var t = i.$module.$rtti.$Interface(name,{ "interface": i, module: module });
+      i.$rtti = t;
+      if (ancestor) t.ancestor = ancestor.$rtti;
+      if (!t.ancestor) t.ancestor = null;
+      initfn.call(i);
+    }
+    return i;
+  },
+
+  strToGUIDR: function(s,g){
+    var p = 0;
+    function n(l){
+      var h = s.substr(p,l);
+      p+=l;
+      return parseInt(h,16);
+    }
+    p+=1; // skip {
+    g.D1 = n(8);
+    p+=1; // skip -
+    g.D2 = n(4);
+    p+=1; // skip -
+    g.D3 = n(4);
+    p+=1; // skip -
+    if (!g.D4) g.D4=[];
+    g.D4[0] = n(2);
+    g.D4[1] = n(2);
+    p+=1; // skip -
+    for(var i=2; i<8; i++) g.D4[i] = n(2);
+    return g;
+  },
+
+  guidrToStr: function(g){
+    if (g.$intf) return g.$intf.$guid;
+    var h = rtl.hexStr;
+    var s='{'+h(g.D1,8)+'-'+h(g.D2,4)+'-'+h(g.D3,4)+'-'+h(g.D4[0],2)+h(g.D4[1],2)+'-';
+    for (var i=2; i<8; i++) s+=h(g.D4[i],2);
+    s+='}';
+    return s;
+  },
+
+  createTGUID: function(guid){
+    var TGuid = (pas.System)?pas.System.TGuid:pas.system.tguid;
+    var g = rtl.strToGUIDR(guid,TGuid.$new());
+    return g;
+  },
+
+  getIntfGUIDR: function(intfTypeOrVar){
+    if (!intfTypeOrVar) return null;
+    if (!intfTypeOrVar.$guidr){
+      var g = rtl.createTGUID(intfTypeOrVar.$guid);
+      if (!intfTypeOrVar.hasOwnProperty('$guid')) intfTypeOrVar = Object.getPrototypeOf(intfTypeOrVar);
+      g.$intf = intfTypeOrVar;
+      intfTypeOrVar.$guidr = g;
+    }
+    return intfTypeOrVar.$guidr;
+  },
+
+  addIntf: function (aclass, intf, map){
+    function jmp(fn){
+      if (typeof(fn)==="function"){
+        return function(){ return fn.apply(this.$o,arguments); };
+      } else {
+        return function(){ rtl.raiseE('EAbstractError'); };
+      }
+    }
+    if(!map) map = {};
+    var t = intf;
+    var item = Object.create(t);
+    if (!aclass.hasOwnProperty('$intfmaps')) aclass.$intfmaps = {};
+    aclass.$intfmaps[intf.$guid] = item;
+    do{
+      var names = t.$names;
+      if (!names) break;
+      for (var i=0; i<names.length; i++){
+        var intfname = names[i];
+        var fnname = map[intfname];
+        if (!fnname) fnname = intfname;
+        //console.log('addIntf: intftype='+t.$name+' index='+i+' intfname="'+intfname+'" fnname="'+fnname+'" old='+typeof(item[intfname]));
+        item[intfname] = jmp(aclass[fnname]);
+      }
+      t = Object.getPrototypeOf(t);
+    }while(t!=null);
+  },
+
+  getIntfG: function (obj, guid, query){
+    if (!obj) return null;
+    //console.log('getIntfG: obj='+obj.$classname+' guid='+guid+' query='+query);
+    // search
+    var maps = obj.$intfmaps;
+    if (!maps) return null;
+    var item = maps[guid];
+    if (!item) return null;
+    // check delegation
+    //console.log('getIntfG: obj='+obj.$classname+' guid='+guid+' query='+query+' item='+typeof(item));
+    if (typeof item === 'function') return item.call(obj); // delegate. Note: COM contains _AddRef
+    // check cache
+    var intf = null;
+    if (obj.$interfaces){
+      intf = obj.$interfaces[guid];
+      //console.log('getIntfG: obj='+obj.$classname+' guid='+guid+' cache='+typeof(intf));
+    }
+    if (!intf){ // intf can be undefined!
+      intf = Object.create(item);
+      intf.$o = obj;
+      if (!obj.$interfaces) obj.$interfaces = {};
+      obj.$interfaces[guid] = intf;
+    }
+    if (typeof(query)==='object'){
+      // called by queryIntfT
+      var o = null;
+      if (intf.QueryInterface(rtl.getIntfGUIDR(query),
+          {get:function(){ return o; }, set:function(v){ o=v; }}) === 0){
+        return o;
+      } else {
+        return null;
+      }
+    } else if(query===2){
+      // called by TObject.GetInterfaceByStr
+      if (intf.$kind === 'com') intf._AddRef();
+    }
+    return intf;
+  },
+
+  getIntfT: function(obj,intftype){
+    return rtl.getIntfG(obj,intftype.$guid);
+  },
+
+  queryIntfT: function(obj,intftype){
+    return rtl.getIntfG(obj,intftype.$guid,intftype);
+  },
+
+  queryIntfIsT: function(obj,intftype){
+    var i = rtl.getIntfG(obj,intftype.$guid);
+    if (!i) return false;
+    if (i.$kind === 'com') i._Release();
+    return true;
+  },
+
+  asIntfT: function (obj,intftype){
+    var i = rtl.getIntfG(obj,intftype.$guid);
+    if (i!==null) return i;
+    rtl.raiseEInvalidCast();
+  },
+
+  intfIsIntfT: function(intf,intftype){
+    return (intf!==null) && rtl.queryIntfIsT(intf.$o,intftype);
+  },
+
+  intfAsIntfT: function (intf,intftype){
+    if (!intf) return null;
+    var i = rtl.getIntfG(intf.$o,intftype.$guid);
+    if (i) return i;
+    rtl.raiseEInvalidCast();
+  },
+
+  intfIsClass: function(intf,classtype){
+    return (intf!=null) && (rtl.is(intf.$o,classtype));
+  },
+
+  intfAsClass: function(intf,classtype){
+    if (intf==null) return null;
+    return rtl.as(intf.$o,classtype);
+  },
+
+  intfToClass: function(intf,classtype){
+    if ((intf!==null) && rtl.is(intf.$o,classtype)) return intf.$o;
+    return null;
+  },
+
+  // interface reference counting
+  intfRefs: { // base object for temporary interface variables
+    ref: function(id,intf){
+      // called for temporary interface references needing delayed release
+      var old = this[id];
+      //console.log('rtl.intfRefs.ref: id='+id+' old="'+(old?old.$name:'null')+'" intf="'+(intf?intf.$name:'null')+' $o='+(intf?intf.$o:'null'));
+      if (old){
+        // called again, e.g. in a loop
+        delete this[id];
+        old._Release(); // may fail
+      }
+      if(intf) {
+        this[id]=intf;
+      }
+      return intf;
+    },
+    free: function(){
+      //console.log('rtl.intfRefs.free...');
+      for (var id in this){
+        if (this.hasOwnProperty(id)){
+          var intf = this[id];
+          if (intf){
+            //console.log('rtl.intfRefs.free: id='+id+' '+intf.$name+' $o='+intf.$o.$classname);
+            intf._Release();
+          }
+        }
+      }
+    }
+  },
+
+  createIntfRefs: function(){
+    //console.log('rtl.createIntfRefs');
+    return Object.create(rtl.intfRefs);
+  },
+
+  setIntfP: function(path,name,value,skipAddRef){
+    var old = path[name];
+    //console.log('rtl.setIntfP path='+path+' name='+name+' old="'+(old?old.$name:'null')+'" value="'+(value?value.$name:'null')+'"');
+    if (old === value) return;
+    if (old !== null){
+      path[name]=null;
+      old._Release();
+    }
+    if (value !== null){
+      if (!skipAddRef) value._AddRef();
+      path[name]=value;
+    }
+  },
+
+  setIntfL: function(old,value,skipAddRef){
+    //console.log('rtl.setIntfL old="'+(old?old.$name:'null')+'" value="'+(value?value.$name:'null')+'"');
+    if (old !== value){
+      if (value!==null){
+        if (!skipAddRef) value._AddRef();
+      }
+      if (old!==null){
+        old._Release();  // Release after AddRef, to avoid double Release if Release creates an exception
+      }
+    } else if (skipAddRef){
+      if (old!==null){
+        old._Release();  // value has an AddRef
+      }
+    }
+    return value;
+  },
+
+  _AddRef: function(intf){
+    //if (intf) console.log('rtl._AddRef intf="'+(intf?intf.$name:'null')+'"');
+    if (intf) intf._AddRef();
+    return intf;
+  },
+
+  _Release: function(intf){
+    //if (intf) console.log('rtl._Release intf="'+(intf?intf.$name:'null')+'"');
+    if (intf) intf._Release();
+    return intf;
+  },
+
+  trunc: function(a){
+    return a<0 ? Math.ceil(a) : Math.floor(a);
+  },
+
+  checkMethodCall: function(obj,type){
+    if (rtl.isObject(obj) && rtl.is(obj,type)) return;
+    rtl.raiseE("EInvalidCast");
+  },
+
+  oc: function(i){
+    // overflow check integer
+    if ((Math.floor(i)===i) && (i>=-0x1fffffffffffff) && (i<=0x1fffffffffffff)) return i;
+    rtl.raiseE('EIntOverflow');
+  },
+
+  rc: function(i,minval,maxval){
+    // range check integer
+    if ((Math.floor(i)===i) && (i>=minval) && (i<=maxval)) return i;
+    rtl.raiseE('ERangeError');
+  },
+
+  rcc: function(c,minval,maxval){
+    // range check char
+    if ((typeof(c)==='string') && (c.length===1)){
+      var i = c.charCodeAt(0);
+      if ((i>=minval) && (i<=maxval)) return c;
+    }
+    rtl.raiseE('ERangeError');
+  },
+
+  rcSetCharAt: function(s,index,c){
+    // range check setCharAt
+    if ((typeof(s)!=='string') || (index<0) || (index>=s.length)) rtl.raiseE('ERangeError');
+    return rtl.setCharAt(s,index,c);
+  },
+
+  rcCharAt: function(s,index){
+    // range check charAt
+    if ((typeof(s)!=='string') || (index<0) || (index>=s.length)) rtl.raiseE('ERangeError');
+    return s.charAt(index);
+  },
+
+  rcArrR: function(arr,index){
+    // range check read array
+    if (Array.isArray(arr) && (typeof(index)==='number') && (index>=0) && (index<arr.length)){
+      if (arguments.length>2){
+        // arr,index1,index2,...
+        arr=arr[index];
+        for (var i=2; i<arguments.length; i++) arr=rtl.rcArrR(arr,arguments[i]);
+        return arr;
+      }
+      return arr[index];
+    }
+    rtl.raiseE('ERangeError');
+  },
+
+  rcArrW: function(arr,index,value){
+    // range check write array
+    // arr,index1,index2,...,value
+    for (var i=3; i<arguments.length; i++){
+      arr=rtl.rcArrR(arr,index);
+      index=arguments[i-1];
+      value=arguments[i];
+    }
+    if (Array.isArray(arr) && (typeof(index)==='number') && (index>=0) && (index<arr.length)){
+      return arr[index]=value;
+    }
+    rtl.raiseE('ERangeError');
+  },
+
+  length: function(arr){
+    return (arr == null) ? 0 : arr.length;
+  },
+
+  arrayRef: function(a){
+    if (a!=null) rtl.hideProp(a,'$pas2jsrefcnt',1);
+    return a;
+  },
+
+  arraySetLength: function(arr,defaultvalue,newlength){
+    var stack = [];
+    var s = 9999;
+    for (var i=2; i<arguments.length; i++){
+      var j = arguments[i];
+      if (j==='s'){ s = i-2; }
+      else {
+        stack.push({ dim:j+0, a:null, i:0, src:null });
+      }
+    }
+    var dimmax = stack.length-1;
+    var depth = 0;
+    var lastlen = 0;
+    var item = null;
+    var a = null;
+    var src = arr;
+    var srclen = 0, oldlen = 0;
+    do{
+      if (depth>0){
+        item=stack[depth-1];
+        src = (item.src && item.src.length>item.i)?item.src[item.i]:null;
+      }
+      if (!src){
+        a = [];
+        srclen = 0;
+        oldlen = 0;
+      } else if (src.$pas2jsrefcnt>0 || depth>=s){
+        a = [];
+        srclen = src.length;
+        oldlen = srclen;
+      } else {
+        a = src;
+        srclen = 0;
+        oldlen = a.length;
+      }
+      lastlen = stack[depth].dim;
+      a.length = lastlen;
+      if (depth>0){
+        item.a[item.i]=a;
+        item.i++;
+        if ((lastlen===0) && (item.i<item.a.length)) continue;
+      }
+      if (lastlen>0){
+        if (depth<dimmax){
+          item = stack[depth];
+          item.a = a;
+          item.i = 0;
+          item.src = src;
+          depth++;
+          continue;
+        } else {
+          if (srclen>lastlen) srclen=lastlen;
+          if (rtl.isArray(defaultvalue)){
+            // array of dyn array
+            for (var i=0; i<srclen; i++) a[i]=src[i];
+            for (var i=oldlen; i<lastlen; i++) a[i]=[];
+          } else if (rtl.isObject(defaultvalue)) {
+            if (rtl.isTRecord(defaultvalue)){
+              // array of record
+              for (var i=0; i<srclen; i++) a[i]=defaultvalue.$clone(src[i]);
+              for (var i=oldlen; i<lastlen; i++) a[i]=defaultvalue.$new();
+            } else {
+              // array of set
+              for (var i=0; i<srclen; i++) a[i]=rtl.refSet(src[i]);
+              for (var i=oldlen; i<lastlen; i++) a[i]={};
+            }
+          } else {
+            for (var i=0; i<srclen; i++) a[i]=src[i];
+            for (var i=oldlen; i<lastlen; i++) a[i]=defaultvalue;
+          }
+        }
+      }
+      // backtrack
+      while ((depth>0) && (stack[depth-1].i>=stack[depth-1].dim)){
+        depth--;
+      };
+      if (depth===0){
+        if (dimmax===0) return a;
+        return stack[0].a;
+      }
+    }while (true);
+  },
+
+  arrayEq: function(a,b){
+    if (a===null) return b===null;
+    if (b===null) return false;
+    if (a.length!==b.length) return false;
+    for (var i=0; i<a.length; i++) if (a[i]!==b[i]) return false;
+    return true;
+  },
+
+  arrayClone: function(type,src,srcpos,endpos,dst,dstpos){
+    // type: 0 for references, "refset" for calling refSet(), a function for new type()
+    // src must not be null
+    // This function does not range check.
+    if(type === 'refSet') {
+      for (; srcpos<endpos; srcpos++) dst[dstpos++] = rtl.refSet(src[srcpos]); // ref set
+    } else if (rtl.isTRecord(type)){
+      for (; srcpos<endpos; srcpos++) dst[dstpos++] = type.$clone(src[srcpos]); // clone record
+    }  else {
+      for (; srcpos<endpos; srcpos++) dst[dstpos++] = src[srcpos]; // reference
+    };
+  },
+
+  arrayConcat: function(type){
+    // type: see rtl.arrayClone
+    var a = [];
+    var l = 0;
+    for (var i=1; i<arguments.length; i++){
+      var src = arguments[i];
+      if (src !== null) l+=src.length;
+    };
+    a.length = l;
+    l=0;
+    for (var i=1; i<arguments.length; i++){
+      var src = arguments[i];
+      if (src === null) continue;
+      rtl.arrayClone(type,src,0,src.length,a,l);
+      l+=src.length;
+    };
+    return a;
+  },
+
+  arrayConcatN: function(){
+    var a = null;
+    for (var i=0; i<arguments.length; i++){
+      var src = arguments[i];
+      if (src === null) continue;
+      if (a===null){
+        a=rtl.arrayRef(src); // Note: concat(a) does not clone
+      } else {
+        a=a.concat(src);
+      }
+    };
+    return a;
+  },
+
+  arrayCopy: function(type, srcarray, index, count){
+    // type: see rtl.arrayClone
+    // if count is missing, use srcarray.length
+    if (srcarray === null) return [];
+    if (index < 0) index = 0;
+    if (count === undefined) count=srcarray.length;
+    var end = index+count;
+    if (end>srcarray.length) end = srcarray.length;
+    if (index>=end) return [];
+    if (type===0){
+      return srcarray.slice(index,end);
+    } else {
+      var a = [];
+      a.length = end-index;
+      rtl.arrayClone(type,srcarray,index,end,a,0);
+      return a;
+    }
+  },
+
+  arrayInsert: function(item, arr, index){
+    if (arr){
+      arr.splice(index,0,item);
+      return arr;
+    } else {
+      return [item];
+    }
+  },
+
+  setCharAt: function(s,index,c){
+    return s.substr(0,index)+c+s.substr(index+1);
+  },
+
+  getResStr: function(mod,name){
+    var rs = mod.$resourcestrings[name];
+    return rs.current?rs.current:rs.org;
+  },
+
+  createSet: function(){
+    var s = {};
+    for (var i=0; i<arguments.length; i++){
+      if (arguments[i]!=null){
+        s[arguments[i]]=true;
+      } else {
+        var first=arguments[i+=1];
+        var last=arguments[i+=1];
+        for(var j=first; j<=last; j++) s[j]=true;
+      }
+    }
+    return s;
+  },
+
+  cloneSet: function(s){
+    var r = {};
+    for (var key in s) r[key]=true;
+    return r;
+  },
+
+  refSet: function(s){
+    rtl.hideProp(s,'$shared',true);
+    return s;
+  },
+
+  includeSet: function(s,enumvalue){
+    if (s.$shared) s = rtl.cloneSet(s);
+    s[enumvalue] = true;
+    return s;
+  },
+
+  excludeSet: function(s,enumvalue){
+    if (s.$shared) s = rtl.cloneSet(s);
+    delete s[enumvalue];
+    return s;
+  },
+
+  diffSet: function(s,t){
+    var r = {};
+    for (var key in s) if (!t[key]) r[key]=true;
+    return r;
+  },
+
+  unionSet: function(s,t){
+    var r = {};
+    for (var key in s) r[key]=true;
+    for (var key in t) r[key]=true;
+    return r;
+  },
+
+  intersectSet: function(s,t){
+    var r = {};
+    for (var key in s) if (t[key]) r[key]=true;
+    return r;
+  },
+
+  symDiffSet: function(s,t){
+    var r = {};
+    for (var key in s) if (!t[key]) r[key]=true;
+    for (var key in t) if (!s[key]) r[key]=true;
+    return r;
+  },
+
+  eqSet: function(s,t){
+    for (var key in s) if (!t[key]) return false;
+    for (var key in t) if (!s[key]) return false;
+    return true;
+  },
+
+  neSet: function(s,t){
+    return !rtl.eqSet(s,t);
+  },
+
+  leSet: function(s,t){
+    for (var key in s) if (!t[key]) return false;
+    return true;
+  },
+
+  geSet: function(s,t){
+    for (var key in t) if (!s[key]) return false;
+    return true;
+  },
+
+  strSetLength: function(s,newlen){
+    var oldlen = s.length;
+    if (oldlen > newlen){
+      return s.substring(0,newlen);
+    } else if (s.repeat){
+      // Note: repeat needs ECMAScript6!
+      return s+' '.repeat(newlen-oldlen);
+    } else {
+       while (oldlen<newlen){
+         s+=' ';
+         oldlen++;
+       };
+       return s;
+    }
+  },
+
+  spaceLeft: function(s,width){
+    var l=s.length;
+    if (l>=width) return s;
+    if (s.repeat){
+      // Note: repeat needs ECMAScript6!
+      return ' '.repeat(width-l) + s;
+    } else {
+      while (l<width){
+        s=' '+s;
+        l++;
+      };
+      return s;
+    };
+  },
+
+  floatToStr: function(d,w,p){
+    // input 1-3 arguments: double, width, precision
+    if (arguments.length>2){
+      return rtl.spaceLeft(d.toFixed(p),w);
+    } else {
+	  // exponent width
+	  var pad = "";
+	  var ad = Math.abs(d);
+	  if (((ad>1) && (ad<1.0e+10)) ||  ((ad>1.e-10) && (ad<1))) {
+		pad='00';
+	  } else if ((ad>1) && (ad<1.0e+100) || (ad<1.e-10)) {
+		pad='0';
+      }  	
+	  if (arguments.length<2) {
+	    w=24;		
+      } else if (w<9) {
+		w=9;
+      }		  
+      var p = w-8;
+      var s=(d>0 ? " " : "" ) + d.toExponential(p);
+      s=s.replace(/e(.)/,'E$1'+pad);
+      return rtl.spaceLeft(s,w);
+    }
+  },
+
+  valEnum: function(s, enumType, setCodeFn){
+    s = s.toLowerCase();
+    for (var key in enumType){
+      if((typeof(key)==='string') && (key.toLowerCase()===s)){
+        setCodeFn(0);
+        return enumType[key];
+      }
+    }
+    setCodeFn(1);
+    return 0;
+  },
+
+  lw: function(l){
+    // fix longword bitwise operation
+    return l<0?l+0x100000000:l;
+  },
+
+  and: function(a,b){
+    var hi = 0x80000000;
+    var low = 0x7fffffff;
+    var h = (a / hi) & (b / hi);
+    var l = (a & low) & (b & low);
+    return h*hi + l;
+  },
+
+  or: function(a,b){
+    var hi = 0x80000000;
+    var low = 0x7fffffff;
+    var h = (a / hi) | (b / hi);
+    var l = (a & low) | (b & low);
+    return h*hi + l;
+  },
+
+  xor: function(a,b){
+    var hi = 0x80000000;
+    var low = 0x7fffffff;
+    var h = (a / hi) ^ (b / hi);
+    var l = (a & low) ^ (b & low);
+    return h*hi + l;
+  },
+
+  shr: function(a,b){
+    if (a<0) a += rtl.hiInt;
+    if (a<0x80000000) return a >> b;
+    if (b<=0) return a;
+    if (b>54) return 0;
+    return Math.floor(a / Math.pow(2,b));
+  },
+
+  shl: function(a,b){
+    if (a<0) a += rtl.hiInt;
+    if (b<=0) return a;
+    if (b>54) return 0;
+    var r = a * Math.pow(2,b);
+    if (r <= rtl.hiInt) return r;
+    return r % rtl.hiInt;
+  },
+
+  initRTTI: function(){
+    if (rtl.debug_rtti) rtl.debug('initRTTI');
+
+    // base types
+    rtl.tTypeInfo = { name: "tTypeInfo", kind: 0, $module: null, attr: null };
+    function newBaseTI(name,kind,ancestor){
+      if (!ancestor) ancestor = rtl.tTypeInfo;
+      if (rtl.debug_rtti) rtl.debug('initRTTI.newBaseTI "'+name+'" '+kind+' ("'+ancestor.name+'")');
+      var t = Object.create(ancestor);
+      t.name = name;
+      t.kind = kind;
+      rtl[name] = t;
+      return t;
+    };
+    function newBaseInt(name,minvalue,maxvalue,ordtype){
+      var t = newBaseTI(name,1 /* tkInteger */,rtl.tTypeInfoInteger);
+      t.minvalue = minvalue;
+      t.maxvalue = maxvalue;
+      t.ordtype = ordtype;
+      return t;
+    };
+    newBaseTI("tTypeInfoInteger",1 /* tkInteger */);
+    newBaseInt("shortint",-0x80,0x7f,0);
+    newBaseInt("byte",0,0xff,1);
+    newBaseInt("smallint",-0x8000,0x7fff,2);
+    newBaseInt("word",0,0xffff,3);
+    newBaseInt("longint",-0x80000000,0x7fffffff,4);
+    newBaseInt("longword",0,0xffffffff,5);
+    newBaseInt("nativeint",-0x10000000000000,0xfffffffffffff,6);
+    newBaseInt("nativeuint",0,0xfffffffffffff,7);
+    newBaseTI("char",2 /* tkChar */);
+    newBaseTI("string",3 /* tkString */);
+    newBaseTI("tTypeInfoEnum",4 /* tkEnumeration */,rtl.tTypeInfoInteger);
+    newBaseTI("tTypeInfoSet",5 /* tkSet */);
+    newBaseTI("double",6 /* tkDouble */);
+    newBaseTI("boolean",7 /* tkBool */);
+    newBaseTI("tTypeInfoProcVar",8 /* tkProcVar */);
+    newBaseTI("tTypeInfoMethodVar",9 /* tkMethod */,rtl.tTypeInfoProcVar);
+    newBaseTI("tTypeInfoArray",10 /* tkArray */);
+    newBaseTI("tTypeInfoDynArray",11 /* tkDynArray */);
+    newBaseTI("tTypeInfoPointer",15 /* tkPointer */);
+    var t = newBaseTI("pointer",15 /* tkPointer */,rtl.tTypeInfoPointer);
+    t.reftype = null;
+    newBaseTI("jsvalue",16 /* tkJSValue */);
+    newBaseTI("tTypeInfoRefToProcVar",17 /* tkRefToProcVar */,rtl.tTypeInfoProcVar);
+
+    // member kinds
+    rtl.tTypeMember = { attr: null };
+    function newMember(name,kind){
+      var m = Object.create(rtl.tTypeMember);
+      m.name = name;
+      m.kind = kind;
+      rtl[name] = m;
+    };
+    newMember("tTypeMemberField",1); // tmkField
+    newMember("tTypeMemberMethod",2); // tmkMethod
+    newMember("tTypeMemberProperty",3); // tmkProperty
+
+    // base object for storing members: a simple object
+    rtl.tTypeMembers = {};
+
+    // tTypeInfoStruct - base object for tTypeInfoClass, tTypeInfoRecord, tTypeInfoInterface
+    var tis = newBaseTI("tTypeInfoStruct",0);
+    tis.$addMember = function(name,ancestor,options){
+      if (rtl.debug_rtti){
+        if (!rtl.hasString(name) || (name.charAt()==='$')) throw 'invalid member "'+name+'", this="'+this.name+'"';
+        if (!rtl.is(ancestor,rtl.tTypeMember)) throw 'invalid ancestor "'+ancestor+':'+ancestor.name+'", "'+this.name+'.'+name+'"';
+        if ((options!=undefined) && (typeof(options)!='object')) throw 'invalid options "'+options+'", "'+this.name+'.'+name+'"';
+      };
+      var t = Object.create(ancestor);
+      t.name = name;
+      this.members[name] = t;
+      this.names.push(name);
+      if (rtl.isObject(options)){
+        for (var key in options) if (options.hasOwnProperty(key)) t[key] = options[key];
+      };
+      return t;
+    };
+    tis.addField = function(name,type,options){
+      var t = this.$addMember(name,rtl.tTypeMemberField,options);
+      if (rtl.debug_rtti){
+        if (!rtl.is(type,rtl.tTypeInfo)) throw 'invalid type "'+type+'", "'+this.name+'.'+name+'"';
+      };
+      t.typeinfo = type;
+      this.fields.push(name);
+      return t;
+    };
+    tis.addFields = function(){
+      var i=0;
+      while(i<arguments.length){
+        var name = arguments[i++];
+        var type = arguments[i++];
+        if ((i<arguments.length) && (typeof(arguments[i])==='object')){
+          this.addField(name,type,arguments[i++]);
+        } else {
+          this.addField(name,type);
+        };
+      };
+    };
+    tis.addMethod = function(name,methodkind,params,result,flags,options){
+      var t = this.$addMember(name,rtl.tTypeMemberMethod,options);
+      t.methodkind = methodkind;
+      t.procsig = rtl.newTIProcSig(params,result,flags);
+      this.methods.push(name);
+      return t;
+    };
+    tis.addProperty = function(name,flags,result,getter,setter,options){
+      var t = this.$addMember(name,rtl.tTypeMemberProperty,options);
+      t.flags = flags;
+      t.typeinfo = result;
+      t.getter = getter;
+      t.setter = setter;
+      // Note: in options: params, stored, defaultvalue
+      t.params = rtl.isArray(t.params) ? rtl.newTIParams(t.params) : null;
+      this.properties.push(name);
+      if (!rtl.isString(t.stored)) t.stored = "";
+      return t;
+    };
+    tis.getField = function(index){
+      return this.members[this.fields[index]];
+    };
+    tis.getMethod = function(index){
+      return this.members[this.methods[index]];
+    };
+    tis.getProperty = function(index){
+      return this.members[this.properties[index]];
+    };
+
+    newBaseTI("tTypeInfoRecord",12 /* tkRecord */,rtl.tTypeInfoStruct);
+    newBaseTI("tTypeInfoClass",13 /* tkClass */,rtl.tTypeInfoStruct);
+    newBaseTI("tTypeInfoClassRef",14 /* tkClassRef */);
+    newBaseTI("tTypeInfoInterface",18 /* tkInterface */,rtl.tTypeInfoStruct);
+    newBaseTI("tTypeInfoHelper",19 /* tkHelper */,rtl.tTypeInfoStruct);
+    newBaseTI("tTypeInfoExtClass",20 /* tkExtClass */,rtl.tTypeInfoClass);
+  },
+
+  tSectionRTTI: {
+    $module: null,
+    $inherited: function(name,ancestor,o){
+      if (rtl.debug_rtti){
+        rtl.debug('tSectionRTTI.newTI "'+(this.$module?this.$module.$name:"(no module)")
+          +'"."'+name+'" ('+ancestor.name+') '+(o?'init':'forward'));
+      };
+      var t = this[name];
+      if (t){
+        if (!t.$forward) throw 'duplicate type "'+name+'"';
+        if (!ancestor.isPrototypeOf(t)) throw 'typeinfo ancestor mismatch "'+name+'" ancestor="'+ancestor.name+'" t.name="'+t.name+'"';
+      } else {
+        t = Object.create(ancestor);
+        t.name = name;
+        t.$module = this.$module;
+        this[name] = t;
+      }
+      if (o){
+        delete t.$forward;
+        for (var key in o) if (o.hasOwnProperty(key)) t[key]=o[key];
+      } else {
+        t.$forward = true;
+      }
+      return t;
+    },
+    $Scope: function(name,ancestor,o){
+      var t=this.$inherited(name,ancestor,o);
+      t.members = {};
+      t.names = [];
+      t.fields = [];
+      t.methods = [];
+      t.properties = [];
+      return t;
+    },
+    $TI: function(name,kind,o){ var t=this.$inherited(name,rtl.tTypeInfo,o); t.kind = kind; return t; },
+    $Int: function(name,o){ return this.$inherited(name,rtl.tTypeInfoInteger,o); },
+    $Enum: function(name,o){ return this.$inherited(name,rtl.tTypeInfoEnum,o); },
+    $Set: function(name,o){ return this.$inherited(name,rtl.tTypeInfoSet,o); },
+    $StaticArray: function(name,o){ return this.$inherited(name,rtl.tTypeInfoArray,o); },
+    $DynArray: function(name,o){ return this.$inherited(name,rtl.tTypeInfoDynArray,o); },
+    $ProcVar: function(name,o){ return this.$inherited(name,rtl.tTypeInfoProcVar,o); },
+    $RefToProcVar: function(name,o){ return this.$inherited(name,rtl.tTypeInfoRefToProcVar,o); },
+    $MethodVar: function(name,o){ return this.$inherited(name,rtl.tTypeInfoMethodVar,o); },
+    $Record: function(name,o){ return this.$Scope(name,rtl.tTypeInfoRecord,o); },
+    $Class: function(name,o){ return this.$Scope(name,rtl.tTypeInfoClass,o); },
+    $ClassRef: function(name,o){ return this.$inherited(name,rtl.tTypeInfoClassRef,o); },
+    $Pointer: function(name,o){ return this.$inherited(name,rtl.tTypeInfoPointer,o); },
+    $Interface: function(name,o){ return this.$Scope(name,rtl.tTypeInfoInterface,o); },
+    $Helper: function(name,o){ return this.$Scope(name,rtl.tTypeInfoHelper,o); },
+    $ExtClass: function(name,o){ return this.$Scope(name,rtl.tTypeInfoExtClass,o); }
+  },
+
+  newTIParam: function(param){
+    // param is an array, 0=name, 1=type, 2=optional flags
+    var t = {
+      name: param[0],
+      typeinfo: param[1],
+      flags: (rtl.isNumber(param[2]) ? param[2] : 0)
+    };
+    return t;
+  },
+
+  newTIParams: function(list){
+    // list: optional array of [paramname,typeinfo,optional flags]
+    var params = [];
+    if (rtl.isArray(list)){
+      for (var i=0; i<list.length; i++) params.push(rtl.newTIParam(list[i]));
+    };
+    return params;
+  },
+
+  newTIProcSig: function(params,result,flags){
+    var s = {
+      params: rtl.newTIParams(params),
+      resulttype: result?result:null,
+      flags: flags?flags:0
+    };
+    return s;
+  },
+
+  addResource: function(aRes){
+    rtl.$res[aRes.name]=aRes;
+  },
+
+  getResource: function(aName){
+    var res = rtl.$res[aName];
+    if (res !== undefined) {
+      return res;
+    } else {
+      return null;
+    }
+  },
+
+  getResourceList: function(){
+    return Object.keys(rtl.$res);
+  }
+}
+
+rtl.module("System",[],function () {
   "use strict";
   var $mod = this;
   var $impl = $mod.$impl;
   this.LineEnding = "\n";
-  this.sLineBreak = $mod.LineEnding;
+  this.sLineBreak = this.LineEnding;
   this.MaxLongint = 0x7fffffff;
   this.Maxint = 2147483647;
   this.TTextLineBreakStyle = {"0": "tlbsLF", tlbsLF: 0, "1": "tlbsCRLF", tlbsCRLF: 1, "2": "tlbsCR", tlbsCR: 2};
-  rtl.createClass($mod,"TObject",null,function () {
+  rtl.createClass(this,"TObject",null,function () {
     this.$init = function () {
     };
     this.$final = function () {
@@ -26,19 +1526,51 @@
     this.InheritsFrom = function (aClass) {
       return (aClass!=null) && ((this==aClass) || aClass.isPrototypeOf(this));
     };
+    this.FieldAddress = function (aName) {
+      var Result = null;
+      Result = null;
+      if (aName === "") return Result;
+      var aClass = this.$class;
+      var ClassTI = null;
+      var myName = aName.toLowerCase();
+      var MemberTI = null;
+      while (aClass !== null) {
+        ClassTI = aClass.$rtti;
+        for (var i = 0, $end2 = ClassTI.fields.length - 1; i <= $end2; i++) {
+          MemberTI = ClassTI.getField(i);
+          if (MemberTI.name.toLowerCase() === myName) {
+             return MemberTI;
+          };
+        };
+        aClass = aClass.$ancestor ? aClass.$ancestor : null;
+      };
+      return Result;
+    };
     this.AfterConstruction = function () {
     };
     this.BeforeDestruction = function () {
     };
   });
-  rtl.recNewT($mod,"TVarRec",function () {
+  this.vtInteger = 0;
+  this.vtExtended = 3;
+  this.vtWideChar = 9;
+  this.vtCurrency = 12;
+  this.vtUnicodeString = 18;
+  this.vtNativeInt = 19;
+  rtl.recNewT(this,"TVarRec",function () {
     this.VType = 0;
     this.VJSValue = undefined;
     this.$eq = function (b) {
-      return (this.VType === b.VType) && (this.VJSValue === b.VJSValue);
+      return (this.VType === b.VType) && (this.VJSValue === b.VJSValue) && (this.VJSValue === b.VJSValue) && (this.VJSValue === b.VJSValue) && (this.VJSValue === b.VJSValue) && (this.VJSValue === b.VJSValue) && (this.VJSValue === b.VJSValue) && (this.VJSValue === b.VJSValue);
     };
     this.$assign = function (s) {
       this.VType = s.VType;
+      this.VJSValue = s.VJSValue;
+      this.VJSValue = s.VJSValue;
+      this.VJSValue = s.VJSValue;
+      this.VJSValue = s.VJSValue;
+      this.VJSValue = s.VJSValue;
+      this.VJSValue = s.VJSValue;
       this.VJSValue = s.VJSValue;
       return this;
     };
@@ -50,7 +1582,7 @@
     Result = [];
     while (i < arguments.length) {
       v = $mod.TVarRec.$new();
-      v.VType = Math.floor(arguments[i]);
+      v.VType = rtl.trunc(arguments[i]);
       i += 1;
       v.VJSValue = arguments[i];
       i += 1;
@@ -72,7 +1604,7 @@
     $mod.Trunc = Math.trunc;
     return Math.trunc(A);
   };
-  this.DefaultTextLineBreakStyle = $mod.TTextLineBreakStyle.tlbsLF;
+  this.DefaultTextLineBreakStyle = this.TTextLineBreakStyle.tlbsLF;
   this.Int = function (A) {
     var Result = 0.0;
     Result = $mod.Trunc(A);
@@ -109,77 +1641,91 @@
     return c.toUpperCase();
   };
   this.val = function (S, NI, Code) {
-    NI.set($impl.valint(S,-4503599627370496,4503599627370495,Code));
+    NI.set($impl.valint(S,-9007199254740991,9007199254740991,Code));
   };
   this.StringOfChar = function (c, l) {
     var Result = "";
     var i = 0;
     if ((l>0) && c.repeat) return c.repeat(l);
     Result = "";
-    for (var $l1 = 1, $end2 = l; $l1 <= $end2; $l1++) {
-      i = $l1;
+    for (var $l = 1, $end = l; $l <= $end; $l++) {
+      i = $l;
       Result = Result + c;
     };
     return Result;
   };
+  this.Writeln = function () {
+    var i = 0;
+    var l = 0;
+    var s = "";
+    l = arguments.length - 1;
+    if ($impl.WriteCallBack != null) {
+      for (var $l = 0, $end = l; $l <= $end; $l++) {
+        i = $l;
+        $impl.WriteCallBack(arguments[i],i === l);
+      };
+    } else {
+      s = $impl.WriteBuf;
+      for (var $l1 = 0, $end1 = l; $l1 <= $end1; $l1++) {
+        i = $l1;
+        s = s + ("" + arguments[i]);
+      };
+      console.log(s);
+      $impl.WriteBuf = "";
+    };
+  };
   this.Assigned = function (V) {
     return (V!=undefined) && (V!=null) && (!rtl.isArray(V) || (V.length > 0));
+  };
+  $mod.$implcode = function () {
+    $impl.WriteBuf = "";
+    $impl.WriteCallBack = null;
+    $impl.valint = function (S, MinVal, MaxVal, Code) {
+      var Result = 0;
+      var x = 0.0;
+      if (S === "") {
+        Code.set(1);
+        return Result;
+      };
+      x = Number(S);
+      if (isNaN(x)) {
+        var $tmp = $mod.Copy(S,1,1);
+        if ($tmp === "$") {
+          x = Number("0x" + $mod.Copy$1(S,2))}
+         else if ($tmp === "&") {
+          x = Number("0o" + $mod.Copy$1(S,2))}
+         else if ($tmp === "%") {
+          x = Number("0b" + $mod.Copy$1(S,2))}
+         else {
+          Code.set(1);
+          return Result;
+        };
+      };
+      if (isNaN(x) || (x !== $mod.Int(x))) {
+        Code.set(1)}
+       else if ((x < MinVal) || (x > MaxVal)) {
+        Code.set(2)}
+       else {
+        Result = $mod.Trunc(x);
+        Code.set(0);
+      };
+      return Result;
+    };
   };
   $mod.$init = function () {
     rtl.exitcode = 0;
   };
-},null,function () {
-  "use strict";
-  var $mod = this;
-  var $impl = $mod.$impl;
-  $impl.valint = function (S, MinVal, MaxVal, Code) {
-    var Result = 0;
-    var x = 0.0;
-    x = Number(S);
-    if (isNaN(x)) {
-      var $tmp1 = $mod.Copy(S,1,1);
-      if ($tmp1 === "$") {
-        x = Number("0x" + $mod.Copy$1(S,2))}
-       else if ($tmp1 === "&") {
-        x = Number("0o" + $mod.Copy$1(S,2))}
-       else if ($tmp1 === "%") {
-        x = Number("0b" + $mod.Copy$1(S,2))}
-       else {
-        Code.set(1);
-        return Result;
-      };
-    };
-    if (isNaN(x) || (x !== $mod.Int(x))) {
-      Code.set(1)}
-     else if ((x < MinVal) || (x > MaxVal)) {
-      Code.set(2)}
-     else {
-      Result = $mod.Trunc(x);
-      Code.set(0);
-    };
-    return Result;
-  };
-});
+},[]);
 rtl.module("RTLConsts",["System"],function () {
   "use strict";
   var $mod = this;
-  this.SArgumentMissing = 'Missing argument in format "%s"';
-  this.SInvalidFormat = 'Invalid format specifier : "%s"';
-  this.SInvalidArgIndex = 'Invalid argument index in format: "%s"';
-  this.SListCapacityError = "List capacity (%s) exceeded.";
-  this.SListCountError = "List count (%s) out of bounds.";
-  this.SListIndexError = "List index (%s) out of bounds";
-  this.SSortedListError = "Operation not allowed on sorted list";
-  this.SDuplicateString = "String list does not allow duplicates";
-  this.SErrFindNeedsSortedList = "Cannot use find on unsorted list";
-  this.SInvalidName = 'Invalid component name: "%s"';
-  this.SDuplicateName = 'Duplicate component name: "%s"';
+  $mod.$resourcestrings = {SArgumentMissing: {org: 'Missing argument in format "%s"'}, SInvalidFormat: {org: 'Invalid format specifier : "%s"'}, SInvalidArgIndex: {org: 'Invalid argument index in format: "%s"'}, SListCapacityError: {org: "List capacity (%s) exceeded."}, SListCountError: {org: "List count (%s) out of bounds."}, SListIndexError: {org: "List index (%s) out of bounds"}, SSortedListError: {org: "Operation not allowed on sorted list"}, SDuplicateString: {org: "String list does not allow duplicates"}, SErrFindNeedsSortedList: {org: "Cannot use find on unsorted list"}, SInvalidName: {org: 'Invalid component name: "%s"'}, SDuplicateName: {org: 'Duplicate component name: "%s"'}};
 });
 rtl.module("Types",["System"],function () {
   "use strict";
   var $mod = this;
   this.TDuplicates = {"0": "dupIgnore", dupIgnore: 0, "1": "dupAccept", dupAccept: 1, "2": "dupError", dupError: 2};
-  rtl.recNewT($mod,"TSize",function () {
+  rtl.recNewT(this,"TSize",function () {
     this.cx = 0;
     this.cy = 0;
     this.$eq = function (b) {
@@ -191,7 +1737,7 @@ rtl.module("Types",["System"],function () {
       return this;
     };
   });
-  rtl.recNewT($mod,"TPoint",function () {
+  rtl.recNewT(this,"TPoint",function () {
     this.x = 0;
     this.y = 0;
     this.$eq = function (b) {
@@ -206,7 +1752,7 @@ rtl.module("Types",["System"],function () {
     $r.addField("x",rtl.longint);
     $r.addField("y",rtl.longint);
   });
-  rtl.recNewT($mod,"TRect",function () {
+  rtl.recNewT(this,"TRect",function () {
     this.Left = 0;
     this.Top = 0;
     this.Right = 0;
@@ -246,33 +1792,8 @@ rtl.module("Types",["System"],function () {
 rtl.module("JS",["System","Types"],function () {
   "use strict";
   var $mod = this;
-  this.isInteger = function (v) {
-    return Math.floor(v)===v;
-  };
-  this.isNull = function (v) {
-    return v === null;
-  };
-  this.TJSValueType = {"0": "jvtNull", jvtNull: 0, "1": "jvtBoolean", jvtBoolean: 1, "2": "jvtInteger", jvtInteger: 2, "3": "jvtFloat", jvtFloat: 3, "4": "jvtString", jvtString: 4, "5": "jvtObject", jvtObject: 5, "6": "jvtArray", jvtArray: 6};
-  this.GetValueType = function (JS) {
-    var Result = 0;
-    var t = "";
-    if ($mod.isNull(JS)) {
-      Result = $mod.TJSValueType.jvtNull}
-     else {
-      t = typeof(JS);
-      if (t === "string") {
-        Result = $mod.TJSValueType.jvtString}
-       else if (t === "boolean") {
-        Result = $mod.TJSValueType.jvtBoolean}
-       else if (t === "object") {
-        if (rtl.isArray(JS)) {
-          Result = $mod.TJSValueType.jvtArray}
-         else Result = $mod.TJSValueType.jvtObject;
-      } else if (t === "number") if ($mod.isInteger(JS)) {
-        Result = $mod.TJSValueType.jvtInteger}
-       else Result = $mod.TJSValueType.jvtFloat;
-    };
-    return Result;
+  this.isClassInstance = function (v) {
+    return (typeof(v)=="object") && (v!=null) && (v.$class == Object.getPrototypeOf(v));
   };
 });
 rtl.module("SysUtils",["System","RTLConsts","JS"],function () {
@@ -286,13 +1807,102 @@ rtl.module("SysUtils",["System","RTLConsts","JS"],function () {
     Obj.set(null);
     o.$destroy("Destroy");
   };
-  rtl.createClass($mod,"Exception",pas.System.TObject,function () {
+  rtl.recNewT(this,"TFormatSettings",function () {
+    this.CurrencyDecimals = 0;
+    this.CurrencyFormat = 0;
+    this.CurrencyString = "";
+    this.DateSeparator = "";
+    this.DecimalSeparator = "";
+    this.LongDateFormat = "";
+    this.LongTimeFormat = "";
+    this.NegCurrFormat = 0;
+    this.ShortDateFormat = "";
+    this.ShortTimeFormat = "";
+    this.ThousandSeparator = "";
+    this.TimeAMString = "";
+    this.TimePMString = "";
+    this.TimeSeparator = "";
+    this.TwoDigitYearCenturyWindow = 0;
+    this.InitLocaleHandler = null;
+    this.$new = function () {
+      var r = Object.create(this);
+      r.DateTimeToStrFormat = rtl.arraySetLength(null,"",2);
+      r.LongDayNames = rtl.arraySetLength(null,"",7);
+      r.LongMonthNames = rtl.arraySetLength(null,"",12);
+      r.ShortDayNames = rtl.arraySetLength(null,"",7);
+      r.ShortMonthNames = rtl.arraySetLength(null,"",12);
+      return r;
+    };
+    this.$eq = function (b) {
+      return (this.CurrencyDecimals === b.CurrencyDecimals) && (this.CurrencyFormat === b.CurrencyFormat) && (this.CurrencyString === b.CurrencyString) && (this.DateSeparator === b.DateSeparator) && rtl.arrayEq(this.DateTimeToStrFormat,b.DateTimeToStrFormat) && (this.DecimalSeparator === b.DecimalSeparator) && (this.LongDateFormat === b.LongDateFormat) && rtl.arrayEq(this.LongDayNames,b.LongDayNames) && rtl.arrayEq(this.LongMonthNames,b.LongMonthNames) && (this.LongTimeFormat === b.LongTimeFormat) && (this.NegCurrFormat === b.NegCurrFormat) && (this.ShortDateFormat === b.ShortDateFormat) && rtl.arrayEq(this.ShortDayNames,b.ShortDayNames) && rtl.arrayEq(this.ShortMonthNames,b.ShortMonthNames) && (this.ShortTimeFormat === b.ShortTimeFormat) && (this.ThousandSeparator === b.ThousandSeparator) && (this.TimeAMString === b.TimeAMString) && (this.TimePMString === b.TimePMString) && (this.TimeSeparator === b.TimeSeparator) && (this.TwoDigitYearCenturyWindow === b.TwoDigitYearCenturyWindow);
+    };
+    this.$assign = function (s) {
+      this.CurrencyDecimals = s.CurrencyDecimals;
+      this.CurrencyFormat = s.CurrencyFormat;
+      this.CurrencyString = s.CurrencyString;
+      this.DateSeparator = s.DateSeparator;
+      this.DateTimeToStrFormat = s.DateTimeToStrFormat.slice(0);
+      this.DecimalSeparator = s.DecimalSeparator;
+      this.LongDateFormat = s.LongDateFormat;
+      this.LongDayNames = s.LongDayNames.slice(0);
+      this.LongMonthNames = s.LongMonthNames.slice(0);
+      this.LongTimeFormat = s.LongTimeFormat;
+      this.NegCurrFormat = s.NegCurrFormat;
+      this.ShortDateFormat = s.ShortDateFormat;
+      this.ShortDayNames = s.ShortDayNames.slice(0);
+      this.ShortMonthNames = s.ShortMonthNames.slice(0);
+      this.ShortTimeFormat = s.ShortTimeFormat;
+      this.ThousandSeparator = s.ThousandSeparator;
+      this.TimeAMString = s.TimeAMString;
+      this.TimePMString = s.TimePMString;
+      this.TimeSeparator = s.TimeSeparator;
+      this.TwoDigitYearCenturyWindow = s.TwoDigitYearCenturyWindow;
+      return this;
+    };
+    this.GetJSLocale = function () {
+      return Intl.DateTimeFormat().resolvedOptions().locale;
+    };
+    this.Create = function () {
+      var Result = $mod.TFormatSettings.$new();
+      Result.$assign($mod.TFormatSettings.Create$1($mod.TFormatSettings.GetJSLocale()));
+      return Result;
+    };
+    this.Create$1 = function (ALocale) {
+      var Result = $mod.TFormatSettings.$new();
+      Result.LongDayNames = $impl.DefaultLongDayNames.slice(0);
+      Result.ShortDayNames = $impl.DefaultShortDayNames.slice(0);
+      Result.ShortMonthNames = $impl.DefaultShortMonthNames.slice(0);
+      Result.LongMonthNames = $impl.DefaultLongMonthNames.slice(0);
+      Result.DateTimeToStrFormat[0] = "c";
+      Result.DateTimeToStrFormat[1] = "f";
+      Result.DateSeparator = "-";
+      Result.TimeSeparator = ":";
+      Result.ShortDateFormat = "yyyy-mm-dd";
+      Result.LongDateFormat = "ddd, yyyy-mm-dd";
+      Result.ShortTimeFormat = "hh:nn";
+      Result.LongTimeFormat = "hh:nn:ss";
+      Result.DecimalSeparator = ".";
+      Result.ThousandSeparator = ",";
+      Result.TimeAMString = "AM";
+      Result.TimePMString = "PM";
+      Result.TwoDigitYearCenturyWindow = 50;
+      Result.CurrencyFormat = 0;
+      Result.NegCurrFormat = 0;
+      Result.CurrencyDecimals = 2;
+      Result.CurrencyString = "$";
+      if ($mod.TFormatSettings.InitLocaleHandler != null) $mod.TFormatSettings.InitLocaleHandler($mod.UpperCase(ALocale),$mod.TFormatSettings.$clone(Result));
+      return Result;
+    };
+  },true);
+  rtl.createClass(this,"Exception",pas.System.TObject,function () {
+    this.LogMessageOnCreate = false;
     this.$init = function () {
       pas.System.TObject.$init.call(this);
       this.fMessage = "";
     };
     this.Create$1 = function (Msg) {
       this.fMessage = Msg;
+      if (this.LogMessageOnCreate) pas.System.Writeln("Created exception ",this.$classname," with message: ",Msg);
       return this;
     };
     this.CreateFmt = function (Msg, Args) {
@@ -300,10 +1910,13 @@ rtl.module("SysUtils",["System","RTLConsts","JS"],function () {
       return this;
     };
   });
-  rtl.createClass($mod,"EConvertError",$mod.Exception,function () {
+  rtl.createClass(this,"EConvertError",this.Exception,function () {
   });
   this.TrimLeft = function (S) {
     return S.replace(/^[\s\uFEFF\xA0\x00-\x1f]+/,'');
+  };
+  this.UpperCase = function (s) {
+    return s.toUpperCase();
   };
   this.LowerCase = function (s) {
     return s.toLowerCase();
@@ -331,6 +1944,11 @@ rtl.module("SysUtils",["System","RTLConsts","JS"],function () {
   };
   this.Format = function (Fmt, Args) {
     var Result = "";
+    Result = $mod.Format$1(Fmt,Args,$mod.FormatSettings);
+    return Result;
+  };
+  this.Format$1 = function (Fmt, Args, aSettings) {
+    var Result = "";
     var ChPos = 0;
     var OldPos = 0;
     var ArgPos = 0;
@@ -355,7 +1973,7 @@ rtl.module("SysUtils",["System","RTLConsts","JS"],function () {
         while ((ChPos <= Len) && (Fmt.charAt(ChPos - 1) <= "9") && (Fmt.charAt(ChPos - 1) >= "0")) ChPos += 1;
         if (ChPos > Len) $impl.DoFormatError(1,Fmt);
         if (Fmt.charAt(ChPos - 1) === "*") {
-          if (Index === -1) {
+          if (Index === 255) {
             ArgN = ArgPos}
            else {
             ArgN = Index;
@@ -363,9 +1981,14 @@ rtl.module("SysUtils",["System","RTLConsts","JS"],function () {
           };
           if ((ChPos > OldPos) || (ArgN > (rtl.length(Args) - 1))) $impl.DoFormatError(1,Fmt);
           ArgPos = ArgN + 1;
-          if (rtl.isNumber(Args[ArgN]) && pas.JS.isInteger(Args[ArgN])) {
-            Value = Math.floor(Args[ArgN])}
-           else $impl.DoFormatError(1,Fmt);
+          var $tmp = Args[ArgN].VType;
+          if ($tmp === 0) {
+            Value = Args[ArgN].VJSValue}
+           else if ($tmp === 19) {
+            Value = Args[ArgN].VJSValue}
+           else {
+            $impl.DoFormatError(1,Fmt);
+          };
           ChPos += 1;
         } else {
           if (OldPos < ChPos) {
@@ -414,7 +2037,7 @@ rtl.module("SysUtils",["System","RTLConsts","JS"],function () {
           Prec = Value;
         };
       };
-      Index = -1;
+      Index = 255;
       Width = -1;
       Prec = -1;
       Value = -1;
@@ -433,11 +2056,11 @@ rtl.module("SysUtils",["System","RTLConsts","JS"],function () {
     function Checkarg(AT, err) {
       var Result = false;
       Result = false;
-      if (Index === -1) {
+      if (Index === 255) {
         DoArg = ArgPos}
        else DoArg = Index;
       ArgPos = DoArg + 1;
-      if ((DoArg > (rtl.length(Args) - 1)) || (pas.JS.GetValueType(Args[DoArg]) !== AT)) {
+      if ((DoArg > (rtl.length(Args) - 1)) || (Args[DoArg].VType !== AT)) {
         if (err) $impl.DoFormatError(3,Fmt);
         ArgPos -= 1;
         return Result;
@@ -455,10 +2078,11 @@ rtl.module("SysUtils",["System","RTLConsts","JS"],function () {
       if (ChPos > OldPos) Result = Result + pas.System.Copy(Fmt,OldPos,ChPos - OldPos);
       if (ChPos < Len) {
         Fchar = ReadFormat();
-        var $tmp1 = Fchar;
-        if ($tmp1 === "D") {
-          Checkarg(pas.JS.TJSValueType.jvtInteger,true);
-          ToAdd = $mod.IntToStr(Math.floor(Args[DoArg]));
+        var $tmp = Fchar;
+        if ($tmp === "D") {
+          if (Checkarg(0,false)) {
+            ToAdd = $mod.IntToStr(Args[DoArg].VJSValue)}
+           else if (Checkarg(19,true)) ToAdd = $mod.IntToStr(Args[DoArg].VJSValue);
           Width = Math.abs(Width);
           Index = Prec - ToAdd.length;
           if (ToAdd.charAt(0) !== "-") {
@@ -468,36 +2092,52 @@ rtl.module("SysUtils",["System","RTLConsts","JS"],function () {
             }, set: function (v) {
               ToAdd = v;
             }},2);
-        } else if ($tmp1 === "U") {
-          Checkarg(pas.JS.TJSValueType.jvtInteger,true);
-          if (Math.floor(Args[DoArg]) < 0) $impl.DoFormatError(3,Fmt);
-          ToAdd = $mod.IntToStr(Math.floor(Args[DoArg]));
+        } else if ($tmp === "U") {
+          if (Checkarg(0,false)) {
+            ToAdd = $mod.IntToStr(Args[DoArg].VJSValue >>> 0)}
+           else if (Checkarg(19,true)) ToAdd = $mod.IntToStr(Args[DoArg].VJSValue);
           Width = Math.abs(Width);
           Index = Prec - ToAdd.length;
           ToAdd = pas.System.StringOfChar("0",Index) + ToAdd;
-        } else if ($tmp1 === "E") {
-          if (Checkarg(pas.JS.TJSValueType.jvtFloat,false) || Checkarg(pas.JS.TJSValueType.jvtInteger,true)) ToAdd = $mod.FloatToStrF(rtl.getNumber(Args[DoArg]),$mod.TFloatFormat.ffFixed,9999,Prec);
-        } else if ($tmp1 === "F") {
-          if (Checkarg(pas.JS.TJSValueType.jvtFloat,false) || Checkarg(pas.JS.TJSValueType.jvtInteger,true)) ToAdd = $mod.FloatToStrF(rtl.getNumber(Args[DoArg]),$mod.TFloatFormat.ffFixed,9999,Prec);
-        } else if ($tmp1 === "G") {
-          if (Checkarg(pas.JS.TJSValueType.jvtFloat,false) || Checkarg(pas.JS.TJSValueType.jvtInteger,true)) ToAdd = $mod.FloatToStrF(rtl.getNumber(Args[DoArg]),$mod.TFloatFormat.ffGeneral,Prec,3);
-        } else if ($tmp1 === "N") {
-          if (Checkarg(pas.JS.TJSValueType.jvtFloat,false) || Checkarg(pas.JS.TJSValueType.jvtInteger,true)) ToAdd = $mod.FloatToStrF(rtl.getNumber(Args[DoArg]),$mod.TFloatFormat.ffNumber,9999,Prec);
-        } else if ($tmp1 === "M") {
-          if (Checkarg(pas.JS.TJSValueType.jvtFloat,false) || Checkarg(pas.JS.TJSValueType.jvtInteger,true)) ToAdd = $mod.FloatToStrF(rtl.getNumber(Args[DoArg]),$mod.TFloatFormat.ffCurrency,9999,Prec);
-        } else if ($tmp1 === "S") {
-          Checkarg(pas.JS.TJSValueType.jvtString,true);
-          Hs = "" + Args[DoArg];
+        } else if ($tmp === "E") {
+          if (Checkarg(12,false)) {
+            ToAdd = $mod.FloatToStrF$1(Args[DoArg].VJSValue / 10000,$mod.TFloatFormat.ffExponent,3,Prec,aSettings)}
+           else if (Checkarg(3,true)) ToAdd = $mod.FloatToStrF$1(Args[DoArg].VJSValue,$mod.TFloatFormat.ffExponent,3,Prec,aSettings);
+        } else if ($tmp === "F") {
+          if (Checkarg(12,false)) {
+            ToAdd = $mod.FloatToStrF$1(Args[DoArg].VJSValue / 10000,$mod.TFloatFormat.ffFixed,9999,Prec,aSettings)}
+           else if (Checkarg(3,true)) ToAdd = $mod.FloatToStrF$1(Args[DoArg].VJSValue,$mod.TFloatFormat.ffFixed,9999,Prec,aSettings);
+        } else if ($tmp === "G") {
+          if (Checkarg(12,false)) {
+            ToAdd = $mod.FloatToStrF$1(Args[DoArg].VJSValue / 10000,$mod.TFloatFormat.ffGeneral,Prec,3,aSettings)}
+           else if (Checkarg(3,true)) ToAdd = $mod.FloatToStrF$1(Args[DoArg].VJSValue,$mod.TFloatFormat.ffGeneral,Prec,3,aSettings);
+        } else if ($tmp === "N") {
+          if (Checkarg(12,false)) {
+            ToAdd = $mod.FloatToStrF$1(Args[DoArg].VJSValue / 10000,$mod.TFloatFormat.ffNumber,9999,Prec,aSettings)}
+           else if (Checkarg(3,true)) ToAdd = $mod.FloatToStrF$1(Args[DoArg].VJSValue,$mod.TFloatFormat.ffNumber,9999,Prec,aSettings);
+        } else if ($tmp === "M") {
+          if (Checkarg(12,false)) {
+            ToAdd = $mod.FloatToStrF$1(Args[DoArg].VJSValue / 10000,$mod.TFloatFormat.ffCurrency,9999,Prec,aSettings)}
+           else if (Checkarg(3,true)) ToAdd = $mod.FloatToStrF$1(Args[DoArg].VJSValue,$mod.TFloatFormat.ffCurrency,9999,Prec,aSettings);
+        } else if ($tmp === "S") {
+          if (Checkarg(18,false)) {
+            Hs = Args[DoArg].VJSValue}
+           else if (Checkarg(9,true)) Hs = Args[DoArg].VJSValue;
           Index = Hs.length;
           if ((Prec !== -1) && (Index > Prec)) Index = Prec;
           ToAdd = pas.System.Copy(Hs,1,Index);
-        } else if ($tmp1 === "P") {
-          Checkarg(pas.JS.TJSValueType.jvtInteger,true);
-          ToAdd = $mod.IntToHex(Math.floor(Args[DoArg]),31);
-        } else if ($tmp1 === "X") {
-          Checkarg(pas.JS.TJSValueType.jvtInteger,true);
-          vq = Math.floor(Args[DoArg]);
-          Index = 31;
+        } else if ($tmp === "P") {
+          if (Checkarg(0,false)) {
+            ToAdd = $mod.IntToHex(Args[DoArg].VJSValue,8)}
+           else if (Checkarg(0,true)) ToAdd = $mod.IntToHex(Args[DoArg].VJSValue,16);
+        } else if ($tmp === "X") {
+          if (Checkarg(0,false)) {
+            vq = Args[DoArg].VJSValue;
+            Index = 16;
+          } else if (Checkarg(19,true)) {
+            vq = Args[DoArg].VJSValue;
+            Index = 31;
+          };
           if (Prec > Index) {
             ToAdd = $mod.IntToHex(vq,Index)}
            else {
@@ -506,7 +2146,7 @@ rtl.module("SysUtils",["System","RTLConsts","JS"],function () {
             if (Index > Prec) Prec = Index;
             ToAdd = $mod.IntToHex(vq,Prec);
           };
-        } else if ($tmp1 === "%") ToAdd = "%";
+        } else if ($tmp === "%") ToAdd = "%";
         if (Width !== -1) if (ToAdd.length < Width) if (!Left) {
           ToAdd = pas.System.StringOfChar(" ",Width - ToAdd.length) + ToAdd}
          else ToAdd = ToAdd + pas.System.StringOfChar(" ",Width - ToAdd.length);
@@ -562,367 +2202,457 @@ rtl.module("SysUtils",["System","RTLConsts","JS"],function () {
     Result = "" + Value;
     return Result;
   };
-  var HexDigits = "0123456789ABCDEF";
   this.IntToHex = function (Value, Digits) {
     var Result = "";
-    if (Digits === 0) Digits = 1;
     Result = "";
-    while (Value > 0) {
-      Result = HexDigits.charAt(((Value & 15) + 1) - 1) + Result;
-      Value = Math.floor(Value / 16);
-    };
+    if (Value < 0) if (Value<0) Value = 0xFFFFFFFF + Value + 1;
+    Result=Value.toString(16);
+    Result = $mod.UpperCase(Result);
     while (Result.length < Digits) Result = "0" + Result;
     return Result;
   };
   this.TFloatFormat = {"0": "ffFixed", ffFixed: 0, "1": "ffGeneral", ffGeneral: 1, "2": "ffExponent", ffExponent: 2, "3": "ffNumber", ffNumber: 3, "4": "ffCurrency", ffCurrency: 4};
   this.FloatToStr = function (Value) {
     var Result = "";
-    Result = $mod.FloatToStrF(Value,$mod.TFloatFormat.ffGeneral,15,0);
+    Result = $mod.FloatToStr$1(Value,$mod.FormatSettings);
     return Result;
   };
-  this.FloatToStrF = function (Value, format, Precision, Digits) {
+  this.FloatToStr$1 = function (Value, aSettings) {
     var Result = "";
+    Result = $mod.FloatToStrF$1(Value,$mod.TFloatFormat.ffGeneral,15,0,aSettings);
+    return Result;
+  };
+  this.FloatToStrF$1 = function (Value, format, Precision, Digits, aSettings) {
+    var Result = "";
+    var TS = "";
     var DS = "";
-    DS = $mod.DecimalSeparator;
-    var $tmp1 = format;
-    if ($tmp1 === $mod.TFloatFormat.ffGeneral) {
+    DS = aSettings.DecimalSeparator;
+    TS = aSettings.ThousandSeparator;
+    var $tmp = format;
+    if ($tmp === $mod.TFloatFormat.ffGeneral) {
       Result = $impl.FormatGeneralFloat(Value,Precision,DS)}
-     else if ($tmp1 === $mod.TFloatFormat.ffExponent) {
+     else if ($tmp === $mod.TFloatFormat.ffExponent) {
       Result = $impl.FormatExponentFloat(Value,Precision,Digits,DS)}
-     else if ($tmp1 === $mod.TFloatFormat.ffFixed) {
+     else if ($tmp === $mod.TFloatFormat.ffFixed) {
       Result = $impl.FormatFixedFloat(Value,Digits,DS)}
-     else if ($tmp1 === $mod.TFloatFormat.ffNumber) {
-      Result = $impl.FormatNumberFloat(Value,Digits,DS,$mod.ThousandSeparator)}
-     else if ($tmp1 === $mod.TFloatFormat.ffCurrency) Result = $impl.FormatNumberCurrency(Value * 10000,Digits,DS,$mod.ThousandSeparator);
+     else if ($tmp === $mod.TFloatFormat.ffNumber) {
+      Result = $impl.FormatNumberFloat(Value,Digits,DS,TS)}
+     else if ($tmp === $mod.TFloatFormat.ffCurrency) Result = $impl.FormatNumberCurrency(Value * 10000,Digits,aSettings);
     if ((format !== $mod.TFloatFormat.ffCurrency) && (Result.length > 1) && (Result.charAt(0) === "-")) $impl.RemoveLeadingNegativeSign({get: function () {
         return Result;
       }, set: function (v) {
         Result = v;
-      }},DS);
+      }},DS,TS);
     return Result;
   };
   this.OnGetEnvironmentVariable = null;
   this.OnGetEnvironmentString = null;
   this.OnGetEnvironmentVariableCount = null;
-  this.DecimalSeparator = ".";
-  this.ThousandSeparator = "";
-  rtl.createClass($mod,"TFormatSettings",pas.System.TObject,function () {
-  });
-  this.FormatSettings = null;
-  this.CurrencyFormat = 0;
-  this.NegCurrFormat = 0;
-  this.CurrencyDecimals = 2;
-  this.CurrencyString = "$";
-  $mod.$init = function () {
-    $mod.FormatSettings = $mod.TFormatSettings.$create("Create");
-  };
-},null,function () {
-  "use strict";
-  var $mod = this;
-  var $impl = $mod.$impl;
-  $impl.feInvalidFormat = 1;
-  $impl.feMissingArgument = 2;
-  $impl.feInvalidArgIndex = 3;
-  $impl.DoFormatError = function (ErrCode, fmt) {
-    var $tmp1 = ErrCode;
-    if ($tmp1 === 1) {
-      throw $mod.EConvertError.$create("CreateFmt",[pas.RTLConsts.SInvalidFormat,[fmt]])}
-     else if ($tmp1 === 2) {
-      throw $mod.EConvertError.$create("CreateFmt",[pas.RTLConsts.SArgumentMissing,[fmt]])}
-     else if ($tmp1 === 3) throw $mod.EConvertError.$create("CreateFmt",[pas.RTLConsts.SInvalidArgIndex,[fmt]]);
-  };
-  $impl.maxdigits = 15;
-  $impl.ReplaceDecimalSep = function (S, DS) {
-    var Result = "";
-    var P = 0;
-    P = pas.System.Pos(".",S);
-    if (P > 0) {
-      Result = pas.System.Copy(S,1,P - 1) + DS + pas.System.Copy(S,P + 1,S.length - P)}
-     else Result = S;
+  this.OnShowException = null;
+  this.SetOnUnCaughtExceptionHandler = function (aValue) {
+    var Result = null;
+    Result = $impl.OnPascalException;
+    $impl.OnPascalException = aValue;
+    $mod.HookUncaughtExceptions();
     return Result;
   };
-  $impl.FormatGeneralFloat = function (Value, Precision, DS) {
-    var Result = "";
-    var P = 0;
-    var PE = 0;
-    var Q = 0;
-    var Exponent = 0;
-    if ((Precision === -1) || (Precision > 15)) Precision = 15;
-    Result = rtl.floatToStr(Value,Precision + 7);
-    Result = $mod.TrimLeft(Result);
-    P = pas.System.Pos(".",Result);
-    if (P === 0) return Result;
-    PE = pas.System.Pos("E",Result);
-    if (PE === 0) {
+  this.HookUncaughtExceptions = function () {
+    rtl.onUncaughtException = $impl.RTLExceptionHook;
+    rtl.showUncaughtExceptions = true;
+  };
+  this.ShowException = function (ExceptObject, ExceptAddr) {
+    var S = "";
+    S = rtl.getResStr($mod,"SApplicationException") + ExceptObject.$classname;
+    if ($mod.Exception.isPrototypeOf(ExceptObject)) S = S + " : " + ExceptObject.fMessage;
+    $impl.DoShowException(S);
+    if (ExceptAddr === null) ;
+  };
+  this.TimeSeparator = "";
+  this.DateSeparator = "";
+  this.ShortDateFormat = "";
+  this.LongDateFormat = "";
+  this.ShortTimeFormat = "";
+  this.LongTimeFormat = "";
+  this.DecimalSeparator = "";
+  this.ThousandSeparator = "";
+  this.TimeAMString = "";
+  this.TimePMString = "";
+  this.ShortMonthNames = rtl.arraySetLength(null,"",12);
+  this.LongMonthNames = rtl.arraySetLength(null,"",12);
+  this.ShortDayNames = rtl.arraySetLength(null,"",7);
+  this.LongDayNames = rtl.arraySetLength(null,"",7);
+  this.FormatSettings = this.TFormatSettings.$new();
+  this.CurrencyFormat = 0;
+  this.NegCurrFormat = 0;
+  this.CurrencyDecimals = 0;
+  this.CurrencyString = "";
+  $mod.$implcode = function () {
+    $impl.DefaultShortMonthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    $impl.DefaultLongMonthNames = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+    $impl.DefaultShortDayNames = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+    $impl.DefaultLongDayNames = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+    $impl.DoShowException = function (S) {
+      if ($mod.OnShowException != null) {
+        $mod.OnShowException(S)}
+       else {
+        window.alert(S);
+      };
+    };
+    $impl.OnPascalException = null;
+    $impl.OnJSException = null;
+    $impl.RTLExceptionHook = function (aError) {
+      var S = "";
+      if (pas.JS.isClassInstance(aError)) {
+        if ($impl.OnPascalException != null) {
+          $impl.OnPascalException(rtl.getObject(aError))}
+         else $mod.ShowException(rtl.getObject(aError),null);
+      } else if (rtl.isObject(aError)) {
+        if ($impl.OnJSException != null) {
+          $impl.OnJSException(aError)}
+         else {
+          if (aError.hasOwnProperty("message")) {
+            S = rtl.getResStr($mod,"SErrUnknownExceptionType") + ("" + aError["message"])}
+           else S = rtl.getResStr($mod,"SErrUnknownExceptionType") + aError.toString();
+          $impl.DoShowException(S);
+        };
+      } else {
+        S = rtl.getResStr($mod,"SErrUnknownExceptionType") + ("" + aError);
+        $impl.DoShowException(S);
+      };
+    };
+    $impl.feInvalidFormat = 1;
+    $impl.feMissingArgument = 2;
+    $impl.feInvalidArgIndex = 3;
+    $impl.DoFormatError = function (ErrCode, fmt) {
+      var $tmp = ErrCode;
+      if ($tmp === 1) {
+        throw $mod.EConvertError.$create("CreateFmt",[rtl.getResStr(pas.RTLConsts,"SInvalidFormat"),pas.System.VarRecs(18,fmt)])}
+       else if ($tmp === 2) {
+        throw $mod.EConvertError.$create("CreateFmt",[rtl.getResStr(pas.RTLConsts,"SArgumentMissing"),pas.System.VarRecs(18,fmt)])}
+       else if ($tmp === 3) throw $mod.EConvertError.$create("CreateFmt",[rtl.getResStr(pas.RTLConsts,"SInvalidArgIndex"),pas.System.VarRecs(18,fmt)]);
+    };
+    $impl.maxdigits = 15;
+    $impl.ReplaceDecimalSep = function (S, DS) {
+      var Result = "";
+      var P = 0;
+      P = pas.System.Pos(".",S);
+      if (P > 0) {
+        Result = pas.System.Copy(S,1,P - 1) + DS + pas.System.Copy(S,P + 1,S.length - P)}
+       else Result = S;
+      return Result;
+    };
+    $impl.FormatGeneralFloat = function (Value, Precision, DS) {
+      var Result = "";
+      var P = 0;
+      var PE = 0;
+      var Q = 0;
+      var Exponent = 0;
+      if ((Precision === -1) || (Precision > 15)) Precision = 15;
+      Result = rtl.floatToStr(Value,Precision + 7);
+      Result = $mod.TrimLeft(Result);
+      P = pas.System.Pos(".",Result);
+      if (P === 0) return Result;
+      PE = pas.System.Pos("E",Result);
+      if (PE === 0) {
+        Result = $impl.ReplaceDecimalSep(Result,DS);
+        return Result;
+      };
+      Q = PE + 2;
+      Exponent = 0;
+      while (Q <= Result.length) {
+        Exponent = ((Exponent * 10) + Result.charCodeAt(Q - 1)) - 48;
+        Q += 1;
+      };
+      if (Result.charAt((PE + 1) - 1) === "-") Exponent = -Exponent;
+      if (((P + Exponent) < PE) && (Exponent > -6)) {
+        Result = rtl.strSetLength(Result,PE - 1);
+        if (Exponent >= 0) {
+          for (var $l = 0, $end = Exponent - 1; $l <= $end; $l++) {
+            Q = $l;
+            Result = rtl.setCharAt(Result,P - 1,Result.charAt((P + 1) - 1));
+            P += 1;
+          };
+          Result = rtl.setCharAt(Result,P - 1,".");
+          P = 1;
+          if (Result.charAt(P - 1) === "-") P += 1;
+          while ((Result.charAt(P - 1) === "0") && (P < Result.length) && (pas.System.Copy(Result,P + 1,DS.length) !== DS)) pas.System.Delete({get: function () {
+              return Result;
+            }, set: function (v) {
+              Result = v;
+            }},P,1);
+        } else {
+          pas.System.Insert(pas.System.Copy("00000",1,-Exponent),{get: function () {
+              return Result;
+            }, set: function (v) {
+              Result = v;
+            }},P - 1);
+          Result = rtl.setCharAt(Result,P - Exponent - 1,Result.charAt(P - Exponent - 1 - 1));
+          Result = rtl.setCharAt(Result,P - 1,".");
+          if (Exponent !== -1) Result = rtl.setCharAt(Result,P - Exponent - 1 - 1,"0");
+        };
+        Q = Result.length;
+        while ((Q > 0) && (Result.charAt(Q - 1) === "0")) Q -= 1;
+        if (Result.charAt(Q - 1) === ".") Q -= 1;
+        if ((Q === 0) || ((Q === 1) && (Result.charAt(0) === "-"))) {
+          Result = "0"}
+         else Result = rtl.strSetLength(Result,Q);
+      } else {
+        while (Result.charAt(PE - 1 - 1) === "0") {
+          pas.System.Delete({get: function () {
+              return Result;
+            }, set: function (v) {
+              Result = v;
+            }},PE - 1,1);
+          PE -= 1;
+        };
+        if (Result.charAt(PE - 1 - 1) === DS) {
+          pas.System.Delete({get: function () {
+              return Result;
+            }, set: function (v) {
+              Result = v;
+            }},PE - 1,1);
+          PE -= 1;
+        };
+        if (Result.charAt((PE + 1) - 1) === "+") {
+          pas.System.Delete({get: function () {
+              return Result;
+            }, set: function (v) {
+              Result = v;
+            }},PE + 1,1)}
+         else PE += 1;
+        while (Result.charAt((PE + 1) - 1) === "0") pas.System.Delete({get: function () {
+            return Result;
+          }, set: function (v) {
+            Result = v;
+          }},PE + 1,1);
+      };
       Result = $impl.ReplaceDecimalSep(Result,DS);
       return Result;
     };
-    Q = PE + 2;
-    Exponent = 0;
-    while (Q <= Result.length) {
-      Exponent = ((Exponent * 10) + Result.charCodeAt(Q - 1)) - "0".charCodeAt();
-      Q += 1;
-    };
-    if (Result.charAt((PE + 1) - 1) === "-") Exponent = -Exponent;
-    if (((P + Exponent) < PE) && (Exponent > -6)) {
-      Result = rtl.strSetLength(Result,PE - 1);
-      if (Exponent >= 0) {
-        for (var $l1 = 0, $end2 = Exponent - 1; $l1 <= $end2; $l1++) {
-          Q = $l1;
-          Result = rtl.setCharAt(Result,P - 1,Result.charAt((P + 1) - 1));
-          P += 1;
-        };
-        Result = rtl.setCharAt(Result,P - 1,".");
-        P = 1;
-        if (Result.charAt(P - 1) === "-") P += 1;
-        while ((Result.charAt(P - 1) === "0") && (P < Result.length) && (pas.System.Copy(Result,P + 1,DS.length) !== DS)) pas.System.Delete({get: function () {
+    $impl.FormatExponentFloat = function (Value, Precision, Digits, DS) {
+      var Result = "";
+      var P = 0;
+      DS = $mod.FormatSettings.DecimalSeparator;
+      if ((Precision === -1) || (Precision > 15)) Precision = 15;
+      Result = rtl.floatToStr(Value,Precision + 7);
+      while (Result.charAt(0) === " ") pas.System.Delete({get: function () {
+          return Result;
+        }, set: function (v) {
+          Result = v;
+        }},1,1);
+      P = pas.System.Pos("E",Result);
+      if (P === 0) {
+        Result = $impl.ReplaceDecimalSep(Result,DS);
+        return Result;
+      };
+      P += 2;
+      if (Digits > 4) Digits = 4;
+      Digits = (Result.length - P - Digits) + 1;
+      if (Digits < 0) {
+        pas.System.Insert(pas.System.Copy("0000",1,-Digits),{get: function () {
+            return Result;
+          }, set: function (v) {
+            Result = v;
+          }},P)}
+       else while ((Digits > 0) && (Result.charAt(P - 1) === "0")) {
+        pas.System.Delete({get: function () {
             return Result;
           }, set: function (v) {
             Result = v;
           }},P,1);
-      } else {
-        pas.System.Insert(pas.System.Copy("00000",1,-Exponent),{get: function () {
-            return Result;
-          }, set: function (v) {
-            Result = v;
-          }},P - 1);
-        Result = rtl.setCharAt(Result,P - Exponent - 1,Result.charAt(P - Exponent - 1 - 1));
-        Result = rtl.setCharAt(Result,P - 1,".");
-        if (Exponent !== -1) Result = rtl.setCharAt(Result,P - Exponent - 1 - 1,"0");
+        if (P > Result.length) {
+          pas.System.Delete({get: function () {
+              return Result;
+            }, set: function (v) {
+              Result = v;
+            }},P - 2,2);
+          break;
+        };
+        Digits -= 1;
       };
-      Q = Result.length;
-      while ((Q > 0) && (Result.charAt(Q - 1) === "0")) Q -= 1;
-      if (Result.charAt(Q - 1) === ".") Q -= 1;
-      if ((Q === 0) || ((Q === 1) && (Result.charAt(0) === "-"))) {
-        Result = "0"}
-       else Result = rtl.strSetLength(Result,Q);
-    } else {
-      while (Result.charAt(PE - 1 - 1) === "0") {
-        pas.System.Delete({get: function () {
-            return Result;
-          }, set: function (v) {
-            Result = v;
-          }},PE - 1,1);
-        PE -= 1;
-      };
-      if (Result.charAt(PE - 1 - 1) === DS) {
-        pas.System.Delete({get: function () {
-            return Result;
-          }, set: function (v) {
-            Result = v;
-          }},PE - 1,1);
-        PE -= 1;
-      };
-      if (Result.charAt((PE + 1) - 1) === "+") {
-        pas.System.Delete({get: function () {
-            return Result;
-          }, set: function (v) {
-            Result = v;
-          }},PE + 1,1)}
-       else PE += 1;
-      while (Result.charAt((PE + 1) - 1) === "0") pas.System.Delete({get: function () {
-          return Result;
-        }, set: function (v) {
-          Result = v;
-        }},PE + 1,1);
-    };
-    Result = $impl.ReplaceDecimalSep(Result,DS);
-    return Result;
-  };
-  $impl.FormatExponentFloat = function (Value, Precision, Digits, DS) {
-    var Result = "";
-    var P = 0;
-    DS = $mod.DecimalSeparator;
-    if ((Precision === -1) || (Precision > 15)) Precision = 15;
-    Result = rtl.floatToStr(Value,Precision + 7);
-    while (Result.charAt(0) === " ") pas.System.Delete({get: function () {
-        return Result;
-      }, set: function (v) {
-        Result = v;
-      }},1,1);
-    P = pas.System.Pos("E",Result);
-    if (P === 0) {
       Result = $impl.ReplaceDecimalSep(Result,DS);
       return Result;
     };
-    P += 2;
-    if (Digits > 4) Digits = 4;
-    Digits = (Result.length - P - Digits) + 1;
-    if (Digits < 0) {
-      pas.System.Insert(pas.System.Copy("0000",1,-Digits),{get: function () {
+    $impl.FormatFixedFloat = function (Value, Digits, DS) {
+      var Result = "";
+      if (Digits === -1) {
+        Digits = 2}
+       else if (Digits > 18) Digits = 18;
+      Result = rtl.floatToStr(Value,0,Digits);
+      if ((Result !== "") && (Result.charAt(0) === " ")) pas.System.Delete({get: function () {
           return Result;
         }, set: function (v) {
           Result = v;
-        }},P)}
-     else while ((Digits > 0) && (Result.charAt(P - 1) === "0")) {
-      pas.System.Delete({get: function () {
-          return Result;
-        }, set: function (v) {
-          Result = v;
-        }},P,1);
-      if (P > Result.length) {
-        pas.System.Delete({get: function () {
-            return Result;
-          }, set: function (v) {
-            Result = v;
-          }},P - 2,2);
-        break;
-      };
-      Digits -= 1;
+        }},1,1);
+      Result = $impl.ReplaceDecimalSep(Result,DS);
+      return Result;
     };
-    Result = $impl.ReplaceDecimalSep(Result,DS);
-    return Result;
-  };
-  $impl.FormatFixedFloat = function (Value, Digits, DS) {
-    var Result = "";
-    if (Digits === -1) {
-      Digits = 2}
-     else if (Digits > 18) Digits = 18;
-    Result = rtl.floatToStr(Value,0,Digits);
-    if ((Result !== "") && (Result.charAt(0) === " ")) pas.System.Delete({get: function () {
-        return Result;
-      }, set: function (v) {
-        Result = v;
-      }},1,1);
-    Result = $impl.ReplaceDecimalSep(Result,DS);
-    return Result;
-  };
-  $impl.FormatNumberFloat = function (Value, Digits, DS, TS) {
-    var Result = "";
-    var P = 0;
-    if (Digits === -1) {
-      Digits = 2}
-     else if (Digits > 15) Digits = 15;
-    Result = rtl.floatToStr(Value,0,Digits);
-    if ((Result !== "") && (Result.charAt(0) === " ")) pas.System.Delete({get: function () {
-        return Result;
-      }, set: function (v) {
-        Result = v;
-      }},1,1);
-    P = pas.System.Pos(".",Result);
-    Result = $impl.ReplaceDecimalSep(Result,DS);
-    P -= 3;
-    if ((TS !== "") && (TS !== "\x00")) while (P > 1) {
-      if (Result.charAt(P - 1 - 1) !== "-") pas.System.Insert(TS,{get: function () {
+    $impl.FormatNumberFloat = function (Value, Digits, DS, TS) {
+      var Result = "";
+      var P = 0;
+      if (Digits === -1) {
+        Digits = 2}
+       else if (Digits > 15) Digits = 15;
+      Result = rtl.floatToStr(Value,0,Digits);
+      if ((Result !== "") && (Result.charAt(0) === " ")) pas.System.Delete({get: function () {
           return Result;
         }, set: function (v) {
           Result = v;
-        }},P);
+        }},1,1);
+      P = pas.System.Pos(".",Result);
+      if (P <= 0) P = Result.length + 1;
+      Result = $impl.ReplaceDecimalSep(Result,DS);
       P -= 3;
-    };
-    return Result;
-  };
-  $impl.RemoveLeadingNegativeSign = function (AValue, DS) {
-    var Result = false;
-    var i = 0;
-    var TS = "";
-    var StartPos = 0;
-    Result = false;
-    StartPos = 2;
-    TS = $mod.ThousandSeparator;
-    for (var $l1 = StartPos, $end2 = AValue.get().length; $l1 <= $end2; $l1++) {
-      i = $l1;
-      Result = (AValue.get().charCodeAt(i - 1) in rtl.createSet(48,DS.charCodeAt(),69,43)) || (AValue.get().charAt(i - 1) === TS);
-      if (!Result) break;
-    };
-    if (Result && (AValue.get().charAt(0) === "-")) pas.System.Delete(AValue,1,1);
-    return Result;
-  };
-  $impl.FormatNumberCurrency = function (Value, Digits, DS, TS) {
-    var Result = "";
-    var Negative = false;
-    var P = 0;
-    if (Digits === -1) {
-      Digits = $mod.CurrencyDecimals}
-     else if (Digits > 18) Digits = 18;
-    Result = rtl.floatToStr(Value / 10000,0,Digits);
-    Negative = Result.charAt(0) === "-";
-    if (Negative) pas.System.Delete({get: function () {
-        return Result;
-      }, set: function (v) {
-        Result = v;
-      }},1,1);
-    P = pas.System.Pos(".",Result);
-    if (TS !== "") {
-      if (P !== 0) {
-        Result = $impl.ReplaceDecimalSep(Result,DS)}
-       else P = Result.length + 1;
-      P -= 3;
-      while (P > 1) {
-        pas.System.Insert(TS,{get: function () {
+      if ((TS !== "") && (TS !== "\x00")) while (P > 1) {
+        if (Result.charAt(P - 1 - 1) !== "-") pas.System.Insert(TS,{get: function () {
             return Result;
           }, set: function (v) {
             Result = v;
           }},P);
         P -= 3;
       };
+      return Result;
     };
-    if (Negative) $impl.RemoveLeadingNegativeSign({get: function () {
-        return Result;
-      }, set: function (v) {
-        Result = v;
-      }},DS);
-    if (!Negative) {
-      var $tmp1 = $mod.CurrencyFormat;
-      if ($tmp1 === 0) {
-        Result = $mod.CurrencyString + Result}
-       else if ($tmp1 === 1) {
-        Result = Result + $mod.CurrencyString}
-       else if ($tmp1 === 2) {
-        Result = $mod.CurrencyString + " " + Result}
-       else if ($tmp1 === 3) Result = Result + " " + $mod.CurrencyString;
-    } else {
-      var $tmp2 = $mod.NegCurrFormat;
-      if ($tmp2 === 0) {
-        Result = "(" + $mod.CurrencyString + Result + ")"}
-       else if ($tmp2 === 1) {
-        Result = "-" + $mod.CurrencyString + Result}
-       else if ($tmp2 === 2) {
-        Result = $mod.CurrencyString + "-" + Result}
-       else if ($tmp2 === 3) {
-        Result = $mod.CurrencyString + Result + "-"}
-       else if ($tmp2 === 4) {
-        Result = "(" + Result + $mod.CurrencyString + ")"}
-       else if ($tmp2 === 5) {
-        Result = "-" + Result + $mod.CurrencyString}
-       else if ($tmp2 === 6) {
-        Result = Result + "-" + $mod.CurrencyString}
-       else if ($tmp2 === 7) {
-        Result = Result + $mod.CurrencyString + "-"}
-       else if ($tmp2 === 8) {
-        Result = "-" + Result + " " + $mod.CurrencyString}
-       else if ($tmp2 === 9) {
-        Result = "-" + $mod.CurrencyString + " " + Result}
-       else if ($tmp2 === 10) {
-        Result = Result + " " + $mod.CurrencyString + "-"}
-       else if ($tmp2 === 11) {
-        Result = $mod.CurrencyString + " " + Result + "-"}
-       else if ($tmp2 === 12) {
-        Result = $mod.CurrencyString + " " + "-" + Result}
-       else if ($tmp2 === 13) {
-        Result = Result + "-" + " " + $mod.CurrencyString}
-       else if ($tmp2 === 14) {
-        Result = "(" + $mod.CurrencyString + " " + Result + ")"}
-       else if ($tmp2 === 15) Result = "(" + Result + " " + $mod.CurrencyString + ")";
+    $impl.RemoveLeadingNegativeSign = function (AValue, DS, aThousandSeparator) {
+      var Result = false;
+      var i = 0;
+      var TS = "";
+      var StartPos = 0;
+      Result = false;
+      StartPos = 2;
+      TS = aThousandSeparator;
+      for (var $l = StartPos, $end = AValue.get().length; $l <= $end; $l++) {
+        i = $l;
+        Result = (AValue.get().charCodeAt(i - 1) in rtl.createSet(48,DS.charCodeAt(),69,43)) || (AValue.get().charAt(i - 1) === TS);
+        if (!Result) break;
+      };
+      if (Result && (AValue.get().charAt(0) === "-")) pas.System.Delete(AValue,1,1);
+      return Result;
     };
-    return Result;
+    $impl.FormatNumberCurrency = function (Value, Digits, aSettings) {
+      var Result = "";
+      var Negative = false;
+      var P = 0;
+      var CS = "";
+      var DS = "";
+      var TS = "";
+      DS = aSettings.DecimalSeparator;
+      TS = aSettings.ThousandSeparator;
+      CS = aSettings.CurrencyString;
+      if (Digits === -1) {
+        Digits = aSettings.CurrencyDecimals}
+       else if (Digits > 18) Digits = 18;
+      Result = rtl.floatToStr(Value / 10000,0,Digits);
+      Negative = Result.charAt(0) === "-";
+      if (Negative) pas.System.Delete({get: function () {
+          return Result;
+        }, set: function (v) {
+          Result = v;
+        }},1,1);
+      P = pas.System.Pos(".",Result);
+      if (TS !== "") {
+        if (P !== 0) {
+          Result = $impl.ReplaceDecimalSep(Result,DS)}
+         else P = Result.length + 1;
+        P -= 3;
+        while (P > 1) {
+          pas.System.Insert(TS,{get: function () {
+              return Result;
+            }, set: function (v) {
+              Result = v;
+            }},P);
+          P -= 3;
+        };
+      };
+      if (Negative) $impl.RemoveLeadingNegativeSign({get: function () {
+          return Result;
+        }, set: function (v) {
+          Result = v;
+        }},DS,TS);
+      if (!Negative) {
+        var $tmp = aSettings.CurrencyFormat;
+        if ($tmp === 0) {
+          Result = CS + Result}
+         else if ($tmp === 1) {
+          Result = Result + CS}
+         else if ($tmp === 2) {
+          Result = CS + " " + Result}
+         else if ($tmp === 3) Result = Result + " " + CS;
+      } else {
+        var $tmp1 = aSettings.NegCurrFormat;
+        if ($tmp1 === 0) {
+          Result = "(" + CS + Result + ")"}
+         else if ($tmp1 === 1) {
+          Result = "-" + CS + Result}
+         else if ($tmp1 === 2) {
+          Result = CS + "-" + Result}
+         else if ($tmp1 === 3) {
+          Result = CS + Result + "-"}
+         else if ($tmp1 === 4) {
+          Result = "(" + Result + CS + ")"}
+         else if ($tmp1 === 5) {
+          Result = "-" + Result + CS}
+         else if ($tmp1 === 6) {
+          Result = Result + "-" + CS}
+         else if ($tmp1 === 7) {
+          Result = Result + CS + "-"}
+         else if ($tmp1 === 8) {
+          Result = "-" + Result + " " + CS}
+         else if ($tmp1 === 9) {
+          Result = "-" + CS + " " + Result}
+         else if ($tmp1 === 10) {
+          Result = Result + " " + CS + "-"}
+         else if ($tmp1 === 11) {
+          Result = CS + " " + Result + "-"}
+         else if ($tmp1 === 12) {
+          Result = CS + " " + "-" + Result}
+         else if ($tmp1 === 13) {
+          Result = Result + "-" + " " + CS}
+         else if ($tmp1 === 14) {
+          Result = "(" + CS + " " + Result + ")"}
+         else if ($tmp1 === 15) Result = "(" + Result + " " + CS + ")";
+      };
+      return Result;
+    };
+    $impl.RESpecials = "([\\$\\+\\[\\]\\(\\)\\\\\\.\\*\\^\\?\\|])";
+    $mod.$resourcestrings = {SApplicationException: {org: "Application raised an exception: "}, SErrUnknownExceptionType: {org: "Caught unknown exception type : "}};
   };
-  $impl.RESpecials = "([\\+\\[\\]\\(\\)\\\\\\.\\*])";
-});
-rtl.module("Classes",["System","RTLConsts","Types","SysUtils"],function () {
+  $mod.$init = function () {
+    $mod.ShortMonthNames = $impl.DefaultShortMonthNames.slice(0);
+    $mod.LongMonthNames = $impl.DefaultLongMonthNames.slice(0);
+    $mod.ShortDayNames = $impl.DefaultShortDayNames.slice(0);
+    $mod.LongDayNames = $impl.DefaultLongDayNames.slice(0);
+    $mod.FormatSettings.$assign($mod.TFormatSettings.Create());
+    $mod.TimeSeparator = $mod.FormatSettings.TimeSeparator;
+    $mod.DateSeparator = $mod.FormatSettings.DateSeparator;
+    $mod.ShortDateFormat = $mod.FormatSettings.ShortDateFormat;
+    $mod.LongDateFormat = $mod.FormatSettings.LongDateFormat;
+    $mod.ShortTimeFormat = $mod.FormatSettings.ShortTimeFormat;
+    $mod.LongTimeFormat = $mod.FormatSettings.LongTimeFormat;
+    $mod.DecimalSeparator = $mod.FormatSettings.DecimalSeparator;
+    $mod.ThousandSeparator = $mod.FormatSettings.ThousandSeparator;
+    $mod.TimeAMString = $mod.FormatSettings.TimeAMString;
+    $mod.TimePMString = $mod.FormatSettings.TimePMString;
+    $mod.CurrencyFormat = $mod.FormatSettings.CurrencyFormat;
+    $mod.NegCurrFormat = $mod.FormatSettings.NegCurrFormat;
+    $mod.CurrencyDecimals = $mod.FormatSettings.CurrencyDecimals;
+    $mod.CurrencyString = $mod.FormatSettings.CurrencyString;
+  };
+},[]);
+rtl.module("Classes",["System","RTLConsts","Types","SysUtils","JS"],function () {
   "use strict";
   var $mod = this;
   var $impl = $mod.$impl;
-  $mod.$rtti.$MethodVar("TNotifyEvent",{procsig: rtl.newTIProcSig([["Sender",pas.System.$rtti["TObject"]]]), methodkind: 0});
-  rtl.createClass($mod,"EListError",pas.SysUtils.Exception,function () {
+  this.$rtti.$MethodVar("TNotifyEvent",{procsig: rtl.newTIProcSig([["Sender",pas.System.$rtti["TObject"]]]), methodkind: 0});
+  rtl.createClass(this,"EListError",pas.SysUtils.Exception,function () {
   });
-  rtl.createClass($mod,"EStringListError",$mod.EListError,function () {
+  rtl.createClass(this,"EStringListError",this.EListError,function () {
   });
-  rtl.createClass($mod,"EComponentError",pas.SysUtils.Exception,function () {
+  rtl.createClass(this,"EComponentError",pas.SysUtils.Exception,function () {
   });
   this.TAlignment = {"0": "taLeftJustify", taLeftJustify: 0, "1": "taRightJustify", taRightJustify: 1, "2": "taCenter", taCenter: 2};
-  $mod.$rtti.$Enum("TAlignment",{minvalue: 0, maxvalue: 2, ordtype: 1, enumtype: this.TAlignment});
-  rtl.createClass($mod,"TFPList",pas.System.TObject,function () {
+  this.$rtti.$Enum("TAlignment",{minvalue: 0, maxvalue: 2, ordtype: 1, enumtype: this.TAlignment});
+  rtl.createClass(this,"TFPList",pas.System.TObject,function () {
     this.$init = function () {
       pas.System.TObject.$init.call(this);
       this.FList = [];
@@ -940,20 +2670,20 @@ rtl.module("Classes",["System","RTLConsts","Types","SysUtils"],function () {
       return Result;
     };
     this.SetCapacity = function (NewCapacity) {
-      if (NewCapacity < this.FCount) this.$class.Error(pas.RTLConsts.SListCapacityError,"" + NewCapacity);
+      if (NewCapacity < this.FCount) this.$class.Error(rtl.getResStr(pas.RTLConsts,"SListCapacityError"),"" + NewCapacity);
       if (NewCapacity === this.FCapacity) return;
       this.FList = rtl.arraySetLength(this.FList,undefined,NewCapacity);
       this.FCapacity = NewCapacity;
     };
     this.SetCount = function (NewCount) {
-      if (NewCount < 0) this.$class.Error(pas.RTLConsts.SListCountError,"" + NewCount);
+      if (NewCount < 0) this.$class.Error(rtl.getResStr(pas.RTLConsts,"SListCountError"),"" + NewCount);
       if (NewCount > this.FCount) {
         if (NewCount > this.FCapacity) this.SetCapacity(NewCount);
       };
       this.FCount = NewCount;
     };
     this.RaiseIndexError = function (Index) {
-      this.$class.Error(pas.RTLConsts.SListIndexError,"" + Index);
+      this.$class.Error(rtl.getResStr(pas.RTLConsts,"SListIndexError"),"" + Index);
     };
     this.Destroy = function () {
       this.Clear();
@@ -974,13 +2704,13 @@ rtl.module("Classes",["System","RTLConsts","Types","SysUtils"],function () {
       };
     };
     this.Delete = function (Index) {
-      if ((Index < 0) || (Index >= this.FCount)) this.$class.Error(pas.RTLConsts.SListIndexError,"" + Index);
+      if ((Index < 0) || (Index >= this.FCount)) this.$class.Error(rtl.getResStr(pas.RTLConsts,"SListIndexError"),"" + Index);
       this.FCount = this.FCount - 1;
       this.FList.splice(Index,1);
       this.FCapacity -= 1;
     };
     this.Error = function (Msg, Data) {
-      throw $mod.EListError.$create("CreateFmt",[Msg,[Data]]);
+      throw $mod.EListError.$create("CreateFmt",[Msg,pas.System.VarRecs(18,Data)]);
     };
     this.Expand = function () {
       var Result = null;
@@ -1017,7 +2747,7 @@ rtl.module("Classes",["System","RTLConsts","Types","SysUtils"],function () {
       return Result;
     };
   });
-  rtl.createClass($mod,"TPersistent",pas.System.TObject,function () {
+  rtl.createClass(this,"TPersistent",pas.System.TObject,function () {
     this.AssignError = function (Source) {
       var SourceName = "";
       if (Source !== null) {
@@ -1034,7 +2764,7 @@ rtl.module("Classes",["System","RTLConsts","Types","SysUtils"],function () {
        else this.AssignError(null);
     };
   });
-  rtl.createClass($mod,"TStrings",$mod.TPersistent,function () {
+  rtl.createClass(this,"TStrings",this.TPersistent,function () {
     this.$init = function () {
       $mod.TPersistent.$init.call(this);
       this.FSpecialCharsInited = false;
@@ -1103,12 +2833,6 @@ rtl.module("Classes",["System","RTLConsts","Types","SysUtils"],function () {
       Result = this.FQuoteChar;
       return Result;
     };
-    this.GetLineBreak = function () {
-      var Result = "";
-      this.CheckSpecialChars();
-      Result = this.FLineBreak;
-      return Result;
-    };
     this.GetSkipLastLineBreak = function () {
       var Result = false;
       this.CheckSpecialChars();
@@ -1116,7 +2840,7 @@ rtl.module("Classes",["System","RTLConsts","Types","SysUtils"],function () {
       return Result;
     };
     this.Error = function (Msg, Data) {
-      throw $mod.EStringListError.$create("CreateFmt",[Msg,[pas.SysUtils.IntToStr(Data)]]);
+      throw $mod.EStringListError.$create("CreateFmt",[Msg,pas.System.VarRecs(18,pas.SysUtils.IntToStr(Data))]);
     };
     this.GetCapacity = function () {
       var Result = 0;
@@ -1138,16 +2862,16 @@ rtl.module("Classes",["System","RTLConsts","Types","SysUtils"],function () {
       if (this.FLineBreak !== pas.System.sLineBreak) {
         NL = this.FLineBreak}
        else {
-        var $tmp1 = this.FLBS;
-        if ($tmp1 === pas.System.TTextLineBreakStyle.tlbsLF) {
+        var $tmp = this.FLBS;
+        if ($tmp === pas.System.TTextLineBreakStyle.tlbsLF) {
           NL = "\n"}
-         else if ($tmp1 === pas.System.TTextLineBreakStyle.tlbsCRLF) {
+         else if ($tmp === pas.System.TTextLineBreakStyle.tlbsCRLF) {
           NL = "\r\n"}
-         else if ($tmp1 === pas.System.TTextLineBreakStyle.tlbsCR) NL = "\r";
+         else if ($tmp === pas.System.TTextLineBreakStyle.tlbsCR) NL = "\r";
       };
       Result = "";
-      for (var $l2 = 0, $end3 = this.GetCount() - 1; $l2 <= $end3; $l2++) {
-        I = $l2;
+      for (var $l = 0, $end = this.GetCount() - 1; $l <= $end; $l++) {
+        I = $l;
         S = this.Get(I);
         Result = Result + S;
         if ((I < (this.GetCount() - 1)) || !this.GetSkipLastLineBreak()) Result = Result + NL;
@@ -1208,7 +2932,7 @@ rtl.module("Classes",["System","RTLConsts","Types","SysUtils"],function () {
         } else {
           while (i <= AValue.length) {
             if (aNotFirst && (i <= AValue.length) && (AValue.charAt(i - 1) === this.FDelimiter)) i += 1;
-            while ((i <= AValue.length) && (AValue.charCodeAt(i - 1) <= " ".charCodeAt())) i += 1;
+            while ((i <= AValue.length) && (AValue.charCodeAt(i - 1) <= 32)) i += 1;
             if (i <= AValue.length) {
               if (AValue.charAt(i - 1) === this.FQuoteChar) {
                 j = i + 1;
@@ -1221,14 +2945,14 @@ rtl.module("Classes",["System","RTLConsts","Types","SysUtils"],function () {
                 i = j + 1;
               } else {
                 j = i;
-                while ((j <= AValue.length) && (AValue.charCodeAt(j - 1) > " ".charCodeAt()) && (AValue.charAt(j - 1) !== this.FDelimiter)) j += 1;
+                while ((j <= AValue.length) && (AValue.charCodeAt(j - 1) > 32) && (AValue.charAt(j - 1) !== this.FDelimiter)) j += 1;
                 this.Add(pas.System.Copy(AValue,i,j - i));
                 i = j;
               };
             } else {
               if (aNotFirst) this.Add("");
             };
-            while ((i <= AValue.length) && (AValue.charCodeAt(i - 1) <= " ".charCodeAt())) i += 1;
+            while ((i <= AValue.length) && (AValue.charCodeAt(i - 1) <= 32)) i += 1;
             aNotFirst = true;
           };
         };
@@ -1248,14 +2972,28 @@ rtl.module("Classes",["System","RTLConsts","Types","SysUtils"],function () {
     };
     this.GetNextLinebreak = function (Value, S, P) {
       var Result = false;
+      var PPLF = 0;
+      var PPCR = 0;
       var PP = 0;
+      var PL = 0;
       S.set("");
       Result = false;
       if ((Value.length - P.get()) < 0) return Result;
-      PP = Value.indexOf(this.GetLineBreak(),P.get() - 1) + 1;
-      if (PP < 1) PP = Value.length + 1;
+      PPLF = Value.indexOf("\n",P.get() - 1) + 1;
+      PPCR = Value.indexOf("\r",P.get() - 1) + 1;
+      PL = 1;
+      if ((PPLF > 0) && (PPCR > 0)) {
+        if ((PPLF - PPCR) === 1) PL = 2;
+        if (PPLF < PPCR) {
+          PP = PPLF}
+         else PP = PPCR;
+      } else if ((PPLF > 0) && (PPCR < 1)) {
+        PP = PPLF}
+       else if ((PPCR > 0) && (PPLF < 1)) {
+        PP = PPCR}
+       else PP = Value.length + 1;
       S.set(pas.System.Copy(Value,P.get(),PP - P.get()));
-      P.set(PP + this.GetLineBreak().length);
+      P.set(PP + PL);
       Result = true;
       return Result;
     };
@@ -1284,8 +3022,8 @@ rtl.module("Classes",["System","RTLConsts","Types","SysUtils"],function () {
     };
     this.AddStrings = function (TheStrings) {
       var Runner = 0;
-      for (var $l1 = 0, $end2 = TheStrings.GetCount() - 1; $l1 <= $end2; $l1++) {
-        Runner = $l1;
+      for (var $l = 0, $end = TheStrings.GetCount() - 1; $l <= $end; $l++) {
+        Runner = $l;
         this.AddObject(TheStrings.Get(Runner),TheStrings.GetObject(Runner));
       };
     };
@@ -1324,7 +3062,7 @@ rtl.module("Classes",["System","RTLConsts","Types","SysUtils"],function () {
       return Result;
     };
   });
-  rtl.recNewT($mod,"TStringItem",function () {
+  rtl.recNewT(this,"TStringItem",function () {
     this.FString = "";
     this.FObject = null;
     this.$eq = function (b) {
@@ -1337,7 +3075,7 @@ rtl.module("Classes",["System","RTLConsts","Types","SysUtils"],function () {
     };
   });
   this.TStringsSortStyle = {"0": "sslNone", sslNone: 0, "1": "sslUser", sslUser: 1, "2": "sslAuto", sslAuto: 2};
-  rtl.createClass($mod,"TStringList",$mod.TStrings,function () {
+  rtl.createClass(this,"TStringList",this.TStrings,function () {
     this.$init = function () {
       $mod.TStrings.$init.call(this);
       this.FList = [];
@@ -1364,7 +3102,7 @@ rtl.module("Classes",["System","RTLConsts","Types","SysUtils"],function () {
       var NC = 0;
       NC = this.GetCapacity();
       if (NC >= 256) {
-        NC = NC + Math.floor(NC / 4)}
+        NC = NC + rtl.trunc(NC / 4)}
        else if (NC === 0) {
         NC = 4}
        else NC = NC * 4;
@@ -1374,8 +3112,8 @@ rtl.module("Classes",["System","RTLConsts","Types","SysUtils"],function () {
       var I = 0;
       if (FromIndex < this.FCount) {
         if (this.FOwnsObjects) {
-          for (var $l1 = FromIndex, $end2 = this.FCount - 1; $l1 <= $end2; $l1++) {
-            I = $l1;
+          for (var $l = FromIndex, $end = this.FCount - 1; $l <= $end; $l++) {
+            I = $l;
             this.FList[I].FString = "";
             pas.SysUtils.FreeAndNil({p: this.FList[I], get: function () {
                 return this.p.FObject;
@@ -1384,8 +3122,8 @@ rtl.module("Classes",["System","RTLConsts","Types","SysUtils"],function () {
               }});
           };
         } else {
-          for (var $l3 = FromIndex, $end4 = this.FCount - 1; $l3 <= $end4; $l3++) {
-            I = $l3;
+          for (var $l1 = FromIndex, $end1 = this.FCount - 1; $l1 <= $end1; $l1++) {
+            I = $l1;
             this.FList[I].FString = "";
           };
         };
@@ -1394,7 +3132,7 @@ rtl.module("Classes",["System","RTLConsts","Types","SysUtils"],function () {
       if (!ClearOnly) this.SetCapacity(0);
     };
     this.CheckIndex = function (AIndex) {
-      if ((AIndex < 0) || (AIndex >= this.FCount)) this.Error(pas.RTLConsts.SListIndexError,AIndex);
+      if ((AIndex < 0) || (AIndex >= this.FCount)) this.Error(rtl.getResStr(pas.RTLConsts,"SListIndexError"),AIndex);
     };
     this.Changed = function () {
       if (this.FUpdateCount === 0) {
@@ -1433,7 +3171,7 @@ rtl.module("Classes",["System","RTLConsts","Types","SysUtils"],function () {
       this.Changed();
     };
     this.SetCapacity = function (NewCapacity) {
-      if (NewCapacity < 0) this.Error(pas.RTLConsts.SListCapacityError,NewCapacity);
+      if (NewCapacity < 0) this.Error(rtl.getResStr(pas.RTLConsts,"SListCapacityError"),NewCapacity);
       if (NewCapacity !== this.GetCapacity()) this.FList = rtl.arraySetLength(this.FList,$mod.TStringItem,NewCapacity);
     };
     this.SetUpdateState = function (Updating) {
@@ -1474,10 +3212,10 @@ rtl.module("Classes",["System","RTLConsts","Types","SysUtils"],function () {
         }, set: function (v) {
           Result = v;
         }})) {
-        var $tmp1 = this.FDuplicates;
-        if ($tmp1 === pas.Types.TDuplicates.dupIgnore) {
+        var $tmp = this.FDuplicates;
+        if ($tmp === pas.Types.TDuplicates.dupIgnore) {
           return Result}
-         else if ($tmp1 === pas.Types.TDuplicates.dupError) this.Error(pas.RTLConsts.SDuplicateString,0);
+         else if ($tmp === pas.Types.TDuplicates.dupError) this.Error(rtl.getResStr(pas.RTLConsts,"SDuplicateString"),0);
       };
       this.InsertItem(Result,S);
       return Result;
@@ -1496,11 +3234,11 @@ rtl.module("Classes",["System","RTLConsts","Types","SysUtils"],function () {
       var CompareRes = 0;
       Result = false;
       Index.set(-1);
-      if (!this.GetSorted()) throw $mod.EListError.$create("Create$1",[pas.RTLConsts.SErrFindNeedsSortedList]);
+      if (!this.GetSorted()) throw $mod.EListError.$create("Create$1",[rtl.getResStr(pas.RTLConsts,"SErrFindNeedsSortedList")]);
       L = 0;
       R = this.GetCount() - 1;
       while (L <= R) {
-        I = L + Math.floor((R - L) / 2);
+        I = L + rtl.trunc((R - L) / 2);
         CompareRes = this.DoCompareText(S,this.FList[I].FString);
         if (CompareRes > 0) {
           L = I + 1}
@@ -1528,9 +3266,9 @@ rtl.module("Classes",["System","RTLConsts","Types","SysUtils"],function () {
     };
     this.Insert = function (Index, S) {
       if (this.FSortStyle === $mod.TStringsSortStyle.sslAuto) {
-        this.Error(pas.RTLConsts.SSortedListError,0)}
+        this.Error(rtl.getResStr(pas.RTLConsts,"SSortedListError"),0)}
        else {
-        if ((Index < 0) || (Index > this.FCount)) this.Error(pas.RTLConsts.SListIndexError,Index);
+        if ((Index < 0) || (Index > this.FCount)) this.Error(rtl.getResStr(pas.RTLConsts,"SListIndexError"),Index);
         this.InsertItem(Index,S);
       };
     };
@@ -1538,7 +3276,7 @@ rtl.module("Classes",["System","RTLConsts","Types","SysUtils"],function () {
   this.TOperation = {"0": "opInsert", opInsert: 0, "1": "opRemove", opRemove: 1};
   this.TComponentStateItem = {"0": "csLoading", csLoading: 0, "1": "csReading", csReading: 1, "2": "csWriting", csWriting: 2, "3": "csDestroying", csDestroying: 3, "4": "csDesigning", csDesigning: 4, "5": "csAncestor", csAncestor: 5, "6": "csUpdating", csUpdating: 6, "7": "csFixups", csFixups: 7, "8": "csFreeNotification", csFreeNotification: 8, "9": "csInline", csInline: 9, "10": "csDesignInstance", csDesignInstance: 10};
   this.TComponentStyleItem = {"0": "csInheritable", csInheritable: 0, "1": "csCheckPropAvail", csCheckPropAvail: 1, "2": "csSubComponent", csSubComponent: 2, "3": "csTransient", csTransient: 3};
-  rtl.createClass($mod,"TComponent",$mod.TPersistent,function () {
+  rtl.createClass(this,"TComponent",this.TPersistent,function () {
     this.$init = function () {
       $mod.TPersistent.$init.call(this);
       this.FOwner = null;
@@ -1582,6 +3320,22 @@ rtl.module("Classes",["System","RTLConsts","Types","SysUtils"],function () {
         };
       };
     };
+    this.SetReference = function (Enable) {
+      var aField = null;
+      var aValue = null;
+      var aOwner = null;
+      if (this.FName === "") return;
+      if (this.FOwner != null) {
+        aOwner = this.FOwner;
+        aField = this.FOwner.$class.FieldAddress(this.FName);
+        if (aField != null) {
+          if (Enable) {
+            aValue = this}
+           else aValue = null;
+          aOwner["" + aField["name"]] = aValue;
+        };
+      };
+    };
     this.ChangeName = function (NewName) {
       this.FName = NewName;
     };
@@ -1604,21 +3358,23 @@ rtl.module("Classes",["System","RTLConsts","Types","SysUtils"],function () {
       if (Value) {
         this.FComponentState = rtl.includeSet(this.FComponentState,$mod.TComponentStateItem.csDesigning)}
        else this.FComponentState = rtl.excludeSet(this.FComponentState,$mod.TComponentStateItem.csDesigning);
-      if ((this.FComponents != null) && SetChildren) for (var $l1 = 0, $end2 = this.FComponents.FCount - 1; $l1 <= $end2; $l1++) {
-        Runner = $l1;
+      if ((this.FComponents != null) && SetChildren) for (var $l = 0, $end = this.FComponents.FCount - 1; $l <= $end; $l++) {
+        Runner = $l;
         rtl.getObject(this.FComponents.Get(Runner)).SetDesigning(Value,true);
       };
     };
     this.SetName = function (NewName) {
       if (this.FName === NewName) return;
-      if ((NewName !== "") && !pas.SysUtils.IsValidIdent(NewName,false,false)) throw $mod.EComponentError.$create("CreateFmt",[pas.RTLConsts.SInvalidName,[NewName]]);
+      if ((NewName !== "") && !pas.SysUtils.IsValidIdent(NewName,false,false)) throw $mod.EComponentError.$create("CreateFmt",[rtl.getResStr(pas.RTLConsts,"SInvalidName"),pas.System.VarRecs(18,NewName)]);
       if (this.FOwner != null) {
         this.FOwner.ValidateRename(this,this.FName,NewName)}
        else this.ValidateRename(null,this.FName,NewName);
+      this.SetReference(false);
       this.ChangeName(NewName);
+      this.SetReference(true);
     };
     this.ValidateRename = function (AComponent, CurName, NewName) {
-      if ((AComponent !== null) && (pas.SysUtils.CompareText(CurName,NewName) !== 0) && (AComponent.FOwner === this) && (this.FindComponent(NewName) !== null)) throw $mod.EComponentError.$create("CreateFmt",[pas.RTLConsts.SDuplicateName,[NewName]]);
+      if ((AComponent !== null) && (pas.SysUtils.CompareText(CurName,NewName) !== 0) && (AComponent.FOwner === this) && (this.FindComponent(NewName) !== null)) throw $mod.EComponentError.$create("CreateFmt",[rtl.getResStr(pas.RTLConsts,"SDuplicateName"),pas.System.VarRecs(18,NewName)]);
       if (($mod.TComponentStateItem.csDesigning in this.FComponentState) && (this.FOwner !== null)) this.FOwner.ValidateRename(AComponent,CurName,NewName);
     };
     this.ValidateContainer = function (AComponent) {
@@ -1672,8 +3428,8 @@ rtl.module("Classes",["System","RTLConsts","Types","SysUtils"],function () {
       var Runner = 0;
       if ($mod.TComponentStateItem.csDestroying in this.FComponentState) return;
       this.FComponentState = rtl.includeSet(this.FComponentState,$mod.TComponentStateItem.csDestroying);
-      if (this.FComponents != null) for (var $l1 = 0, $end2 = this.FComponents.FCount - 1; $l1 <= $end2; $l1++) {
-        Runner = $l1;
+      if (this.FComponents != null) for (var $l = 0, $end = this.FComponents.FCount - 1; $l <= $end; $l++) {
+        Runner = $l;
         rtl.getObject(this.FComponents.Get(Runner)).Destroying();
       };
     };
@@ -1682,8 +3438,8 @@ rtl.module("Classes",["System","RTLConsts","Types","SysUtils"],function () {
       var I = 0;
       Result = null;
       if ((AName === "") || !(this.FComponents != null)) return Result;
-      for (var $l1 = 0, $end2 = this.FComponents.FCount - 1; $l1 <= $end2; $l1++) {
-        I = $l1;
+      for (var $l = 0, $end = this.FComponents.FCount - 1; $l <= $end; $l++) {
+        I = $l;
         if (pas.SysUtils.CompareText(rtl.getObject(this.FComponents.Get(I)).FName,AName) === 0) {
           Result = rtl.getObject(this.FComponents.Get(I));
           return Result;
@@ -1698,6 +3454,7 @@ rtl.module("Classes",["System","RTLConsts","Types","SysUtils"],function () {
     this.InsertComponent = function (AComponent) {
       AComponent.ValidateContainer(this);
       this.ValidateRename(AComponent,"",AComponent.FName);
+      if (AComponent.FOwner !== null) AComponent.FOwner.RemoveComponent(AComponent);
       this.Insert(AComponent);
       if ($mod.TComponentStateItem.csDesigning in this.FComponentState) AComponent.SetDesigning(true,true);
       this.Notification(AComponent,$mod.TOperation.opInsert);
@@ -1710,17 +3467,15 @@ rtl.module("Classes",["System","RTLConsts","Types","SysUtils"],function () {
     };
     var $r = this.$rtti;
     $r.addProperty("Name",6,rtl.string,"FName","SetName");
-    $r.addProperty("Tag",0,rtl.nativeint,"FTag","FTag");
+    $r.addProperty("Tag",0,rtl.nativeint,"FTag","FTag",{Default: 0});
   });
-  $mod.$init = function () {
-    $impl.ClassList = Object.create(null);
+  $mod.$implcode = function () {
+    $impl.ClassList = null;
   };
-},["JS"],function () {
-  "use strict";
-  var $mod = this;
-  var $impl = $mod.$impl;
-  $impl.ClassList = null;
-});
+  $mod.$init = function () {
+    $impl.ClassList = new Object();
+  };
+},[]);
 rtl.module("Web",["System","Types","JS"],function () {
   "use strict";
   var $mod = this;
@@ -1728,17 +3483,17 @@ rtl.module("Web",["System","Types","JS"],function () {
 rtl.module("Graphics",["System","Classes","SysUtils","Types","Web"],function () {
   "use strict";
   var $mod = this;
-  $mod.$rtti.$Int("TFontCharSet",{minvalue: 0, maxvalue: 255, ordtype: 3});
+  this.$rtti.$Int("TFontCharSet",{minvalue: 0, maxvalue: 255, ordtype: 3});
   this.TFontStyle = {"0": "fsBold", fsBold: 0, "1": "fsItalic", fsItalic: 1, "2": "fsUnderline", fsUnderline: 2, "3": "fsStrikeOut", fsStrikeOut: 3};
-  $mod.$rtti.$Enum("TFontStyle",{minvalue: 0, maxvalue: 3, ordtype: 1, enumtype: this.TFontStyle});
-  $mod.$rtti.$Set("TFontStyles",{comptype: $mod.$rtti["TFontStyle"]});
+  this.$rtti.$Enum("TFontStyle",{minvalue: 0, maxvalue: 3, ordtype: 1, enumtype: this.TFontStyle});
+  this.$rtti.$Set("TFontStyles",{comptype: this.$rtti["TFontStyle"]});
   this.TTextLayout = {"0": "tlTop", tlTop: 0, "1": "tlCenter", tlCenter: 1, "2": "tlBottom", tlBottom: 2};
-  $mod.$rtti.$Enum("TTextLayout",{minvalue: 0, maxvalue: 2, ordtype: 1, enumtype: this.TTextLayout});
+  this.$rtti.$Enum("TTextLayout",{minvalue: 0, maxvalue: 2, ordtype: 1, enumtype: this.TTextLayout});
   this.TPenStyle = {"0": "psSolid", psSolid: 0, "1": "psDash", psDash: 1, "2": "psDot", psDot: 2, "3": "psDashDot", psDashDot: 3, "4": "psDashDotDot", psDashDotDot: 4, "5": "psInsideFrame", psInsideFrame: 5, "6": "psPattern", psPattern: 6, "7": "psClear", psClear: 7};
-  $mod.$rtti.$Enum("TPenStyle",{minvalue: 0, maxvalue: 7, ordtype: 1, enumtype: this.TPenStyle});
+  this.$rtti.$Enum("TPenStyle",{minvalue: 0, maxvalue: 7, ordtype: 1, enumtype: this.TPenStyle});
   this.TBrushStyle = {"0": "bsSolid", bsSolid: 0, "1": "bsClear", bsClear: 1, "2": "bsHorizontal", bsHorizontal: 2, "3": "bsVertical", bsVertical: 3, "4": "bsFDiagonal", bsFDiagonal: 4, "5": "bsBDiagonal", bsBDiagonal: 5, "6": "bsCross", bsCross: 6, "7": "bsDiagCross", bsDiagCross: 7, "8": "bsImage", bsImage: 8, "9": "bsPattern", bsPattern: 9};
-  $mod.$rtti.$Enum("TBrushStyle",{minvalue: 0, maxvalue: 9, ordtype: 1, enumtype: this.TBrushStyle});
-  rtl.createClass($mod,"TFont",pas.Classes.TPersistent,function () {
+  this.$rtti.$Enum("TBrushStyle",{minvalue: 0, maxvalue: 9, ordtype: 1, enumtype: this.TBrushStyle});
+  rtl.createClass(this,"TFont",pas.Classes.TPersistent,function () {
     this.$init = function () {
       pas.Classes.TPersistent.$init.call(this);
       this.FCharSet = 0;
@@ -1862,7 +3617,7 @@ rtl.module("Graphics",["System","Classes","SysUtils","Types","Web"],function () 
     $r.addProperty("Style",2,$mod.$rtti["TFontStyles"],"FStyle","SetStyle");
     $r.addProperty("OnChange",0,pas.Classes.$rtti["TNotifyEvent"],"FOnChange","FOnChange");
   });
-  rtl.createClass($mod,"TPen",pas.Classes.TPersistent,function () {
+  rtl.createClass(this,"TPen",pas.Classes.TPersistent,function () {
     this.$init = function () {
       pas.Classes.TPersistent.$init.call(this);
       this.FColor = 0;
@@ -1931,7 +3686,7 @@ rtl.module("Graphics",["System","Classes","SysUtils","Types","Web"],function () 
     $r.addProperty("Width",2,rtl.nativeint,"FWidth","SetWidth");
     $r.addProperty("OnChange",0,pas.Classes.$rtti["TNotifyEvent"],"FOnChange","FOnChange");
   });
-  rtl.createClass($mod,"TBrush",pas.Classes.TPersistent,function () {
+  rtl.createClass(this,"TBrush",pas.Classes.TPersistent,function () {
     this.$init = function () {
       pas.Classes.TPersistent.$init.call(this);
       this.FColor = 0;
@@ -1991,7 +3746,7 @@ rtl.module("Graphics",["System","Classes","SysUtils","Types","Web"],function () 
     $r.addProperty("Style",2,$mod.$rtti["TBrushStyle"],"FStyle","SetStyle");
     $r.addProperty("OnChange",0,pas.Classes.$rtti["TNotifyEvent"],"FOnChange","FOnChange");
   });
-  rtl.createClass($mod,"TPicture",pas.Classes.TPersistent,function () {
+  rtl.createClass(this,"TPicture",pas.Classes.TPersistent,function () {
     this.$init = function () {
       pas.Classes.TPersistent.$init.call(this);
       this.FData = "";
@@ -2048,7 +3803,7 @@ rtl.module("Graphics",["System","Classes","SysUtils","Types","Web"],function () 
     $r.addProperty("Data",2,rtl.string,"FData","SetData");
     $r.addProperty("OnChange",0,pas.Classes.$rtti["TNotifyEvent"],"FOnChange","FOnChange");
   });
-  rtl.createClass($mod,"TCanvas",pas.Classes.TPersistent,function () {
+  rtl.createClass(this,"TCanvas",pas.Classes.TPersistent,function () {
     this.$init = function () {
       pas.Classes.TPersistent.$init.call(this);
       this.FBrush = null;
@@ -2115,56 +3870,56 @@ rtl.module("Graphics",["System","Classes","SysUtils","Types","Web"],function () 
     var R = 0;
     var G = 0;
     var B = 0;
-    var $tmp1 = AColor;
-    if ($tmp1 === -2147483648) {
+    var $tmp = AColor;
+    if ($tmp === -2147483648) {
       Result = "Scrollbar"}
-     else if ($tmp1 === -2147483647) {
+     else if ($tmp === -2147483647) {
       Result = "Background"}
-     else if ($tmp1 === -2147483646) {
+     else if ($tmp === -2147483646) {
       Result = "ActiveCaption"}
-     else if ($tmp1 === -2147483645) {
+     else if ($tmp === -2147483645) {
       Result = "InactiveCaption"}
-     else if ($tmp1 === -2147483644) {
+     else if ($tmp === -2147483644) {
       Result = "Menu"}
-     else if ($tmp1 === -2147483643) {
+     else if ($tmp === -2147483643) {
       Result = "Window"}
-     else if ($tmp1 === -2147483642) {
+     else if ($tmp === -2147483642) {
       Result = "WindowFrame"}
-     else if ($tmp1 === -2147483641) {
+     else if ($tmp === -2147483641) {
       Result = "MenuText"}
-     else if ($tmp1 === -2147483640) {
+     else if ($tmp === -2147483640) {
       Result = "WindowText"}
-     else if ($tmp1 === -2147483639) {
+     else if ($tmp === -2147483639) {
       Result = "CaptionText"}
-     else if ($tmp1 === -2147483638) {
+     else if ($tmp === -2147483638) {
       Result = "ActiveBorder"}
-     else if ($tmp1 === -2147483637) {
+     else if ($tmp === -2147483637) {
       Result = "InactiveBorder"}
-     else if ($tmp1 === -2147483636) {
+     else if ($tmp === -2147483636) {
       Result = "AppWorkspace"}
-     else if ($tmp1 === -2147483635) {
+     else if ($tmp === -2147483635) {
       Result = "Highlight"}
-     else if ($tmp1 === -2147483634) {
+     else if ($tmp === -2147483634) {
       Result = "HighlightText"}
-     else if ($tmp1 === -2147483633) {
+     else if ($tmp === -2147483633) {
       Result = "ButtonFace"}
-     else if ($tmp1 === -2147483632) {
+     else if ($tmp === -2147483632) {
       Result = "ButtonShadow"}
-     else if ($tmp1 === -2147483631) {
+     else if ($tmp === -2147483631) {
       Result = "GrayText"}
-     else if ($tmp1 === -2147483630) {
+     else if ($tmp === -2147483630) {
       Result = "ButtonText"}
-     else if ($tmp1 === -2147483629) {
+     else if ($tmp === -2147483629) {
       Result = "InactiveCaptionText"}
-     else if ($tmp1 === -2147483628) {
+     else if ($tmp === -2147483628) {
       Result = "ButtonHighlight"}
-     else if ($tmp1 === -2147483627) {
+     else if ($tmp === -2147483627) {
       Result = "ThreeDDarkShadow"}
-     else if ($tmp1 === -2147483626) {
+     else if ($tmp === -2147483626) {
       Result = "ThreeDHighlight"}
-     else if ($tmp1 === -2147483625) {
+     else if ($tmp === -2147483625) {
       Result = "InfoText"}
-     else if ($tmp1 === -2147483624) {
+     else if ($tmp === -2147483624) {
       Result = "InfoBackground"}
      else {
       R = AColor & 0xFF;
@@ -2200,6 +3955,11 @@ rtl.module("Graphics",["System","Classes","SysUtils","Types","Web"],function () 
   $mod.$init = function () {
   };
 });
+rtl.module("LCLStrConsts",["System"],function () {
+  "use strict";
+  var $mod = this;
+  $mod.$resourcestrings = {rsErrUncaughtException: {org: "Uncaught exception of type %s: \n\n%s"}, rsErrUncaughtObject: {org: "Uncaught exception of type %s."}};
+});
 rtl.module("p2jsres",["System","Types"],function () {
   "use strict";
   var $mod = this;
@@ -2211,23 +3971,21 @@ rtl.module("p2jsres",["System","Types"],function () {
     $impl.gMode = aSource;
     return Result;
   };
-},["SysUtils","JS","Web"],function () {
-  "use strict";
-  var $mod = this;
-  var $impl = $mod.$impl;
-  $impl.gMode = 0;
-});
+  $mod.$implcode = function () {
+    $impl.gMode = 0;
+  };
+},["SysUtils","JS","Web"]);
 rtl.module("Forms",["System","Classes","SysUtils","Types","JS","Web","Graphics","Controls"],function () {
   "use strict";
   var $mod = this;
   var $impl = $mod.$impl;
   this.TFormType = {"0": "ftModalForm", ftModalForm: 0, "1": "ftWindow", ftWindow: 1, "2": "ftTop", ftTop: 2};
   this.TCloseAction = {"0": "caNone", caNone: 0, "1": "caHide", caHide: 1, "2": "caFree", caFree: 2};
-  $mod.$rtti.$Enum("TCloseAction",{minvalue: 0, maxvalue: 2, ordtype: 1, enumtype: this.TCloseAction});
-  $mod.$rtti.$MethodVar("TCloseEvent",{procsig: rtl.newTIProcSig([["Sender",pas.System.$rtti["TObject"]],["CloseAction",$mod.$rtti["TCloseAction"],1]]), methodkind: 0});
-  $mod.$rtti.$MethodVar("TCloseQueryEvent",{procsig: rtl.newTIProcSig([["Sender",pas.System.$rtti["TObject"]],["CanClose",rtl.boolean,1]]), methodkind: 0});
-  $mod.$rtti.$Int("TModalResult",{minvalue: -2147483648, maxvalue: 2147483647, ordtype: 4});
-  rtl.createClass($mod,"TCustomForm",pas.Controls.TCustomControl,function () {
+  this.$rtti.$Enum("TCloseAction",{minvalue: 0, maxvalue: 2, ordtype: 1, enumtype: this.TCloseAction});
+  this.$rtti.$MethodVar("TCloseEvent",{procsig: rtl.newTIProcSig([["Sender",pas.System.$rtti["TObject"]],["CloseAction",this.$rtti["TCloseAction"],1]]), methodkind: 0});
+  this.$rtti.$MethodVar("TCloseQueryEvent",{procsig: rtl.newTIProcSig([["Sender",pas.System.$rtti["TObject"]],["CanClose",rtl.boolean,1]]), methodkind: 0});
+  this.$rtti.$Int("TModalResult",{minvalue: -2147483648, maxvalue: 2147483647, ordtype: 4});
+  rtl.createClass(this,"TCustomForm",pas.Controls.TCustomControl,function () {
     this.$init = function () {
       pas.Controls.TCustomControl.$init.call(this);
       this.FActiveControl = null;
@@ -2360,14 +4118,14 @@ rtl.module("Forms",["System","Classes","SysUtils","Types","JS","Web","Graphics",
     this.Changed = function () {
       pas.Controls.TControl.Changed.call(this);
       if (!this.IsUpdating() && !(pas.Classes.TComponentStateItem.csLoading in this.FComponentState)) {
-        var $with1 = this.FHandleElement;
-        $with1.style.setProperty("outline","none");
+        var $with = this.FHandleElement;
+        $with.style.setProperty("outline","none");
         if (this.FAlphaBlend) {
-          $with1.style.setProperty("opacity",pas.SysUtils.FloatToStr(Math.floor(this.FAlphaBlendValue / 255)));
+          $with.style.setProperty("opacity",pas.SysUtils.FloatToStr(rtl.trunc(this.FAlphaBlendValue / 255)));
         } else {
-          $with1.style.removeProperty("opacity");
+          $with.style.removeProperty("opacity");
         };
-        $with1.style.setProperty("overflow","auto");
+        $with.style.setProperty("overflow","auto");
       };
     };
     this.CreateHandleElement = function () {
@@ -2403,8 +4161,8 @@ rtl.module("Forms",["System","Classes","SysUtils","Types","JS","Web","Graphics",
         this.SetParentFont(false);
         this.SetParentShowHint(false);
         this.SetVisible(false);
-        var $with1 = this.$class.GetControlClassDefaultSize();
-        this.SetBounds(0,0,$with1.cx,$with1.cy);
+        var $with = this.$class.GetControlClassDefaultSize();
+        this.SetBounds(0,0,$with.cx,$with.cy);
       } finally {
         this.EndUpdate();
       };
@@ -2458,8 +4216,8 @@ rtl.module("Forms",["System","Classes","SysUtils","Types","JS","Web","Graphics",
                 this.FModalResultProc(this,this.FModalResult);
               };
             } else {
-              for (var $l1 = $mod.Application().GetModuleCount() - 1; $l1 >= 0; $l1--) {
-                VIndex = $l1;
+              for (var $l = $mod.Application().GetModuleCount() - 1; $l >= 0; $l--) {
+                VIndex = $l;
                 VModule = $mod.Application().GetModule(VIndex);
                 if ((VModule != null) && VModule.FVisible && (VModule !== this) && VModule.$class.InheritsFrom($mod.TCustomForm)) {
                   VModule.Show();
@@ -2507,16 +4265,16 @@ rtl.module("Forms",["System","Classes","SysUtils","Types","JS","Web","Graphics",
       var VWindowWidth = 0;
       VWindowWidth = window.innerWidth;
       VWindowHeight = window.innerHeight;
-      var $tmp1 = this.FFormType;
-      if ($tmp1 === $mod.TFormType.ftModalForm) {
+      var $tmp = this.FFormType;
+      if ($tmp === $mod.TFormType.ftModalForm) {
         VWidth = this.FWidth;
         VHeight = this.FHeight;
-        VLeft = Math.floor((VWindowWidth - VWidth) / 2);
-        VTop = Math.floor((VWindowHeight - VHeight) / 2);
+        VLeft = rtl.trunc((VWindowWidth - VWidth) / 2);
+        VTop = rtl.trunc((VWindowHeight - VHeight) / 2);
         this.SetBounds(VLeft,VTop,VWidth,VHeight);
-      } else if ($tmp1 === $mod.TFormType.ftWindow) {
+      } else if ($tmp === $mod.TFormType.ftWindow) {
         this.SetBounds(0,0,VWindowWidth,VWindowHeight);
-      } else if ($tmp1 === $mod.TFormType.ftTop) {
+      } else if ($tmp === $mod.TFormType.ftTop) {
         this.SetBounds(0,0,this.FWidth,this.FHeight);
       };
       this.DoResize();
@@ -2559,7 +4317,7 @@ rtl.module("Forms",["System","Classes","SysUtils","Types","JS","Web","Graphics",
       this.Show();
     };
   });
-  rtl.createClass($mod,"TApplication",pas.Classes.TComponent,function () {
+  rtl.createClass(this,"TApplication",pas.Classes.TComponent,function () {
     this.$init = function () {
       pas.Classes.TComponent.$init.call(this);
       this.FModules = null;
@@ -2611,19 +4369,19 @@ rtl.module("Forms",["System","Classes","SysUtils","Types","JS","Web","Graphics",
       };
     };
     this.LoadIcon = function () {
-      var $with1 = document.head.appendChild(document.createElement("link"));
-      $with1.setAttribute("rel","icon");
-      $with1.setAttribute("type","image\/icon");
-      $with1.setAttribute("href",this.GetApplicatioName().replace("html","ico"));
+      var $with = document.head.appendChild(document.createElement("link"));
+      $with.setAttribute("rel","icon");
+      $with.setAttribute("type","image\/icon");
+      $with.setAttribute("href",this.GetApplicatioName().replace("html","ico"));
     };
     this.RegisterHandleEvents = function () {
       window.addEventListener("error",rtl.createCallback(this,"HandleError"));
-      window.addEventListener("resize",rtl.createCallback(this,"HandleResize"));
+      window.addEventListener("resize",rtl.createSafeCallback(this,"HandleResize"));
       window.addEventListener("unload",rtl.createCallback(this,"HandleUnload"));
     };
     this.UnRegisterHandleEvents = function () {
       window.removeEventListener("error",rtl.createCallback(this,"HandleError"));
-      window.removeEventListener("resize",rtl.createCallback(this,"HandleResize"));
+      window.removeEventListener("resize",rtl.createSafeCallback(this,"HandleResize"));
       window.removeEventListener("unload",rtl.createCallback(this,"HandleUnload"));
     };
     var CLE = pas.System.LineEnding;
@@ -2633,7 +4391,7 @@ rtl.module("Forms",["System","Classes","SysUtils","Types","JS","Web","Graphics",
       if (AEvent.message.toLowerCase().indexOf("script error",0) > -1) {
         window.alert("Script Error: See Browser Console for Detail");
       } else {
-        window.alert(pas.SysUtils.Format(CError,[AEvent.message,AEvent.lineno,AEvent.colno]));
+        window.alert(pas.SysUtils.Format(CError,pas.System.VarRecs(18,AEvent.message,0,AEvent.lineno,0,AEvent.colno)));
       };
       if (this.FStopOnException) {
         this.Terminate();
@@ -2649,8 +4407,8 @@ rtl.module("Forms",["System","Classes","SysUtils","Types","JS","Web","Graphics",
       AEvent.stopPropagation();
       this.DoResize();
       Result = true;
-      for (var $l1 = 0, $end2 = this.FModules.length - 1; $l1 <= $end2; $l1++) {
-        VIndex = $l1;
+      for (var $l = 0, $end = this.FModules.length - 1; $l <= $end; $l++) {
+        VIndex = $l;
         VControl = rtl.getObject(this.FModules[VIndex]);
         if ((VControl != null) && VControl.FVisible && VControl.$class.InheritsFrom($mod.TCustomForm)) {
           VControl.Resize();
@@ -2669,9 +4427,19 @@ rtl.module("Forms",["System","Classes","SysUtils","Types","JS","Web","Graphics",
       };
       return Result;
     };
+    this.HandleException = function (AException) {
+      if (pas.SysUtils.Exception.isPrototypeOf(AException)) {
+        window.alert(pas.SysUtils.Format(rtl.getResStr(pas.LCLStrConsts,"rsErrUncaughtException"),pas.System.VarRecs(18,AException.$classname,18,AException.fMessage)));
+      } else {
+        window.alert(pas.SysUtils.Format(rtl.getResStr(pas.LCLStrConsts,"rsErrUncaughtObject"),pas.System.VarRecs(18,AException.$classname)));
+      };
+      if (this.FStopOnException) this.Terminate();
+    };
     this.Create$1 = function (AOwner) {
       pas.Classes.TComponent.Create$1.call(this,AOwner);
       pas.p2jsres.SetResourceSource(pas.p2jsres.TResourceSource.rsJS);
+      pas.SysUtils.SetOnUnCaughtExceptionHandler($impl.DoUncaughtPascalException);
+      rtl.showUncaughtExceptions=true;
       this.FModules = new Array();
       this.FMainForm = null;
       this.FStopOnException = true;
@@ -2706,8 +4474,8 @@ rtl.module("Forms",["System","Classes","SysUtils","Types","JS","Web","Graphics",
       if (!this.FTerminated) {
         this.UnRegisterHandleEvents();
         this.FTerminated = true;
-        for (var $l1 = this.FModules.length - 1; $l1 >= 0; $l1--) {
-          VIndex = $l1;
+        for (var $l = this.FModules.length - 1; $l >= 0; $l--) {
+          VIndex = $l;
           VModule = rtl.getObject(this.FModules[VIndex]);
           if (VModule != null) {
             VModule.$destroy("Destroy");
@@ -2745,7 +4513,7 @@ rtl.module("Forms",["System","Classes","SysUtils","Types","JS","Web","Graphics",
       };
     };
   });
-  rtl.createClass($mod,"TForm",$mod.TCustomForm,function () {
+  rtl.createClass(this,"TForm",this.TCustomForm,function () {
     var $r = this.$rtti;
     $r.addProperty("ActiveControl",2,pas.Controls.$rtti["TWinControl"],"FActiveControl","SetActiveControl");
     $r.addProperty("Align",2,pas.Controls.$rtti["TAlign"],"FAlign","SetAlign");
@@ -2793,52 +4561,53 @@ rtl.module("Forms",["System","Classes","SysUtils","Types","JS","Web","Graphics",
     Result = $impl.VAppInstance;
     return Result;
   };
-},["p2jsres"],function () {
-  "use strict";
-  var $mod = this;
-  var $impl = $mod.$impl;
-  $impl.DefaultModalProc = function (Sender, ModalResult) {
-    if (Sender != null) {
-      Sender.$destroy("Destroy");
-      Sender = null;
+  $mod.$implcode = function () {
+    $impl.DefaultModalProc = function (Sender, ModalResult) {
+      if (Sender != null) {
+        Sender.$destroy("Destroy");
+        Sender = null;
+      };
+    };
+    $impl.VAppInstance = null;
+    rtl.createClass($impl,"TOverlay",pas.System.TObject,function () {
+      this.$init = function () {
+        pas.System.TObject.$init.call(this);
+        this.FForm = null;
+        this.FHandleElement = null;
+      };
+      this.$final = function () {
+        this.FForm = undefined;
+        this.FHandleElement = undefined;
+        pas.System.TObject.$final.call(this);
+      };
+      this.Create$1 = function (AForm) {
+        this.FForm = AForm;
+        if (this.FForm != null) {
+          this.FHandleElement = document.createElement("div");
+          var $with = this.FHandleElement;
+          $with.style.setProperty("left","0px");
+          $with.style.setProperty("top","0px");
+          $with.style.setProperty("height","100%");
+          $with.style.setProperty("width","100%");
+          $with.style.setProperty("background","rgba(0, 0, 0, 0.6)");
+          $with.style.setProperty("position","absolute");
+          $with.style.setProperty("overflow","hidden");
+          this.FForm.FHandleElement.appendChild(this.FHandleElement);
+        };
+        return this;
+      };
+      this.Destroy = function () {
+        if (this.FForm != null) {
+          this.FForm.FHandleElement.removeChild(this.FHandleElement);
+        };
+        pas.System.TObject.Destroy.call(this);
+      };
+    });
+    $impl.DoUncaughtPascalException = function (E) {
+      $mod.Application().HandleException(E);
     };
   };
-  $impl.VAppInstance = null;
-  rtl.createClass($impl,"TOverlay",pas.System.TObject,function () {
-    this.$init = function () {
-      pas.System.TObject.$init.call(this);
-      this.FForm = null;
-      this.FHandleElement = null;
-    };
-    this.$final = function () {
-      this.FForm = undefined;
-      this.FHandleElement = undefined;
-      pas.System.TObject.$final.call(this);
-    };
-    this.Create$1 = function (AForm) {
-      this.FForm = AForm;
-      if (this.FForm != null) {
-        this.FHandleElement = document.createElement("div");
-        var $with1 = this.FHandleElement;
-        $with1.style.setProperty("left","0px");
-        $with1.style.setProperty("top","0px");
-        $with1.style.setProperty("height","100%");
-        $with1.style.setProperty("width","100%");
-        $with1.style.setProperty("background","rgba(0, 0, 0, 0.6)");
-        $with1.style.setProperty("position","absolute");
-        $with1.style.setProperty("overflow","hidden");
-        this.FForm.FHandleElement.appendChild(this.FHandleElement);
-      };
-      return this;
-    };
-    this.Destroy = function () {
-      if (this.FForm != null) {
-        this.FForm.FHandleElement.removeChild(this.FHandleElement);
-      };
-      pas.System.TObject.Destroy.call(this);
-    };
-  });
-});
+},["LCLStrConsts","p2jsres"]);
 rtl.module("Controls",["System","Classes","SysUtils","Types","JS","Web","Graphics"],function () {
   "use strict";
   var $mod = this;
@@ -2880,33 +4649,34 @@ rtl.module("Controls",["System","Classes","SysUtils","Types","JS","Web","Graphic
   this.crAppStart = -19;
   this.crHelp = -20;
   this.crHandPoint = -21;
-  $mod.$rtti.$Class("TWinControl");
+  this.$rtti.$Class("TWinControl");
+  this.$rtti.$Class("TControl");
   this.TAlign = {"0": "alNone", alNone: 0, "1": "alTop", alTop: 1, "2": "alBottom", alBottom: 2, "3": "alLeft", alLeft: 3, "4": "alRight", alRight: 4, "5": "alClient", alClient: 5, "6": "alCustom", alCustom: 6};
-  $mod.$rtti.$Enum("TAlign",{minvalue: 0, maxvalue: 6, ordtype: 1, enumtype: this.TAlign});
+  this.$rtti.$Enum("TAlign",{minvalue: 0, maxvalue: 6, ordtype: 1, enumtype: this.TAlign});
   this.TAnchorKind = {"0": "akTop", akTop: 0, "1": "akLeft", akLeft: 1, "2": "akRight", akRight: 2, "3": "akBottom", akBottom: 3};
-  $mod.$rtti.$Enum("TAnchorKind",{minvalue: 0, maxvalue: 3, ordtype: 1, enumtype: this.TAnchorKind});
-  $mod.$rtti.$Set("TAnchors",{comptype: $mod.$rtti["TAnchorKind"]});
+  this.$rtti.$Enum("TAnchorKind",{minvalue: 0, maxvalue: 3, ordtype: 1, enumtype: this.TAnchorKind});
+  this.$rtti.$Set("TAnchors",{comptype: this.$rtti["TAnchorKind"]});
   this.TBevelCut = {"0": "bvNone", bvNone: 0, "1": "bvLowered", bvLowered: 1, "2": "bvRaised", bvRaised: 2, "3": "bvSpace", bvSpace: 3};
-  $mod.$rtti.$Enum("TBevelCut",{minvalue: 0, maxvalue: 3, ordtype: 1, enumtype: this.TBevelCut});
+  this.$rtti.$Enum("TBevelCut",{minvalue: 0, maxvalue: 3, ordtype: 1, enumtype: this.TBevelCut});
   this.TFormBorderStyle = {"0": "bsNone", bsNone: 0, "1": "bsSingle", bsSingle: 1, "2": "bsSizeable", bsSizeable: 2, "3": "bsDialog", bsDialog: 3, "4": "bsToolWindow", bsToolWindow: 4, "5": "bsSizeToolWin", bsSizeToolWin: 5};
-  $mod.$rtti.$Enum("TBorderStyle",{minvalue: 0, maxvalue: 1, ordtype: 1, enumtype: this.TFormBorderStyle});
-  $mod.$rtti.$inherited("TCaption",rtl.string,{});
-  $mod.$rtti.$Int("TCursor",{minvalue: -32768, maxvalue: 32767, ordtype: 2});
-  rtl.createClass($mod,"TControlCanvas",pas.Graphics.TCanvas,function () {
+  this.$rtti.$Enum("TBorderStyle",{minvalue: 0, maxvalue: 1, ordtype: 1, enumtype: this.TFormBorderStyle});
+  this.$rtti.$inherited("TCaption",rtl.string,{});
+  this.$rtti.$Int("TCursor",{minvalue: -32768, maxvalue: 32767, ordtype: 2});
+  rtl.createClass(this,"TControlCanvas",pas.Graphics.TCanvas,function () {
   });
   this.TShiftStateEnum = {"0": "ssShift", ssShift: 0, "1": "ssAlt", ssAlt: 1, "2": "ssCtrl", ssCtrl: 2, "3": "ssLeft", ssLeft: 3, "4": "ssRight", ssRight: 4, "5": "ssMIDdle", ssMIDdle: 5, "6": "ssDouble", ssDouble: 6};
-  $mod.$rtti.$Enum("TShiftStateEnum",{minvalue: 0, maxvalue: 6, ordtype: 1, enumtype: this.TShiftStateEnum});
-  $mod.$rtti.$Set("TShiftState",{comptype: $mod.$rtti["TShiftStateEnum"]});
-  $mod.$rtti.$MethodVar("TKeyEvent",{procsig: rtl.newTIProcSig([["Sender",pas.System.$rtti["TObject"]],["Key",rtl.nativeint,1],["Shift",$mod.$rtti["TShiftState"]]]), methodkind: 0});
-  $mod.$rtti.$MethodVar("TKeyPressEvent",{procsig: rtl.newTIProcSig([["Sender",pas.System.$rtti["TObject"]],["Key",rtl.char,1]]), methodkind: 0});
+  this.$rtti.$Enum("TShiftStateEnum",{minvalue: 0, maxvalue: 6, ordtype: 1, enumtype: this.TShiftStateEnum});
+  this.$rtti.$Set("TShiftState",{comptype: this.$rtti["TShiftStateEnum"]});
+  this.$rtti.$MethodVar("TKeyEvent",{procsig: rtl.newTIProcSig([["Sender",pas.System.$rtti["TObject"]],["Key",rtl.nativeint,1],["Shift",this.$rtti["TShiftState"]]]), methodkind: 0});
+  this.$rtti.$MethodVar("TKeyPressEvent",{procsig: rtl.newTIProcSig([["Sender",pas.System.$rtti["TObject"]],["Key",rtl.char,1]]), methodkind: 0});
   this.TMouseButton = {"0": "mbLeft", mbLeft: 0, "1": "mbRight", mbRight: 1, "2": "mbMiddle", mbMiddle: 2};
-  $mod.$rtti.$Enum("TMouseButton",{minvalue: 0, maxvalue: 2, ordtype: 1, enumtype: this.TMouseButton});
-  $mod.$rtti.$MethodVar("TMouseEvent",{procsig: rtl.newTIProcSig([["Sender",pas.System.$rtti["TObject"]],["Button",$mod.$rtti["TMouseButton"]],["Shift",$mod.$rtti["TShiftState"]],["X",rtl.nativeint],["Y",rtl.nativeint]]), methodkind: 0});
-  $mod.$rtti.$MethodVar("TMouseMoveEvent",{procsig: rtl.newTIProcSig([["Sender",pas.System.$rtti["TObject"]],["Shift",$mod.$rtti["TShiftState"]],["X",rtl.nativeint],["Y",rtl.nativeint]]), methodkind: 0});
-  $mod.$rtti.$MethodVar("TMouseWheelEvent",{procsig: rtl.newTIProcSig([["Sender",pas.System.$rtti["TObject"]],["Shift",$mod.$rtti["TShiftState"]],["WheelDelta",rtl.nativeint],["MousePos",pas.Types.$rtti["TPoint"]],["Handled",rtl.boolean,1]]), methodkind: 0});
+  this.$rtti.$Enum("TMouseButton",{minvalue: 0, maxvalue: 2, ordtype: 1, enumtype: this.TMouseButton});
+  this.$rtti.$MethodVar("TMouseEvent",{procsig: rtl.newTIProcSig([["Sender",pas.System.$rtti["TObject"]],["Button",this.$rtti["TMouseButton"]],["Shift",this.$rtti["TShiftState"]],["X",rtl.nativeint],["Y",rtl.nativeint]]), methodkind: 0});
+  this.$rtti.$MethodVar("TMouseMoveEvent",{procsig: rtl.newTIProcSig([["Sender",pas.System.$rtti["TObject"]],["Shift",this.$rtti["TShiftState"]],["X",rtl.nativeint],["Y",rtl.nativeint]]), methodkind: 0});
+  this.$rtti.$MethodVar("TMouseWheelEvent",{procsig: rtl.newTIProcSig([["Sender",pas.System.$rtti["TObject"]],["Shift",this.$rtti["TShiftState"]],["WheelDelta",rtl.nativeint],["MousePos",pas.Types.$rtti["TPoint"]],["Handled",rtl.boolean,1]]), methodkind: 0});
   this.TFocusSearchDirection = {"0": "fsdFirst", fsdFirst: 0, "1": "fsdLast", fsdLast: 1, "2": "fsdNext", fsdNext: 2, "3": "fsdPrev", fsdPrev: 3};
   this.TControlFlag = {"0": "cfInAlignControls", cfInAlignControls: 0};
-  rtl.createClass($mod,"TControlBorderSpacing",pas.Classes.TPersistent,function () {
+  rtl.createClass(this,"TControlBorderSpacing",pas.Classes.TPersistent,function () {
     this.$init = function () {
       pas.Classes.TPersistent.$init.call(this);
       this.FAround = 0;
@@ -2971,7 +4741,7 @@ rtl.module("Controls",["System","Classes","SysUtils","Types","JS","Web","Graphic
       };
     };
   });
-  rtl.createClass($mod,"TControl",pas.Classes.TComponent,function () {
+  rtl.createClass(this,"TControl",pas.Classes.TComponent,function () {
     this.$init = function () {
       pas.Classes.TComponent.$init.call(this);
       this.FAlign = 0;
@@ -3417,99 +5187,99 @@ rtl.module("Controls",["System","Classes","SysUtils","Types","JS","Web","Graphic
          else Result = null;
         return Result;
       };
-      if (!$Self.IsUpdating() && !(pas.Classes.TComponentStateItem.csLoading in $Self.FComponentState)) {
+      if (!this.IsUpdating() && !(pas.Classes.TComponentStateItem.csLoading in this.FComponentState)) {
         form = FindParentForm();
-        var $with1 = $Self.FHandleElement;
-        if ($Self.FHandleId !== "") {
-          $with1.setAttribute("id",$Self.FHandleId);
+        var $with = this.FHandleElement;
+        if (this.FHandleId !== "") {
+          $with.setAttribute("id",this.FHandleId);
         } else {
-          $with1.removeAttribute("id");
+          $with.removeAttribute("id");
         };
-        if ($Self.FHandleClass !== "") {
-          $with1.setAttribute("class",$Self.FHandleClass);
+        if (this.FHandleClass !== "") {
+          $with.setAttribute("class",this.FHandleClass);
         } else {
-          $with1.removeAttribute("class");
+          $with.removeAttribute("class");
         };
-        if (($Self.FHandleClass === "") && ($Self.FHandleId === "")) {
-          $with1.style.setProperty("color",pas.Graphics.JSColor($Self.FFont.FColor));
-          $mod.UpdateHtmlElementFont($Self.FHandleElement,$Self.FFont,false);
-          if ($Self.FColor in rtl.createSet(536870912,536870911)) {
-            $with1.style.removeProperty("background-color");
+        if ((this.FHandleClass === "") && (this.FHandleId === "")) {
+          $with.style.setProperty("color",pas.Graphics.JSColor(this.FFont.FColor));
+          $mod.UpdateHtmlElementFont(this.FHandleElement,this.FFont,false);
+          if (this.FColor in rtl.createSet(536870912,536870911)) {
+            $with.style.removeProperty("background-color");
           } else {
-            $with1.style.setProperty("background-color",pas.Graphics.JSColor($Self.FColor));
+            $with.style.setProperty("background-color",pas.Graphics.JSColor(this.FColor));
           };
         };
-        $with1.style.setProperty("left",pas.SysUtils.IntToStr(AdjustWithPPI($Self.FLeft)) + "px");
-        $with1.style.setProperty("top",pas.SysUtils.IntToStr(AdjustWithPPI($Self.FTop)) + "px");
-        $with1.style.setProperty("width",pas.SysUtils.IntToStr(AdjustWithPPI($Self.FWidth)) + "px");
-        $with1.style.setProperty("height",pas.SysUtils.IntToStr(AdjustWithPPI($Self.FHeight)) + "px");
-        $with1.style.setProperty("cursor",$mod.JSCursor($Self.FCursor));
-        if ($Self.FEnabled) {
-          $with1.removeAttribute("disabled");
-          $with1.style.removeProperty("opacity");
+        $with.style.setProperty("left",pas.SysUtils.IntToStr(AdjustWithPPI(this.FLeft)) + "px");
+        $with.style.setProperty("top",pas.SysUtils.IntToStr(AdjustWithPPI(this.FTop)) + "px");
+        $with.style.setProperty("width",pas.SysUtils.IntToStr(AdjustWithPPI(this.FWidth)) + "px");
+        $with.style.setProperty("height",pas.SysUtils.IntToStr(AdjustWithPPI(this.FHeight)) + "px");
+        $with.style.setProperty("cursor",$mod.JSCursor(this.FCursor));
+        if (this.FEnabled) {
+          $with.removeAttribute("disabled");
+          $with.style.removeProperty("opacity");
         } else {
-          $with1.setAttribute("disabled","true");
-          $with1.style.setProperty("opacity","0.5");
+          $with.setAttribute("disabled","true");
+          $with.style.setProperty("opacity","0.5");
         };
-        if ($Self.FVisible) {
-          $with1.style.setProperty("visibility","visible");
-          $with1.style.setProperty("display","block");
+        if (this.FVisible) {
+          $with.style.setProperty("visibility","visible");
+          $with.style.setProperty("display","block");
         } else {
-          $with1.style.setProperty("visibility","hidden");
-          $with1.style.setProperty("display","none");
+          $with.style.setProperty("visibility","hidden");
+          $with.style.setProperty("display","none");
         };
-        if (($Self.FHint !== "") && $Self.FShowHint) {
-          $with1.setAttribute("title",$Self.FHint);
+        if ((this.FHint !== "") && this.FShowHint) {
+          $with.setAttribute("title",this.FHint);
         } else {
-          $with1.removeAttribute("title");
+          $with.removeAttribute("title");
         };
-        if ($Self.FBorderStyle === $mod.TFormBorderStyle.bsNone) {
-          $with1.style.setProperty("border-style","none");
+        if (this.FBorderStyle === $mod.TFormBorderStyle.bsNone) {
+          $with.style.setProperty("border-style","none");
         } else {
-          $with1.style.removeProperty("border-style");
+          $with.style.removeProperty("border-style");
         };
-        $with1.setAttribute("tabindex",$mod.IfThen$3($Self.FTabStop,"1","-1"));
-        $with1.style.setProperty("position","absolute");
-        $with1.style.setProperty("overflow","hidden");
-        $with1.style.setProperty("-webkit-box-sizing","border-box");
-        $with1.style.setProperty("-moz-box-sizing","border-box");
-        $with1.style.setProperty("box-sizing","border-box");
+        $with.setAttribute("tabindex",$mod.IfThen$3(this.FTabStop,"1","-1"));
+        $with.style.setProperty("position","absolute");
+        $with.style.setProperty("overflow","hidden");
+        $with.style.setProperty("-webkit-box-sizing","border-box");
+        $with.style.setProperty("-moz-box-sizing","border-box");
+        $with.style.setProperty("box-sizing","border-box");
       };
     };
     this.CreateHandleElement = function () {
       var Result = null;
-      throw new Error(pas.SysUtils.Format("%s.CreateHandleElement=nil",[this.$classname]));
+      throw new Error(pas.SysUtils.Format("%s.CreateHandleElement=nil",pas.System.VarRecs(18,this.$classname)));
       return Result;
     };
     this.RegisterHandleEvents = function () {
-      var $with1 = this.FHandleElement;
-      $with1.addEventListener("click",rtl.createCallback(this,"HandleClick"));
-      $with1.addEventListener("dblclick",rtl.createCallback(this,"HandleDblClick"));
-      $with1.addEventListener("mousedown",rtl.createCallback(this,"HandleMouseDown"));
-      $with1.addEventListener("mouseenter",rtl.createCallback(this,"HandleMouseEnter"));
-      $with1.addEventListener("mouseleave",rtl.createCallback(this,"HandleMouseLeave"));
-      $with1.addEventListener("mousemove",rtl.createCallback(this,"HandleMouseMove"));
-      $with1.addEventListener("mouseup",rtl.createCallback(this,"HandleMouseUp"));
-      $with1.addEventListener("scroll",rtl.createCallback(this,"HandleScroll"));
-      $with1.addEventListener("resize",rtl.createCallback(this,"HandleResize"));
-      $with1.addEventListener("wheel",rtl.createCallback(this,"HandleMouseWheel"));
+      var $with = this.FHandleElement;
+      $with.addEventListener("click",rtl.createCallback(this,"HandleClick"));
+      $with.addEventListener("dblclick",rtl.createCallback(this,"HandleDblClick"));
+      $with.addEventListener("mousedown",rtl.createCallback(this,"HandleMouseDown"));
+      $with.addEventListener("mouseenter",rtl.createCallback(this,"HandleMouseEnter"));
+      $with.addEventListener("mouseleave",rtl.createCallback(this,"HandleMouseLeave"));
+      $with.addEventListener("mousemove",rtl.createCallback(this,"HandleMouseMove"));
+      $with.addEventListener("mouseup",rtl.createCallback(this,"HandleMouseUp"));
+      $with.addEventListener("scroll",rtl.createSafeCallback(this,"HandleScroll"));
+      $with.addEventListener("resize",rtl.createSafeCallback(this,"HandleResize"));
+      $with.addEventListener("wheel",rtl.createCallback(this,"HandleMouseWheel"));
     };
     this.UnRegisterHandleEvents = function () {
-      var $with1 = this.FHandleElement;
-      $with1.removeEventListener("click",rtl.createCallback(this,"HandleClick"));
-      $with1.removeEventListener("dblclick",rtl.createCallback(this,"HandleDblClick"));
-      $with1.removeEventListener("mousedown",rtl.createCallback(this,"HandleMouseDown"));
-      $with1.removeEventListener("mouseenter",rtl.createCallback(this,"HandleMouseEnter"));
-      $with1.removeEventListener("mouseleave",rtl.createCallback(this,"HandleMouseLeave"));
-      $with1.removeEventListener("mousemove",rtl.createCallback(this,"HandleMouseMove"));
-      $with1.removeEventListener("mouseup",rtl.createCallback(this,"HandleMouseUp"));
-      $with1.removeEventListener("scroll",rtl.createCallback(this,"HandleScroll"));
-      $with1.removeEventListener("resize",rtl.createCallback(this,"HandleResize"));
-      $with1.removeEventListener("wheel",rtl.createCallback(this,"HandleMouseWheel"));
+      var $with = this.FHandleElement;
+      $with.removeEventListener("click",rtl.createCallback(this,"HandleClick"));
+      $with.removeEventListener("dblclick",rtl.createCallback(this,"HandleDblClick"));
+      $with.removeEventListener("mousedown",rtl.createCallback(this,"HandleMouseDown"));
+      $with.removeEventListener("mouseenter",rtl.createCallback(this,"HandleMouseEnter"));
+      $with.removeEventListener("mouseleave",rtl.createCallback(this,"HandleMouseLeave"));
+      $with.removeEventListener("mousemove",rtl.createCallback(this,"HandleMouseMove"));
+      $with.removeEventListener("mouseup",rtl.createCallback(this,"HandleMouseUp"));
+      $with.removeEventListener("scroll",rtl.createSafeCallback(this,"HandleScroll"));
+      $with.removeEventListener("resize",rtl.createSafeCallback(this,"HandleResize"));
+      $with.removeEventListener("wheel",rtl.createCallback(this,"HandleMouseWheel"));
     };
     this.CheckNewParent = function (AParent) {
       if ((AParent != null) && !AParent.CheckChildClassAllowed(this.$class.ClassType())) {
-        throw new Error(pas.SysUtils.Format("Control of class '%s' can't have control of class '%s' as a child",[AParent.$class.ClassType(),this.$classname]));
+        throw new Error(pas.SysUtils.Format("Control of class '%s' can't have control of class '%s' as a child",pas.System.VarRecs(8,AParent.$class.ClassType(),18,this.$classname)));
       };
       if (pas.Forms.TCustomForm.isPrototypeOf(this) && pas.Forms.TCustomForm.isPrototypeOf(AParent)) {
         throw new Error('A "Form" can\'t have another "Form" as parent');
@@ -3560,18 +5330,18 @@ rtl.module("Controls",["System","Classes","SysUtils","Types","JS","Web","Graphic
       var newtop = 0;
       var newright = 0;
       var newbottom = 0;
-      if ($mod.TControlFlag.cfInAlignControls in $Self.FControlFlags) return;
-      $Self.FControlFlags = rtl.includeSet($Self.FControlFlags,$mod.TControlFlag.cfInAlignControls);
-      $Self.BeginUpdate();
+      if ($mod.TControlFlag.cfInAlignControls in this.FControlFlags) return;
+      this.FControlFlags = rtl.includeSet(this.FControlFlags,$mod.TControlFlag.cfInAlignControls);
+      this.BeginUpdate();
       try {
         VLeft = 0;
         VTop = 0;
-        VRight = $Self.FWidth;
-        VBotton = $Self.FHeight;
-        VWidth = $Self.FWidth;
-        for (var $l1 = 0, $end2 = $Self.FControls.length - 1; $l1 <= $end2; $l1++) {
-          VIndex = $l1;
-          VControl = rtl.getObject($Self.FControls[VIndex]);
+        VRight = this.FWidth;
+        VBotton = this.FHeight;
+        VWidth = this.FWidth;
+        for (var $l = 0, $end = this.FControls.length - 1; $l <= $end; $l++) {
+          VIndex = $l;
+          VControl = rtl.getObject(this.FControls[VIndex]);
           if ((VControl != null) && (VControl.FAlign === $mod.TAlign.alTop) && VControl.FVisible) {
             VControl.BeginUpdate();
             try {
@@ -3589,9 +5359,9 @@ rtl.module("Controls",["System","Classes","SysUtils","Types","JS","Web","Graphic
         if (VTop < 0) {
           VTop = 0;
         };
-        for (var $l3 = 0, $end4 = $Self.FControls.length - 1; $l3 <= $end4; $l3++) {
-          VIndex = $l3;
-          VControl = rtl.getObject($Self.FControls[VIndex]);
+        for (var $l1 = 0, $end1 = this.FControls.length - 1; $l1 <= $end1; $l1++) {
+          VIndex = $l1;
+          VControl = rtl.getObject(this.FControls[VIndex]);
           if ((VControl != null) && (VControl.FAlign === $mod.TAlign.alBottom) && VControl.FVisible) {
             VControl.BeginUpdate();
             try {
@@ -3609,9 +5379,9 @@ rtl.module("Controls",["System","Classes","SysUtils","Types","JS","Web","Graphic
         if (VBotton < 0) {
           VBotton = 0;
         };
-        for (var $l5 = 0, $end6 = $Self.FControls.length - 1; $l5 <= $end6; $l5++) {
-          VIndex = $l5;
-          VControl = rtl.getObject($Self.FControls[VIndex]);
+        for (var $l2 = 0, $end2 = this.FControls.length - 1; $l2 <= $end2; $l2++) {
+          VIndex = $l2;
+          VControl = rtl.getObject(this.FControls[VIndex]);
           if ((VControl != null) && (VControl.FAlign === $mod.TAlign.alLeft) && VControl.FVisible) {
             VControl.BeginUpdate();
             try {
@@ -3629,9 +5399,9 @@ rtl.module("Controls",["System","Classes","SysUtils","Types","JS","Web","Graphic
         if (VLeft < 0) {
           VLeft = 0;
         };
-        for (var $l7 = 0, $end8 = $Self.FControls.length - 1; $l7 <= $end8; $l7++) {
-          VIndex = $l7;
-          VControl = rtl.getObject($Self.FControls[VIndex]);
+        for (var $l3 = 0, $end3 = this.FControls.length - 1; $l3 <= $end3; $l3++) {
+          VIndex = $l3;
+          VControl = rtl.getObject(this.FControls[VIndex]);
           if ((VControl != null) && (VControl.FAlign === $mod.TAlign.alRight) && VControl.FVisible) {
             VControl.BeginUpdate();
             try {
@@ -3649,9 +5419,9 @@ rtl.module("Controls",["System","Classes","SysUtils","Types","JS","Web","Graphic
         if (VRight < 0) {
           VRight = 0;
         };
-        for (var $l9 = 0, $end10 = $Self.FControls.length - 1; $l9 <= $end10; $l9++) {
-          VIndex = $l9;
-          VControl = rtl.getObject($Self.FControls[VIndex]);
+        for (var $l4 = 0, $end4 = this.FControls.length - 1; $l4 <= $end4; $l4++) {
+          VIndex = $l4;
+          VControl = rtl.getObject(this.FControls[VIndex]);
           if ((VControl != null) && (VControl.FAlign === $mod.TAlign.alClient) && VControl.FVisible) {
             VControl.BeginUpdate();
             try {
@@ -3665,16 +5435,16 @@ rtl.module("Controls",["System","Classes","SysUtils","Types","JS","Web","Graphic
             };
           };
         };
-        for (var $l11 = 0, $end12 = $Self.FControls.length - 1; $l11 <= $end12; $l11++) {
-          VIndex = $l11;
-          VControl = rtl.getObject($Self.FControls[VIndex]);
+        for (var $l5 = 0, $end5 = this.FControls.length - 1; $l5 <= $end5; $l5++) {
+          VIndex = $l5;
+          VControl = rtl.getObject(this.FControls[VIndex]);
           if ((VControl != null) && (VControl.FAlign === $mod.TAlign.alNone) && VControl.FVisible && rtl.neSet(VControl.FAnchors,{})) {
             VControl.BeginUpdate();
             try {
               if ($mod.TAnchorKind.akLeft in VControl.FAnchors) newleft = VControl.FLeft;
               if ($mod.TAnchorKind.akTop in VControl.FAnchors) newtop = VControl.FTop;
-              if ($mod.TAnchorKind.akBottom in VControl.FAnchors) newbottom = $Self.FHeight - ($Self.FDesignRect.Bottom - VControl.FDesignRect.Bottom);
-              if ($mod.TAnchorKind.akRight in VControl.FAnchors) newright = $Self.FWidth - ($Self.FDesignRect.Right - VControl.FDesignRect.Right);
+              if ($mod.TAnchorKind.akBottom in VControl.FAnchors) newbottom = this.FHeight - (this.FDesignRect.Bottom - VControl.FDesignRect.Bottom);
+              if ($mod.TAnchorKind.akRight in VControl.FAnchors) newright = this.FWidth - (this.FDesignRect.Right - VControl.FDesignRect.Right);
               if (rtl.leSet(rtl.createSet($mod.TAnchorKind.akLeft,$mod.TAnchorKind.akRight),VControl.FAnchors)) {
                 VControl.SetLeft(newleft);
                 VControl.SetWidth((newright - newleft) + 1);
@@ -3693,8 +5463,8 @@ rtl.module("Controls",["System","Classes","SysUtils","Types","JS","Web","Graphic
           };
         };
       } finally {
-        $Self.FControlFlags = rtl.excludeSet($Self.FControlFlags,$mod.TControlFlag.cfInAlignControls);
-        $Self.EndUpdate();
+        this.FControlFlags = rtl.excludeSet(this.FControlFlags,$mod.TControlFlag.cfInAlignControls);
+        this.EndUpdate();
       };
     };
     this.RealGetText = function () {
@@ -3738,8 +5508,8 @@ rtl.module("Controls",["System","Classes","SysUtils","Types","JS","Web","Graphic
       var VArray = null;
       var VIndex = 0;
       if (AValue != null) {
-        for (var $l1 = 0, $end2 = this.FControls.length - 1; $l1 <= $end2; $l1++) {
-          VIndex = $l1;
+        for (var $l = 0, $end = this.FControls.length - 1; $l <= $end; $l++) {
+          VIndex = $l;
           VControl = rtl.getObject(this.FControls[VIndex]);
           if ((VControl != null) && (VControl !== AValue) && (VControl.FTabOrder >= AValue.FTabOrder)) {
             VControl.FTabOrder += 1;
@@ -3748,8 +5518,8 @@ rtl.module("Controls",["System","Classes","SysUtils","Types","JS","Web","Graphic
       };
       VArray = this.TabOrderArray();
       try {
-        for (var $l3 = 0, $end4 = VArray.length - 1; $l3 <= $end4; $l3++) {
-          VIndex = $l3;
+        for (var $l1 = 0, $end1 = VArray.length - 1; $l1 <= $end1; $l1++) {
+          VIndex = $l1;
           VControl = rtl.getObject(VArray[VIndex]);
           if (VControl != null) {
             VControl.BeginUpdate();
@@ -3879,7 +5649,7 @@ rtl.module("Controls",["System","Classes","SysUtils","Types","JS","Web","Graphic
     $r.addProperty("Top",2,rtl.nativeint,"FTop","SetTop");
     $r.addProperty("Width",2,rtl.nativeint,"FWidth","SetWidth");
   });
-  rtl.createClass($mod,"TWinControl",$mod.TControl,function () {
+  rtl.createClass(this,"TWinControl",this.TControl,function () {
     this.$init = function () {
       $mod.TControl.$init.call(this);
       this.FOnEnter = null;
@@ -3973,8 +5743,8 @@ rtl.module("Controls",["System","Classes","SysUtils","Types","JS","Web","Graphic
       if (VKey === 0) {
         AEvent.preventDefault();
       } else {
-        var $tmp1 = VKey;
-        if ($tmp1 === 9) {
+        var $tmp = VKey;
+        if ($tmp === 9) {
           if (this.FParent != null) {
             if ($mod.TShiftStateEnum.ssShift in VShift) {
               VControl = this.FParent.FindFocusControl(this,$mod.TFocusSearchDirection.fsdPrev);
@@ -4063,21 +5833,21 @@ rtl.module("Controls",["System","Classes","SysUtils","Types","JS","Web","Graphic
     };
     this.RegisterHandleEvents = function () {
       $mod.TControl.RegisterHandleEvents.call(this);
-      var $with1 = this.FHandleElement;
-      $with1.addEventListener("focus",rtl.createCallback(this,"HandleEnter"));
-      $with1.addEventListener("blur",rtl.createCallback(this,"HandleExit"));
-      $with1.addEventListener("keydown",rtl.createCallback(this,"HandleKeyDown"));
-      $with1.addEventListener("keypress",rtl.createCallback(this,"HandleKeyPress"));
-      $with1.addEventListener("keyup",rtl.createCallback(this,"HandleKeyUp"));
+      var $with = this.FHandleElement;
+      $with.addEventListener("focus",rtl.createSafeCallback(this,"HandleEnter"));
+      $with.addEventListener("blur",rtl.createSafeCallback(this,"HandleExit"));
+      $with.addEventListener("keydown",rtl.createCallback(this,"HandleKeyDown"));
+      $with.addEventListener("keypress",rtl.createCallback(this,"HandleKeyPress"));
+      $with.addEventListener("keyup",rtl.createCallback(this,"HandleKeyUp"));
     };
     this.UnRegisterHandleEvents = function () {
       $mod.TControl.UnRegisterHandleEvents.call(this);
-      var $with1 = this.FHandleElement;
-      $with1.removeEventListener("focus",rtl.createCallback(this,"HandleEnter"));
-      $with1.removeEventListener("blur",rtl.createCallback(this,"HandleExit"));
-      $with1.removeEventListener("keydown",rtl.createCallback(this,"HandleKeyDown"));
-      $with1.removeEventListener("keypress",rtl.createCallback(this,"HandleKeyPress"));
-      $with1.removeEventListener("keyup",rtl.createCallback(this,"HandleKeyUp"));
+      var $with = this.FHandleElement;
+      $with.removeEventListener("focus",rtl.createSafeCallback(this,"HandleEnter"));
+      $with.removeEventListener("blur",rtl.createSafeCallback(this,"HandleExit"));
+      $with.removeEventListener("keydown",rtl.createCallback(this,"HandleKeyDown"));
+      $with.removeEventListener("keypress",rtl.createCallback(this,"HandleKeyPress"));
+      $with.removeEventListener("keyup",rtl.createCallback(this,"HandleKeyUp"));
     };
     this.CheckChildClassAllowed = function (AChildClass) {
       var Result = false;
@@ -4104,31 +5874,31 @@ rtl.module("Controls",["System","Classes","SysUtils","Types","JS","Web","Graphic
             VTabOrder = 0;
           };
         };
-        var $tmp1 = ADirection;
-        if ($tmp1 === $mod.TFocusSearchDirection.fsdFirst) {
+        var $tmp = ADirection;
+        if ($tmp === $mod.TFocusSearchDirection.fsdFirst) {
           VControl = rtl.getObject(VArray[0]);
           if ((VControl != null) && $mod.TWinControl.isPrototypeOf(VControl) && VControl.FEnabled && VControl.FVisible && VControl.FTabStop) {
             return VControl;
           };
-        } else if ($tmp1 === $mod.TFocusSearchDirection.fsdLast) {
+        } else if ($tmp === $mod.TFocusSearchDirection.fsdLast) {
           VControl = rtl.getObject(VArray[VArray.length - 1]);
           if ((VControl != null) && $mod.TWinControl.isPrototypeOf(VControl) && VControl.FEnabled && VControl.FVisible && VControl.FTabStop) {
             return VControl;
           };
-        } else if ($tmp1 === $mod.TFocusSearchDirection.fsdNext) {
+        } else if ($tmp === $mod.TFocusSearchDirection.fsdNext) {
           if (VTabOrder < (VArray.length - 1)) {
-            for (var $l2 = VTabOrder + 1, $end3 = VArray.length - 1; $l2 <= $end3; $l2++) {
-              VIndex = $l2;
+            for (var $l = VTabOrder + 1, $end = VArray.length - 1; $l <= $end; $l++) {
+              VIndex = $l;
               VControl = rtl.getObject(VArray[VIndex]);
               if ((VControl != null) && $mod.TWinControl.isPrototypeOf(VControl) && VControl.FEnabled && VControl.FVisible && VControl.FTabStop) {
                 return VControl;
               };
             };
           };
-        } else if ($tmp1 === $mod.TFocusSearchDirection.fsdPrev) {
+        } else if ($tmp === $mod.TFocusSearchDirection.fsdPrev) {
           if (VTabOrder > 0) {
-            for (var $l4 = VTabOrder - 1; $l4 >= 0; $l4--) {
-              VIndex = $l4;
+            for (var $l1 = VTabOrder - 1; $l1 >= 0; $l1--) {
+              VIndex = $l1;
               VControl = rtl.getObject(VArray[VIndex]);
               if ((VControl != null) && $mod.TWinControl.isPrototypeOf(VControl) && VControl.FEnabled && VControl.FVisible && VControl.FTabStop) {
                 return VControl;
@@ -4163,7 +5933,7 @@ rtl.module("Controls",["System","Classes","SysUtils","Types","JS","Web","Graphic
       this.FHandleElement.focus();
     };
   });
-  rtl.createClass($mod,"TCustomControl",$mod.TWinControl,function () {
+  rtl.createClass(this,"TCustomControl",this.TWinControl,function () {
     this.$init = function () {
       $mod.TWinControl.$init.call(this);
       this.FCanvas = null;
@@ -4216,28 +5986,28 @@ rtl.module("Controls",["System","Classes","SysUtils","Types","JS","Web","Graphic
     var Result = pas.Types.TRect.$new();
     Result.$assign(pas.Types.Rect(0,0,0,0));
     if (AElement != null) {
-      var $with1 = AElement.getBoundingClientRect();
-      Result.Left = pas.System.Trunc($with1.left + window.scrollX);
-      Result.Top = pas.System.Trunc($with1.top + window.screenY);
+      var $with = AElement.getBoundingClientRect();
+      Result.Left = pas.System.Trunc($with.left + window.scrollX);
+      Result.Top = pas.System.Trunc($with.top + window.screenY);
     };
     return Result;
   };
   this.UpdateHtmlElementFont = function (AElement, AFont, AClear) {
     var s = "";
-    var $with1 = AElement.style;
+    var $with = AElement.style;
     if (AClear) {
-      $with1.removeProperty("font-family");
-      $with1.removeProperty("font-size");
-      $with1.removeProperty("font-weight");
-      $with1.removeProperty("font-style");
-      $with1.removeProperty("text-decoration");
+      $with.removeProperty("font-family");
+      $with.removeProperty("font-size");
+      $with.removeProperty("font-weight");
+      $with.removeProperty("font-style");
+      $with.removeProperty("text-decoration");
     } else {
-      $with1.setProperty("font-family",AFont.FName);
-      $with1.setProperty("font-size",pas.SysUtils.IntToStr(AFont.FSize) + "pt");
+      $with.setProperty("font-family",AFont.FName);
+      $with.setProperty("font-size",pas.SysUtils.IntToStr(AFont.FSize) + "pt");
       if (pas.Graphics.TFontStyle.fsBold in AFont.FStyle) {
-        $with1.setProperty("font-weight","bold")}
-       else $with1.setProperty("font-weight","");
-      $with1.setProperty("font-style","normal");
+        $with.setProperty("font-weight","bold")}
+       else $with.setProperty("font-weight","");
+      $with.setProperty("font-style","normal");
       s = "";
       if (pas.Graphics.TFontStyle.fsItalic in AFont.FStyle) s = "italic";
       if (pas.Graphics.TFontStyle.fsUnderline in AFont.FStyle) {
@@ -4249,8 +6019,8 @@ rtl.module("Controls",["System","Classes","SysUtils","Types","JS","Web","Graphic
         s = s + "line-through";
       };
       if (s !== "") {
-        $with1.setProperty("text-decoration",s)}
-       else $with1.removeProperty("text-decoration");
+        $with.setProperty("text-decoration",s)}
+       else $with.removeProperty("text-decoration");
     };
   };
   this.ExtractKeyCode = function (AEvent) {
@@ -4260,214 +6030,214 @@ rtl.module("Controls",["System","Classes","SysUtils","Types","JS","Web","Graphic
     VLocation = AEvent.location;
     VKey = pas.SysUtils.LowerCase(AEvent.key);
     Result = -1;
-    var $tmp1 = VKey;
-    if ($tmp1 === "backspace") {
+    var $tmp = VKey;
+    if ($tmp === "backspace") {
       Result = 8}
-     else if ($tmp1 === "tab") {
+     else if ($tmp === "tab") {
       Result = 9}
-     else if ($tmp1 === "enter") {
+     else if ($tmp === "enter") {
       Result = 13}
-     else if ($tmp1 === "shift") {
+     else if ($tmp === "shift") {
       Result = 16}
-     else if ($tmp1 === "control") {
+     else if ($tmp === "control") {
       Result = 17}
-     else if ($tmp1 === "alt") {
+     else if ($tmp === "alt") {
       Result = 18}
-     else if ($tmp1 === "altgraph") {
+     else if ($tmp === "altgraph") {
       Result = 18}
-     else if ($tmp1 === "pause") {
+     else if ($tmp === "pause") {
       Result = 19}
-     else if ($tmp1 === "capslock") {
+     else if ($tmp === "capslock") {
       Result = 20}
-     else if ($tmp1 === "escape") {
+     else if ($tmp === "escape") {
       Result = 27}
-     else if ($tmp1 === "pageup") {
+     else if ($tmp === "pageup") {
       Result = 33}
-     else if ($tmp1 === "pagedown") {
+     else if ($tmp === "pagedown") {
       Result = 34}
-     else if ($tmp1 === "end") {
+     else if ($tmp === "end") {
       Result = 35}
-     else if ($tmp1 === "home") {
+     else if ($tmp === "home") {
       Result = 36}
-     else if ($tmp1 === "arrowleft") {
+     else if ($tmp === "arrowleft") {
       Result = 37}
-     else if ($tmp1 === "arrowup") {
+     else if ($tmp === "arrowup") {
       Result = 38}
-     else if ($tmp1 === "arrowright") {
+     else if ($tmp === "arrowright") {
       Result = 39}
-     else if ($tmp1 === "arrowdown") {
+     else if ($tmp === "arrowdown") {
       Result = 40}
-     else if ($tmp1 === "insert") {
+     else if ($tmp === "insert") {
       Result = 45}
-     else if ($tmp1 === "delete") {
+     else if ($tmp === "delete") {
       Result = 46}
-     else if ($tmp1 === "f1") {
+     else if ($tmp === "f1") {
       Result = 112}
-     else if ($tmp1 === "f2") {
+     else if ($tmp === "f2") {
       Result = 113}
-     else if ($tmp1 === "f3") {
+     else if ($tmp === "f3") {
       Result = 114}
-     else if ($tmp1 === "f4") {
+     else if ($tmp === "f4") {
       Result = 115}
-     else if ($tmp1 === "f5") {
+     else if ($tmp === "f5") {
       Result = 116}
-     else if ($tmp1 === "f6") {
+     else if ($tmp === "f6") {
       Result = 117}
-     else if ($tmp1 === "f7") {
+     else if ($tmp === "f7") {
       Result = 118}
-     else if ($tmp1 === "f8") {
+     else if ($tmp === "f8") {
       Result = 119}
-     else if ($tmp1 === "f9") {
+     else if ($tmp === "f9") {
       Result = 120}
-     else if ($tmp1 === "f10") {
+     else if ($tmp === "f10") {
       Result = 121}
-     else if ($tmp1 === "f11") {
+     else if ($tmp === "f11") {
       Result = 122}
-     else if ($tmp1 === "f12") {
+     else if ($tmp === "f12") {
       Result = 123}
-     else if ($tmp1 === "f13") {
+     else if ($tmp === "f13") {
       Result = 124}
-     else if ($tmp1 === "f14") {
+     else if ($tmp === "f14") {
       Result = 125}
-     else if ($tmp1 === "f15") {
+     else if ($tmp === "f15") {
       Result = 126}
-     else if ($tmp1 === "f16") {
+     else if ($tmp === "f16") {
       Result = 127}
-     else if ($tmp1 === "f17") {
+     else if ($tmp === "f17") {
       Result = 128}
-     else if ($tmp1 === "f18") {
+     else if ($tmp === "f18") {
       Result = 129}
-     else if ($tmp1 === "f19") {
+     else if ($tmp === "f19") {
       Result = 130}
-     else if ($tmp1 === "f20") {
+     else if ($tmp === "f20") {
       Result = 131}
-     else if ($tmp1 === "numlock") {
+     else if ($tmp === "numlock") {
       Result = 144}
-     else if ($tmp1 === "scrolllock") Result = 145;
+     else if ($tmp === "scrolllock") Result = 145;
     if (VLocation === 3) {
+      var $tmp1 = VKey;
+      if ($tmp1 === "0") {
+        Result = 96}
+       else if ($tmp1 === "1") {
+        Result = 97}
+       else if ($tmp1 === "2") {
+        Result = 98}
+       else if ($tmp1 === "3") {
+        Result = 99}
+       else if ($tmp1 === "4") {
+        Result = 100}
+       else if ($tmp1 === "5") {
+        Result = 101}
+       else if ($tmp1 === "6") {
+        Result = 102}
+       else if ($tmp1 === "7") {
+        Result = 103}
+       else if ($tmp1 === "8") {
+        Result = 104}
+       else if ($tmp1 === "9") {
+        Result = 105}
+       else if ($tmp1 === "*") {
+        Result = 106}
+       else if ($tmp1 === "+") {
+        Result = 107}
+       else if ($tmp1 === "-") {
+        Result = 109}
+       else if ($tmp1 === ",") {
+        Result = 110}
+       else if ($tmp1 === "\/") {
+        Result = 111}
+       else if ($tmp1 === ".") Result = 194;
+    } else {
       var $tmp2 = VKey;
       if ($tmp2 === "0") {
-        Result = 96}
-       else if ($tmp2 === "1") {
-        Result = 97}
-       else if ($tmp2 === "2") {
-        Result = 98}
-       else if ($tmp2 === "3") {
-        Result = 99}
-       else if ($tmp2 === "4") {
-        Result = 100}
-       else if ($tmp2 === "5") {
-        Result = 101}
-       else if ($tmp2 === "6") {
-        Result = 102}
-       else if ($tmp2 === "7") {
-        Result = 103}
-       else if ($tmp2 === "8") {
-        Result = 104}
-       else if ($tmp2 === "9") {
-        Result = 105}
-       else if ($tmp2 === "*") {
-        Result = 106}
-       else if ($tmp2 === "+") {
-        Result = 107}
-       else if ($tmp2 === "-") {
-        Result = 109}
-       else if ($tmp2 === ",") {
-        Result = 110}
-       else if ($tmp2 === "\/") {
-        Result = 111}
-       else if ($tmp2 === ".") Result = 194;
-    } else {
-      var $tmp3 = VKey;
-      if ($tmp3 === "0") {
         Result = 48}
-       else if ($tmp3 === "1") {
+       else if ($tmp2 === "1") {
         Result = 49}
-       else if ($tmp3 === "2") {
+       else if ($tmp2 === "2") {
         Result = 50}
-       else if ($tmp3 === "3") {
+       else if ($tmp2 === "3") {
         Result = 51}
-       else if ($tmp3 === "4") {
+       else if ($tmp2 === "4") {
         Result = 52}
-       else if ($tmp3 === "5") {
+       else if ($tmp2 === "5") {
         Result = 53}
-       else if ($tmp3 === "6") {
+       else if ($tmp2 === "6") {
         Result = 54}
-       else if ($tmp3 === "7") {
+       else if ($tmp2 === "7") {
         Result = 55}
-       else if ($tmp3 === "8") {
+       else if ($tmp2 === "8") {
         Result = 56}
-       else if ($tmp3 === "9") {
+       else if ($tmp2 === "9") {
         Result = 57}
-       else if ($tmp3 === "ç") {
+       else if ($tmp2 === "ç") {
         Result = 63}
-       else if ($tmp3 === "a") {
+       else if ($tmp2 === "a") {
         Result = 65}
-       else if ($tmp3 === "b") {
+       else if ($tmp2 === "b") {
         Result = 66}
-       else if ($tmp3 === "c") {
+       else if ($tmp2 === "c") {
         Result = 67}
-       else if ($tmp3 === "d") {
+       else if ($tmp2 === "d") {
         Result = 68}
-       else if ($tmp3 === "e") {
+       else if ($tmp2 === "e") {
         Result = 69}
-       else if ($tmp3 === "f") {
+       else if ($tmp2 === "f") {
         Result = 70}
-       else if ($tmp3 === "g") {
+       else if ($tmp2 === "g") {
         Result = 71}
-       else if ($tmp3 === "h") {
+       else if ($tmp2 === "h") {
         Result = 72}
-       else if ($tmp3 === "i") {
+       else if ($tmp2 === "i") {
         Result = 73}
-       else if ($tmp3 === "j") {
+       else if ($tmp2 === "j") {
         Result = 74}
-       else if ($tmp3 === "k") {
+       else if ($tmp2 === "k") {
         Result = 75}
-       else if ($tmp3 === "l") {
+       else if ($tmp2 === "l") {
         Result = 76}
-       else if ($tmp3 === "m") {
+       else if ($tmp2 === "m") {
         Result = 77}
-       else if ($tmp3 === "n") {
+       else if ($tmp2 === "n") {
         Result = 78}
-       else if ($tmp3 === "o") {
+       else if ($tmp2 === "o") {
         Result = 79}
-       else if ($tmp3 === "p") {
+       else if ($tmp2 === "p") {
         Result = 80}
-       else if ($tmp3 === "q") {
+       else if ($tmp2 === "q") {
         Result = 81}
-       else if ($tmp3 === "r") {
+       else if ($tmp2 === "r") {
         Result = 82}
-       else if ($tmp3 === "s") {
+       else if ($tmp2 === "s") {
         Result = 83}
-       else if ($tmp3 === "t") {
+       else if ($tmp2 === "t") {
         Result = 84}
-       else if ($tmp3 === "u") {
+       else if ($tmp2 === "u") {
         Result = 85}
-       else if ($tmp3 === "v") {
+       else if ($tmp2 === "v") {
         Result = 86}
-       else if ($tmp3 === "w") {
+       else if ($tmp2 === "w") {
         Result = 87}
-       else if ($tmp3 === "x") {
+       else if ($tmp2 === "x") {
         Result = 88}
-       else if ($tmp3 === "y") {
+       else if ($tmp2 === "y") {
         Result = 89}
-       else if ($tmp3 === "z") {
+       else if ($tmp2 === "z") {
         Result = 90}
-       else if ($tmp3 === "=") {
+       else if ($tmp2 === "=") {
         Result = 187}
-       else if ($tmp3 === ",") {
+       else if ($tmp2 === ",") {
         Result = 188}
-       else if ($tmp3 === "-") {
+       else if ($tmp2 === "-") {
         Result = 189}
-       else if ($tmp3 === ".") {
+       else if ($tmp2 === ".") {
         Result = 190}
-       else if ($tmp3 === "'") {
+       else if ($tmp2 === "'") {
         Result = 192}
-       else if ($tmp3 === "\/") {
+       else if ($tmp2 === "\/") {
         Result = 193}
-       else if ($tmp3 === "]") {
+       else if ($tmp2 === "]") {
         Result = 220}
-       else if ($tmp3 === "[") Result = 221;
+       else if ($tmp2 === "[") Result = 221;
     };
     return Result;
   };
@@ -4479,14 +6249,14 @@ rtl.module("Controls",["System","Classes","SysUtils","Types","JS","Web","Graphic
     if (VKey.length === 1) {
       Result = VKey.charAt(0);
     } else {
-      var $tmp1 = VKey;
-      if ($tmp1 === "backspace") {
+      var $tmp = VKey;
+      if ($tmp === "backspace") {
         Result = "\b"}
-       else if ($tmp1 === "tab") {
+       else if ($tmp === "tab") {
         Result = "\t"}
-       else if ($tmp1 === "enter") {
+       else if ($tmp === "enter") {
         Result = "\r"}
-       else if ($tmp1 === "escape") Result = "\x1B";
+       else if ($tmp === "escape") Result = "\x1B";
     };
     return Result;
   };
@@ -4520,10 +6290,10 @@ rtl.module("Controls",["System","Classes","SysUtils","Types","JS","Web","Graphic
   };
   this.ExtractMouseButton = function (AEvent) {
     var Result = 0;
-    var $tmp1 = AEvent.button;
-    if ($tmp1 === 1) {
+    var $tmp = AEvent.button;
+    if ($tmp === 1) {
       Result = $mod.TMouseButton.mbMiddle}
-     else if ($tmp1 === 2) {
+     else if ($tmp === 2) {
       Result = $mod.TMouseButton.mbRight}
      else {
       Result = $mod.TMouseButton.mbMiddle;
@@ -4532,56 +6302,56 @@ rtl.module("Controls",["System","Classes","SysUtils","Types","JS","Web","Graphic
   };
   this.JSCursor = function (ACursor) {
     var Result = "";
-    var $tmp1 = ACursor;
-    if ($tmp1 === -1) {
+    var $tmp = ACursor;
+    if ($tmp === -1) {
       Result = "none"}
-     else if ($tmp1 === -3) {
+     else if ($tmp === -3) {
       Result = "crosshair"}
-     else if ($tmp1 === -4) {
+     else if ($tmp === -4) {
       Result = "text"}
-     else if ($tmp1 === -22) {
+     else if ($tmp === -22) {
       Result = "move"}
-     else if ($tmp1 === -6) {
+     else if ($tmp === -6) {
       Result = "nesw-resize"}
-     else if ($tmp1 === -7) {
+     else if ($tmp === -7) {
       Result = "ns-resize"}
-     else if ($tmp1 === -8) {
+     else if ($tmp === -8) {
       Result = "nwse-resize"}
-     else if ($tmp1 === -9) {
+     else if ($tmp === -9) {
       Result = "ew-resize"}
-     else if ($tmp1 === -23) {
+     else if ($tmp === -23) {
       Result = "nwse-resize"}
-     else if ($tmp1 === -24) {
+     else if ($tmp === -24) {
       Result = "ns-resize"}
-     else if ($tmp1 === -25) {
+     else if ($tmp === -25) {
       Result = "nesw-resize"}
-     else if ($tmp1 === -26) {
+     else if ($tmp === -26) {
       Result = "col-resize"}
-     else if ($tmp1 === -27) {
+     else if ($tmp === -27) {
       Result = "col-resize"}
-     else if ($tmp1 === -28) {
+     else if ($tmp === -28) {
       Result = "nesw-resize"}
-     else if ($tmp1 === -29) {
+     else if ($tmp === -29) {
       Result = "ns-resize"}
-     else if ($tmp1 === -30) {
+     else if ($tmp === -30) {
       Result = "nwse-resize"}
-     else if ($tmp1 === -11) {
+     else if ($tmp === -11) {
       Result = "wait"}
-     else if ($tmp1 === -13) {
+     else if ($tmp === -13) {
       Result = "no-drop"}
-     else if ($tmp1 === -14) {
+     else if ($tmp === -14) {
       Result = "col-resize"}
-     else if ($tmp1 === -15) {
+     else if ($tmp === -15) {
       Result = "row-resize"}
-     else if ($tmp1 === -17) {
+     else if ($tmp === -17) {
       Result = "progress"}
-     else if ($tmp1 === -18) {
+     else if ($tmp === -18) {
       Result = "not-allowed"}
-     else if ($tmp1 === -19) {
+     else if ($tmp === -19) {
       Result = "wait"}
-     else if ($tmp1 === -20) {
+     else if ($tmp === -20) {
       Result = "help"}
-     else if ($tmp1 === -21) {
+     else if ($tmp === -21) {
       Result = "pointer"}
      else {
       Result = "";
@@ -4598,9 +6368,9 @@ rtl.module("StdCtrls",["System","Classes","SysUtils","Types","Web","WebExtra","G
   var $mod = this;
   var $impl = $mod.$impl;
   this.TEditCharCase = {"0": "ecNormal", ecNormal: 0, "1": "ecUppercase", ecUppercase: 1, "2": "ecLowerCase", ecLowerCase: 2};
-  $mod.$rtti.$Enum("TEditCharCase",{minvalue: 0, maxvalue: 2, ordtype: 1, enumtype: this.TEditCharCase});
+  this.$rtti.$Enum("TEditCharCase",{minvalue: 0, maxvalue: 2, ordtype: 1, enumtype: this.TEditCharCase});
   this.TComboBoxStyle = {"0": "csDropDown", csDropDown: 0, "1": "csSimple", csSimple: 1, "2": "csDropDownList", csDropDownList: 2, "3": "csOwnerDrawFixed", csOwnerDrawFixed: 3, "4": "csOwnerDrawVariable", csOwnerDrawVariable: 4};
-  rtl.createClass($mod,"TCustomComboBox",pas.Controls.TWinControl,function () {
+  rtl.createClass(this,"TCustomComboBox",pas.Controls.TWinControl,function () {
     this.$init = function () {
       pas.Controls.TWinControl.$init.call(this);
       this.fStyle = 0;
@@ -4656,12 +6426,12 @@ rtl.module("StdCtrls",["System","Classes","SysUtils","Types","Web","WebExtra","G
       var VValue = "";
       pas.Controls.TControl.Changed.call(this);
       if (!this.IsUpdating() && !(pas.Classes.TComponentStateItem.csLoading in this.FComponentState)) {
-        for (var $l1 = this.FHandleElement.length - 1; $l1 >= 0; $l1--) {
-          VIndex = $l1;
+        for (var $l = this.FHandleElement.length - 1; $l >= 0; $l--) {
+          VIndex = $l;
           this.FHandleElement.remove(VIndex);
         };
-        for (var $l2 = 0, $end3 = this.FItems.GetCount() - 1; $l2 <= $end3; $l2++) {
-          VIndex = $l2;
+        for (var $l1 = 0, $end = this.FItems.GetCount() - 1; $l1 <= $end; $l1++) {
+          VIndex = $l1;
           VValue = this.FItems.Get(VIndex);
           VOptionElement = document.createElement("option");
           VOptionElement.value = VValue;
@@ -4692,13 +6462,13 @@ rtl.module("StdCtrls",["System","Classes","SysUtils","Types","Web","WebExtra","G
     };
     this.RegisterHandleEvents = function () {
       pas.Controls.TWinControl.RegisterHandleEvents.call(this);
-      var $with1 = this.FHandleElement;
-      $with1.addEventListener("change",rtl.createCallback(this,"HandleChange"));
+      var $with = this.FHandleElement;
+      $with.addEventListener("change",rtl.createSafeCallback(this,"HandleChange"));
     };
     this.UnRegisterHandleEvents = function () {
       pas.Controls.TWinControl.UnRegisterHandleEvents.call(this);
-      var $with1 = this.FHandleElement;
-      $with1.removeEventListener("change",rtl.createCallback(this,"HandleChange"));
+      var $with = this.FHandleElement;
+      $with.removeEventListener("change",rtl.createSafeCallback(this,"HandleChange"));
     };
     this.CheckChildClassAllowed = function (AChildClass) {
       var Result = false;
@@ -4734,8 +6504,8 @@ rtl.module("StdCtrls",["System","Classes","SysUtils","Types","Web","WebExtra","G
       this.FSorted = false;
       this.BeginUpdate();
       try {
-        var $with1 = this.$class.GetControlClassDefaultSize();
-        this.SetBounds(0,0,$with1.cx,$with1.cy);
+        var $with = this.$class.GetControlClassDefaultSize();
+        this.SetBounds(0,0,$with.cx,$with.cy);
       } finally {
         this.EndUpdate();
       };
@@ -4747,8 +6517,8 @@ rtl.module("StdCtrls",["System","Classes","SysUtils","Types","Web","WebExtra","G
       pas.Controls.TControl.Destroy.call(this);
     };
   });
-  $mod.$rtti.$MethodVar("TSelectionChangeEvent",{procsig: rtl.newTIProcSig([["Sender",pas.System.$rtti["TObject"]],["User",rtl.boolean]]), methodkind: 0});
-  rtl.createClass($mod,"TCustomListBox",pas.Controls.TWinControl,function () {
+  this.$rtti.$MethodVar("TSelectionChangeEvent",{procsig: rtl.newTIProcSig([["Sender",pas.System.$rtti["TObject"]],["User",rtl.boolean]]), methodkind: 0});
+  rtl.createClass(this,"TCustomListBox",pas.Controls.TWinControl,function () {
     this.$init = function () {
       pas.Controls.TWinControl.$init.call(this);
       this.FItemHeight = 0;
@@ -4798,10 +6568,10 @@ rtl.module("StdCtrls",["System","Classes","SysUtils","Types","Web","WebExtra","G
     };
     this.SetSelected = function (Index, AValue) {
       var i = 0;
-      if (Index > (rtl.length(this.FSelected) - 1)) throw pas.Classes.EListError.$create("CreateFmt",[pas.RTLConsts.SListIndexError,[Index]]);
+      if (Index > (rtl.length(this.FSelected) - 1)) throw pas.Classes.EListError.$create("CreateFmt",[rtl.getResStr(pas.RTLConsts,"SListIndexError"),pas.System.VarRecs(0,Index)]);
       if (AValue && !this.FMultiSelect) {
-        for (var $l1 = 0, $end2 = rtl.length(this.FSelected) - 1; $l1 <= $end2; $l1++) {
-          i = $l1;
+        for (var $l = 0, $end = rtl.length(this.FSelected) - 1; $l <= $end; $l++) {
+          i = $l;
           if (this.FSelected[i]) this.FSelected[i] = false;
         };
       };
@@ -4811,8 +6581,8 @@ rtl.module("StdCtrls",["System","Classes","SysUtils","Types","Web","WebExtra","G
        else {
         this.FItemIndex = -1;
         if (this.FMultiSelect) {
-          for (var $l3 = 0, $end4 = rtl.length(this.FSelected) - 1; $l3 <= $end4; $l3++) {
-            i = $l3;
+          for (var $l1 = 0, $end1 = rtl.length(this.FSelected) - 1; $l1 <= $end1; $l1++) {
+            i = $l1;
             if (this.FSelected[i]) {
               this.FItemIndex = i;
               break;
@@ -4834,11 +6604,11 @@ rtl.module("StdCtrls",["System","Classes","SysUtils","Types","Web","WebExtra","G
       var Result = false;
       var i = 0;
       AEvent.stopPropagation();
-      var $with1 = this.FHandleElement;
-      this.FItemIndex = $with1.selectedIndex;
-      for (var $l2 = 0, $end3 = $with1.length - 1; $l2 <= $end3; $l2++) {
-        i = $l2;
-        this.FSelected[i] = $with1.item(i).selected;
+      var $with = this.FHandleElement;
+      this.FItemIndex = $with.selectedIndex;
+      for (var $l = 0, $end = $with.length - 1; $l <= $end; $l++) {
+        i = $l;
+        this.FSelected[i] = $with.item(i).selected;
       };
       this.SelectionChange(true);
       Result = true;
@@ -4854,16 +6624,16 @@ rtl.module("StdCtrls",["System","Classes","SysUtils","Types","Web","WebExtra","G
           this.SelectionChange(false);
           this.FSelectionChanged = false;
         };
-        var $with1 = this.FHandleElement;
-        $with1.style.setProperty("overflow-y","scroll");
-        $with1.multiple = this.FMultiSelect;
-        $with1.size = 2;
-        for (var $l2 = this.FHandleElement.length - 1; $l2 >= 0; $l2--) {
-          idx = $l2;
-          $with1.remove(idx);
+        var $with = this.FHandleElement;
+        $with.style.setProperty("overflow-y","scroll");
+        $with.multiple = this.FMultiSelect;
+        $with.size = 2;
+        for (var $l = this.FHandleElement.length - 1; $l >= 0; $l--) {
+          idx = $l;
+          $with.remove(idx);
         };
-        for (var $l3 = 0, $end4 = this.FItems.GetCount() - 1; $l3 <= $end4; $l3++) {
-          idx = $l3;
+        for (var $l1 = 0, $end = this.FItems.GetCount() - 1; $l1 <= $end; $l1++) {
+          idx = $l1;
           v = this.FItems.Get(idx);
           opt = document.createElement("option");
           opt.value = v;
@@ -4871,7 +6641,7 @@ rtl.module("StdCtrls",["System","Classes","SysUtils","Types","Web","WebExtra","G
           if (this.FMultiSelect) {
             opt.selected = this.FSelected[idx]}
            else opt.selected = idx === this.FItemIndex;
-          $with1.add(opt);
+          $with.add(opt);
         };
       };
     };
@@ -4882,13 +6652,13 @@ rtl.module("StdCtrls",["System","Classes","SysUtils","Types","Web","WebExtra","G
     };
     this.RegisterHandleEvents = function () {
       pas.Controls.TWinControl.RegisterHandleEvents.call(this);
-      var $with1 = this.FHandleElement;
-      $with1.addEventListener("change",rtl.createCallback(this,"HandleChange"));
+      var $with = this.FHandleElement;
+      $with.addEventListener("change",rtl.createSafeCallback(this,"HandleChange"));
     };
     this.UnRegisterHandleEvents = function () {
       pas.Controls.TWinControl.UnRegisterHandleEvents.call(this);
-      var $with1 = this.FHandleElement;
-      $with1.removeEventListener("change",rtl.createCallback(this,"HandleChange"));
+      var $with = this.FHandleElement;
+      $with.removeEventListener("change",rtl.createSafeCallback(this,"HandleChange"));
     };
     this.CheckChildClassAllowed = function (AChildClass) {
       var Result = false;
@@ -4911,8 +6681,8 @@ rtl.module("StdCtrls",["System","Classes","SysUtils","Types","Web","WebExtra","G
       this.FSorted = false;
       this.BeginUpdate();
       try {
-        var $with1 = this.$class.GetControlClassDefaultSize();
-        this.SetBounds(0,0,$with1.cx,$with1.cy);
+        var $with = this.$class.GetControlClassDefaultSize();
+        this.SetBounds(0,0,$with.cx,$with.cy);
       } finally {
         this.EndUpdate();
       };
@@ -4933,8 +6703,8 @@ rtl.module("StdCtrls",["System","Classes","SysUtils","Types","Web","WebExtra","G
       if (this.FMultiSelect) {
         this.BeginUpdate();
         try {
-          for (var $l1 = 0, $end2 = this.FItems.GetCount() - 1; $l1 <= $end2; $l1++) {
-            i = $l1;
+          for (var $l = 0, $end = this.FItems.GetCount() - 1; $l <= $end; $l++) {
+            i = $l;
             this.SetSelected(i,false);
           };
         } finally {
@@ -4943,7 +6713,7 @@ rtl.module("StdCtrls",["System","Classes","SysUtils","Types","Web","WebExtra","G
       } else this.SetItemIndex(-1);
     };
   });
-  rtl.createClass($mod,"TCustomEdit",pas.Controls.TWinControl,function () {
+  rtl.createClass(this,"TCustomEdit",pas.Controls.TWinControl,function () {
     this.$init = function () {
       pas.Controls.TWinControl.$init.call(this);
       this.FAlignment = 0;
@@ -5041,46 +6811,46 @@ rtl.module("StdCtrls",["System","Classes","SysUtils","Types","Web","WebExtra","G
     this.Changed = function () {
       pas.Controls.TControl.Changed.call(this);
       if (!this.IsUpdating() && !(pas.Classes.TComponentStateItem.csLoading in this.FComponentState)) {
-        var $with1 = this.FHandleElement;
-        var $tmp2 = this.FAlignment;
-        if ($tmp2 === pas.Classes.TAlignment.taRightJustify) {
-          $with1.style.setProperty("text-align","right")}
-         else if ($tmp2 === pas.Classes.TAlignment.taCenter) {
-          $with1.style.setProperty("text-align","center")}
+        var $with = this.FHandleElement;
+        var $tmp = this.FAlignment;
+        if ($tmp === pas.Classes.TAlignment.taRightJustify) {
+          $with.style.setProperty("text-align","right")}
+         else if ($tmp === pas.Classes.TAlignment.taCenter) {
+          $with.style.setProperty("text-align","center")}
          else {
-          $with1.style.removeProperty("text-align");
+          $with.style.removeProperty("text-align");
         };
-        var $tmp3 = this.FCharCase;
-        if ($tmp3 === $mod.TEditCharCase.ecLowerCase) {
-          $with1.style.setProperty("text-transform","lowercase")}
-         else if ($tmp3 === $mod.TEditCharCase.ecUppercase) {
-          $with1.style.setProperty("text-transform","uppercase")}
+        var $tmp1 = this.FCharCase;
+        if ($tmp1 === $mod.TEditCharCase.ecLowerCase) {
+          $with.style.setProperty("text-transform","lowercase")}
+         else if ($tmp1 === $mod.TEditCharCase.ecUppercase) {
+          $with.style.setProperty("text-transform","uppercase")}
          else {
-          $with1.style.removeProperty("text-transform");
+          $with.style.removeProperty("text-transform");
         };
         if (this.FMaxLength > 0) {
-          $with1.maxLength = this.FMaxLength;
+          $with.maxLength = this.FMaxLength;
         } else {
-          $with1.removeAttribute("maxlength");
+          $with.removeAttribute("maxlength");
         };
         if (this.FPattern !== "") {
-          $with1.pattern = this.FPattern;
+          $with.pattern = this.FPattern;
         } else {
-          $with1.removeAttribute("pattern");
+          $with.removeAttribute("pattern");
         };
         if (this.FTextHint !== "") {
-          $with1.placeholder = this.FTextHint;
+          $with.placeholder = this.FTextHint;
         } else {
-          $with1.removeAttribute("placeholder");
+          $with.removeAttribute("placeholder");
         };
-        $with1.readOnly = this.FReadOnly;
-        $with1.required = this.FRequired;
-        var $tmp4 = this.InputType();
-        if (($tmp4 === "text") || ($tmp4 === "search") || ($tmp4 === "URL") || ($tmp4 === "tel") || ($tmp4 === "password")) {
-          $with1.setSelectionRange(this.FSelStart,this.FSelStart + this.FSelLength);
+        $with.readOnly = this.FReadOnly;
+        $with.required = this.FRequired;
+        var $tmp2 = this.InputType();
+        if (($tmp2 === "text") || ($tmp2 === "search") || ($tmp2 === "URL") || ($tmp2 === "tel") || ($tmp2 === "password")) {
+          $with.setSelectionRange(this.FSelStart,this.FSelStart + this.FSelLength);
         };
-        $with1.type = this.InputType();
-        $with1.value = this.RealGetText();
+        $with.type = this.InputType();
+        $with.value = this.RealGetText();
       };
     };
     this.CreateHandleElement = function () {
@@ -5090,13 +6860,13 @@ rtl.module("StdCtrls",["System","Classes","SysUtils","Types","Web","WebExtra","G
     };
     this.RegisterHandleEvents = function () {
       pas.Controls.TWinControl.RegisterHandleEvents.call(this);
-      var $with1 = this.FHandleElement;
-      $with1.addEventListener("input",rtl.createCallback(this,"HandleInput"));
+      var $with = this.FHandleElement;
+      $with.addEventListener("input",rtl.createSafeCallback(this,"HandleInput"));
     };
     this.UnRegisterHandleEvents = function () {
       pas.Controls.TWinControl.UnRegisterHandleEvents.call(this);
-      var $with1 = this.FHandleElement;
-      $with1.removeEventListener("input",rtl.createCallback(this,"HandleInput"));
+      var $with = this.FHandleElement;
+      $with.removeEventListener("input",rtl.createSafeCallback(this,"HandleInput"));
     };
     this.CheckChildClassAllowed = function (AChildClass) {
       var Result = false;
@@ -5135,8 +6905,8 @@ rtl.module("StdCtrls",["System","Classes","SysUtils","Types","Web","WebExtra","G
       this.FText = "";
       this.BeginUpdate();
       try {
-        var $with1 = this.$class.GetControlClassDefaultSize();
-        this.SetBounds(0,0,$with1.cx,$with1.cy);
+        var $with = this.$class.GetControlClassDefaultSize();
+        this.SetBounds(0,0,$with.cx,$with.cy);
       } finally {
         this.EndUpdate();
       };
@@ -5154,7 +6924,7 @@ rtl.module("StdCtrls",["System","Classes","SysUtils","Types","Web","WebExtra","G
       };
     };
   });
-  rtl.createClass($mod,"TCustomMemo",pas.Controls.TWinControl,function () {
+  rtl.createClass(this,"TCustomMemo",pas.Controls.TWinControl,function () {
     this.$init = function () {
       pas.Controls.TWinControl.$init.call(this);
       this.FAlignment = 0;
@@ -5252,42 +7022,42 @@ rtl.module("StdCtrls",["System","Classes","SysUtils","Types","Web","WebExtra","G
     this.Changed = function () {
       pas.Controls.TControl.Changed.call(this);
       if (!this.IsUpdating() && !(pas.Classes.TComponentStateItem.csLoading in this.FComponentState)) {
-        var $with1 = this.FHandleElement;
-        var $tmp2 = this.FAlignment;
-        if ($tmp2 === pas.Classes.TAlignment.taRightJustify) {
-          $with1.style.setProperty("text-align","right")}
-         else if ($tmp2 === pas.Classes.TAlignment.taCenter) {
-          $with1.style.setProperty("text-align","center")}
+        var $with = this.FHandleElement;
+        var $tmp = this.FAlignment;
+        if ($tmp === pas.Classes.TAlignment.taRightJustify) {
+          $with.style.setProperty("text-align","right")}
+         else if ($tmp === pas.Classes.TAlignment.taCenter) {
+          $with.style.setProperty("text-align","center")}
          else {
-          $with1.style.removeProperty("text-align");
+          $with.style.removeProperty("text-align");
         };
-        var $tmp3 = this.FCharCase;
-        if ($tmp3 === $mod.TEditCharCase.ecLowerCase) {
-          $with1.style.setProperty("text-transform","lowercase")}
-         else if ($tmp3 === $mod.TEditCharCase.ecUppercase) {
-          $with1.style.setProperty("text-transform","uppercase")}
+        var $tmp1 = this.FCharCase;
+        if ($tmp1 === $mod.TEditCharCase.ecLowerCase) {
+          $with.style.setProperty("text-transform","lowercase")}
+         else if ($tmp1 === $mod.TEditCharCase.ecUppercase) {
+          $with.style.setProperty("text-transform","uppercase")}
          else {
-          $with1.style.removeProperty("text-transform");
+          $with.style.removeProperty("text-transform");
         };
         if (this.FMaxLength > 0) {
-          $with1.maxLength = this.FMaxLength;
+          $with.maxLength = this.FMaxLength;
         } else {
-          $with1.removeAttribute("maxlength");
+          $with.removeAttribute("maxlength");
         };
         if (this.FTextHint !== "") {
-          $with1.placeholder = this.FTextHint;
+          $with.placeholder = this.FTextHint;
         } else {
-          $with1.removeAttribute("placeholder");
+          $with.removeAttribute("placeholder");
         };
-        $with1.readOnly = this.FReadOnly;
-        $with1.style.setProperty("resize","none");
+        $with.readOnly = this.FReadOnly;
+        $with.style.setProperty("resize","none");
         if (this.FWordWrap) {
-          $with1.removeAttribute("wrap");
+          $with.removeAttribute("wrap");
         } else {
-          $with1.wrap = "off";
+          $with.wrap = "off";
         };
-        $with1.style.setProperty("overflow","auto");
-        $with1.value = this.RealGetText();
+        $with.style.setProperty("overflow","auto");
+        $with.value = this.RealGetText();
       };
     };
     this.CreateHandleElement = function () {
@@ -5297,13 +7067,13 @@ rtl.module("StdCtrls",["System","Classes","SysUtils","Types","Web","WebExtra","G
     };
     this.RegisterHandleEvents = function () {
       pas.Controls.TWinControl.RegisterHandleEvents.call(this);
-      var $with1 = this.FHandleElement;
-      $with1.addEventListener("input",rtl.createCallback(this,"HandleChange"));
+      var $with = this.FHandleElement;
+      $with.addEventListener("input",rtl.createSafeCallback(this,"HandleChange"));
     };
     this.UnRegisterHandleEvents = function () {
       pas.Controls.TWinControl.UnRegisterHandleEvents.call(this);
-      var $with1 = this.FHandleElement;
-      $with1.removeEventListener("input",rtl.createCallback(this,"HandleChange"));
+      var $with = this.FHandleElement;
+      $with.removeEventListener("input",rtl.createSafeCallback(this,"HandleChange"));
     };
     this.CheckChildClassAllowed = function (AChildClass) {
       var Result = false;
@@ -5338,8 +7108,8 @@ rtl.module("StdCtrls",["System","Classes","SysUtils","Types","Web","WebExtra","G
       this.FWordWrap = true;
       this.BeginUpdate();
       try {
-        var $with1 = this.$class.GetControlClassDefaultSize();
-        this.SetBounds(0,0,$with1.cx,$with1.cy);
+        var $with = this.$class.GetControlClassDefaultSize();
+        this.SetBounds(0,0,$with.cx,$with.cy);
       } finally {
         this.EndUpdate();
       };
@@ -5355,7 +7125,7 @@ rtl.module("StdCtrls",["System","Classes","SysUtils","Types","Web","WebExtra","G
       this.Changed();
     };
   });
-  rtl.createClass($mod,"TCustomButton",pas.Controls.TWinControl,function () {
+  rtl.createClass(this,"TCustomButton",pas.Controls.TWinControl,function () {
     this.$init = function () {
       pas.Controls.TWinControl.$init.call(this);
       this.FCancel = false;
@@ -5375,9 +7145,9 @@ rtl.module("StdCtrls",["System","Classes","SysUtils","Types","Web","WebExtra","G
     this.Changed = function () {
       pas.Controls.TControl.Changed.call(this);
       if (!this.IsUpdating() && !(pas.Classes.TComponentStateItem.csLoading in this.FComponentState)) {
-        var $with1 = this.FHandleElement;
-        $with1.style.setProperty("padding","0");
-        $with1.innerHTML = this.GetText();
+        var $with = this.FHandleElement;
+        $with.style.setProperty("padding","0");
+        $with.innerHTML = this.GetText();
       };
     };
     this.CreateHandleElement = function () {
@@ -5401,8 +7171,8 @@ rtl.module("StdCtrls",["System","Classes","SysUtils","Types","Web","WebExtra","G
       this.FModalResult = 0;
       this.BeginUpdate();
       try {
-        var $with1 = this.$class.GetControlClassDefaultSize();
-        this.SetBounds(0,0,$with1.cx,$with1.cy);
+        var $with = this.$class.GetControlClassDefaultSize();
+        this.SetBounds(0,0,$with.cx,$with.cy);
       } finally {
         this.EndUpdate();
       };
@@ -5430,9 +7200,9 @@ rtl.module("StdCtrls",["System","Classes","SysUtils","Types","Web","WebExtra","G
     };
   });
   this.TCheckBoxState = {"0": "cbUnchecked", cbUnchecked: 0, "1": "cbChecked", cbChecked: 1, "2": "cbGrayed", cbGrayed: 2};
-  $mod.$rtti.$Enum("TCheckBoxState",{minvalue: 0, maxvalue: 2, ordtype: 1, enumtype: this.TCheckBoxState});
-  $mod.$rtti.$Enum("TLeftRight",{minvalue: 0, maxvalue: 1, ordtype: 1, enumtype: this.TAlignment});
-  rtl.createClass($mod,"TCustomCheckbox",pas.Controls.TWinControl,function () {
+  this.$rtti.$Enum("TCheckBoxState",{minvalue: 0, maxvalue: 2, ordtype: 1, enumtype: this.TCheckBoxState});
+  this.$rtti.$Enum("TLeftRight",{minvalue: 0, maxvalue: 1, ordtype: 1, enumtype: this.TAlignment});
+  rtl.createClass(this,"TCustomCheckbox",pas.Controls.TWinControl,function () {
     this.$init = function () {
       pas.Controls.TWinControl.$init.call(this);
       this.FAlignment = pas.Classes.TAlignment.taLeftJustify;
@@ -5490,19 +7260,19 @@ rtl.module("StdCtrls",["System","Classes","SysUtils","Types","Web","WebExtra","G
     this.Changed = function () {
       pas.Controls.TControl.Changed.call(this);
       if (!this.IsUpdating() && !(pas.Classes.TComponentStateItem.csLoading in this.FComponentState)) {
-        var $with1 = this.FHandleElement;
-        $with1.style.setProperty("user-select","none");
-        $with1.style.setProperty("-moz-user-select","none");
-        $with1.style.setProperty("-ms-user-select","none");
-        $with1.style.setProperty("-khtml-user-select","none");
-        $with1.style.setProperty("-webkit-user-select","none");
-        $with1.style.setProperty("display","flex");
-        $with1.style.setProperty("align-items","center");
-        var $with2 = this.FMarkElement;
-        $with2.checked = this.FState === $mod.TCheckBoxState.cbChecked;
-        $with2.type = "checkbox";
-        var $with3 = this.FLabelElement;
-        $with3.innerHTML = this.GetText();
+        var $with = this.FHandleElement;
+        $with.style.setProperty("user-select","none");
+        $with.style.setProperty("-moz-user-select","none");
+        $with.style.setProperty("-ms-user-select","none");
+        $with.style.setProperty("-khtml-user-select","none");
+        $with.style.setProperty("-webkit-user-select","none");
+        $with.style.setProperty("display","flex");
+        $with.style.setProperty("align-items","center");
+        var $with1 = this.FMarkElement;
+        $with1.checked = this.FState === $mod.TCheckBoxState.cbChecked;
+        $with1.type = "checkbox";
+        var $with2 = this.FLabelElement;
+        $with2.innerHTML = this.GetText();
       };
     };
     this.CreateHandleElement = function () {
@@ -5538,15 +7308,15 @@ rtl.module("StdCtrls",["System","Classes","SysUtils","Types","Web","WebExtra","G
       this.FAlignment = pas.Classes.TAlignment.taRightJustify;
       this.FState = $mod.TCheckBoxState.cbUnchecked;
       try {
-        var $with1 = this.$class.GetControlClassDefaultSize();
-        this.SetBounds(0,0,$with1.cx,$with1.cy);
+        var $with = this.$class.GetControlClassDefaultSize();
+        this.SetBounds(0,0,$with.cx,$with.cy);
       } finally {
         this.EndUpdate();
       };
       return this;
     };
   });
-  rtl.createClass($mod,"TCustomLabel",pas.Controls.TWinControl,function () {
+  rtl.createClass(this,"TCustomLabel",pas.Controls.TWinControl,function () {
     this.$init = function () {
       pas.Controls.TWinControl.$init.call(this);
       this.FAlignment = 0;
@@ -5603,42 +7373,42 @@ rtl.module("StdCtrls",["System","Classes","SysUtils","Types","Web","WebExtra","G
     this.Changed = function () {
       pas.Controls.TControl.Changed.call(this);
       if (!this.IsUpdating() && !(pas.Classes.TComponentStateItem.csLoading in this.FComponentState)) {
-        var $with1 = this.FHandleElement;
+        var $with = this.FHandleElement;
         if (this.FTransparent) {
-          $with1.style.setProperty("background-color","transparent");
+          $with.style.setProperty("background-color","transparent");
         };
-        $with1.style.setProperty("outline","none");
-        $with1.style.setProperty("user-select","none");
-        $with1.style.setProperty("-moz-user-select","none");
-        $with1.style.setProperty("-ms-user-select","none");
-        $with1.style.setProperty("-khtml-user-select","none");
-        $with1.style.setProperty("-webkit-user-select","none");
+        $with.style.setProperty("outline","none");
+        $with.style.setProperty("user-select","none");
+        $with.style.setProperty("-moz-user-select","none");
+        $with.style.setProperty("-ms-user-select","none");
+        $with.style.setProperty("-khtml-user-select","none");
+        $with.style.setProperty("-webkit-user-select","none");
         if (this.FAutoSize) {
-          $with1.style.removeProperty("height");
-          $with1.style.removeProperty("width");
+          $with.style.removeProperty("height");
+          $with.style.removeProperty("width");
         };
-        var $with2 = this.FContentElement;
-        $with2.innerHTML = "";
-        var $tmp3 = this.FAlignment;
-        if ($tmp3 === pas.Classes.TAlignment.taCenter) {
-          $with2.style.setProperty("text-align","center")}
-         else if ($tmp3 === pas.Classes.TAlignment.taLeftJustify) {
-          $with2.style.setProperty("text-align","left")}
-         else if ($tmp3 === pas.Classes.TAlignment.taRightJustify) $with2.style.setProperty("text-align","right");
-        var $tmp4 = this.FLayout;
-        if ($tmp4 === pas.Graphics.TTextLayout.tlBottom) {
-          $with2.style.setProperty("vertical-align","bottom")}
-         else if ($tmp4 === pas.Graphics.TTextLayout.tlCenter) {
-          $with2.style.setProperty("vertical-align","middle")}
-         else if ($tmp4 === pas.Graphics.TTextLayout.tlTop) $with2.style.setProperty("vertical-align","top");
+        var $with1 = this.FContentElement;
+        $with1.innerHTML = "";
+        var $tmp = this.FAlignment;
+        if ($tmp === pas.Classes.TAlignment.taCenter) {
+          $with1.style.setProperty("text-align","center")}
+         else if ($tmp === pas.Classes.TAlignment.taLeftJustify) {
+          $with1.style.setProperty("text-align","left")}
+         else if ($tmp === pas.Classes.TAlignment.taRightJustify) $with1.style.setProperty("text-align","right");
+        var $tmp1 = this.FLayout;
+        if ($tmp1 === pas.Graphics.TTextLayout.tlBottom) {
+          $with1.style.setProperty("vertical-align","bottom")}
+         else if ($tmp1 === pas.Graphics.TTextLayout.tlCenter) {
+          $with1.style.setProperty("vertical-align","middle")}
+         else if ($tmp1 === pas.Graphics.TTextLayout.tlTop) $with1.style.setProperty("vertical-align","top");
         if (this.FWordWrap) {
-          $with2.style.setProperty("word-wrap","break-word");
+          $with1.style.setProperty("word-wrap","break-word");
         } else {
-          $with2.style.removeProperty("word-wrap");
+          $with1.style.removeProperty("word-wrap");
         };
-        $with2.style.setProperty("overflow","hidden");
-        $with2.style.setProperty("text-overflow","ellipsis");
-        $with2.innerHTML = this.GetText();
+        $with1.style.setProperty("overflow","hidden");
+        $with1.style.setProperty("text-overflow","ellipsis");
+        $with1.innerHTML = this.GetText();
       };
     };
     this.CreateHandleElement = function () {
@@ -5674,8 +7444,8 @@ rtl.module("StdCtrls",["System","Classes","SysUtils","Types","Web","WebExtra","G
       try {
         this.SetTabStop(false);
         this.SetAutoSize(true);
-        var $with1 = this.$class.GetControlClassDefaultSize();
-        this.SetBounds(0,0,$with1.cx,$with1.cy);
+        var $with = this.$class.GetControlClassDefaultSize();
+        this.SetBounds(0,0,$with.cx,$with.cy);
       } finally {
         this.EndUpdate();
       };
@@ -5686,17 +7456,15 @@ rtl.module("StdCtrls",["System","Classes","SysUtils","Types","Web","WebExtra","G
       this.Changed();
     };
   });
-},["RTLConsts"],function () {
-  "use strict";
-  var $mod = this;
-  var $impl = $mod.$impl;
-  rtl.createClass($impl,"TCustomMemoStrings",pas.Classes.TStringList,function () {
-  });
-});
+  $mod.$implcode = function () {
+    rtl.createClass($impl,"TCustomMemoStrings",pas.Classes.TStringList,function () {
+    });
+  };
+},["RTLConsts"]);
 rtl.module("ExtCtrls",["System","Classes","SysUtils","Types","Web","Graphics","Controls"],function () {
   "use strict";
   var $mod = this;
-  rtl.createClass($mod,"TCustomImage",pas.Controls.TCustomControl,function () {
+  rtl.createClass(this,"TCustomImage",pas.Controls.TCustomControl,function () {
     this.$init = function () {
       pas.Controls.TCustomControl.$init.call(this);
       this.FCenter = false;
@@ -5756,27 +7524,27 @@ rtl.module("ExtCtrls",["System","Classes","SysUtils","Types","Web","Graphics","C
     this.Changed = function () {
       pas.Controls.TControl.Changed.call(this);
       if (!this.IsUpdating() && !(pas.Classes.TComponentStateItem.csLoading in this.FComponentState)) {
-        var $with1 = this.FHandleElement;
-        $with1.style.setProperty("outline","none");
-        $with1.style.setProperty("background-image",pas.SysUtils.Format("url('%s')",[this.FURL]));
-        $with1.style.setProperty("background-repeat","no-repeat");
+        var $with = this.FHandleElement;
+        $with.style.setProperty("outline","none");
+        $with.style.setProperty("background-image",pas.SysUtils.Format("url('%s')",pas.System.VarRecs(18,this.FURL)));
+        $with.style.setProperty("background-repeat","no-repeat");
         if (this.FCenter) {
-          $with1.style.setProperty("background-position","center  center");
+          $with.style.setProperty("background-position","center  center");
         } else {
-          $with1.style.removeProperty("background-position");
+          $with.style.removeProperty("background-position");
         };
         if (this.FProportional) {
-          $with1.style.setProperty("background-size","contain");
+          $with.style.setProperty("background-size","contain");
         } else if (this.FStretch) {
           if (this.FStretchInEnabled && this.FStretchOutEnabled) {
-            $with1.style.setProperty("background-size","100% 100%");
+            $with.style.setProperty("background-size","100% 100%");
           } else if (this.FStretchInEnabled) {
-            $with1.style.setProperty("background-size","auto 100%");
+            $with.style.setProperty("background-size","auto 100%");
           } else if (this.FStretchOutEnabled) {
-            $with1.style.setProperty("background-size","100% auto");
+            $with.style.setProperty("background-size","100% auto");
           };
         } else {
-          $with1.style.setProperty("background-size","auto");
+          $with.style.setProperty("background-size","auto");
         };
       };
     };
@@ -5814,16 +7582,16 @@ rtl.module("ExtCtrls",["System","Classes","SysUtils","Types","Web","Graphics","C
       this.FTransparent = false;
       this.BeginUpdate();
       try {
-        var $with1 = this.$class.GetControlClassDefaultSize();
-        this.SetBounds(0,0,$with1.cx,$with1.cy);
+        var $with = this.$class.GetControlClassDefaultSize();
+        this.SetBounds(0,0,$with.cx,$with.cy);
       } finally {
         this.EndUpdate();
       };
       return this;
     };
   });
-  $mod.$rtti.$Int("TBevelWidth",{minvalue: 1, maxvalue: 2147483647, ordtype: 5});
-  rtl.createClass($mod,"TCustomPanel",pas.Controls.TCustomControl,function () {
+  this.$rtti.$Int("TBevelWidth",{minvalue: 1, maxvalue: 2147483647, ordtype: 5});
+  rtl.createClass(this,"TCustomPanel",pas.Controls.TCustomControl,function () {
     this.$init = function () {
       pas.Controls.TCustomControl.$init.call(this);
       this.FContentElement = null;
@@ -5880,24 +7648,24 @@ rtl.module("ExtCtrls",["System","Classes","SysUtils","Types","Web","Graphics","C
       var VBottomColor = 0;
       pas.Controls.TControl.Changed.call(this);
       if (!this.IsUpdating() && !(pas.Classes.TComponentStateItem.csLoading in this.FComponentState)) {
-        var $with1 = this.FHandleElement;
+        var $with = this.FHandleElement;
         if (this.FBevelOuter === pas.Controls.TBevelCut.bvNone) {
-          $with1.style.removeProperty("border-width");
-          $with1.style.removeProperty("border-left-color");
-          $with1.style.removeProperty("border-left-style");
-          $with1.style.removeProperty("border-top-color");
-          $with1.style.removeProperty("border-top-style");
-          $with1.style.removeProperty("border-right-color");
-          $with1.style.removeProperty("border-right-style");
-          $with1.style.removeProperty("border-bottom-color");
-          $with1.style.removeProperty("border-bottom-style");
+          $with.style.removeProperty("border-width");
+          $with.style.removeProperty("border-left-color");
+          $with.style.removeProperty("border-left-style");
+          $with.style.removeProperty("border-top-color");
+          $with.style.removeProperty("border-top-style");
+          $with.style.removeProperty("border-right-color");
+          $with.style.removeProperty("border-right-style");
+          $with.style.removeProperty("border-bottom-color");
+          $with.style.removeProperty("border-bottom-style");
         } else {
           if (this.FBevelColor === 536870912) {
-            var $tmp2 = this.FBevelOuter;
-            if ($tmp2 === pas.Controls.TBevelCut.bvLowered) {
+            var $tmp = this.FBevelOuter;
+            if ($tmp === pas.Controls.TBevelCut.bvLowered) {
               VTopColor = 8421504;
               VBottomColor = 16777215;
-            } else if ($tmp2 === pas.Controls.TBevelCut.bvRaised) {
+            } else if ($tmp === pas.Controls.TBevelCut.bvRaised) {
               VTopColor = 16777215;
               VBottomColor = 8421504;
             } else {
@@ -5908,42 +7676,42 @@ rtl.module("ExtCtrls",["System","Classes","SysUtils","Types","Web","Graphics","C
             VTopColor = this.FBevelColor;
             VBottomColor = this.FBevelColor;
           };
-          $with1.style.setProperty("border-width",pas.SysUtils.IntToStr(this.FBevelWidth) + "px");
-          $with1.style.setProperty("border-style","solid");
-          $with1.style.setProperty("border-left-color",pas.Graphics.JSColor(VTopColor));
-          $with1.style.setProperty("border-top-color",pas.Graphics.JSColor(VTopColor));
-          $with1.style.setProperty("border-right-color",pas.Graphics.JSColor(VBottomColor));
-          $with1.style.setProperty("border-bottom-color",pas.Graphics.JSColor(VBottomColor));
+          $with.style.setProperty("border-width",pas.SysUtils.IntToStr(this.FBevelWidth) + "px");
+          $with.style.setProperty("border-style","solid");
+          $with.style.setProperty("border-left-color",pas.Graphics.JSColor(VTopColor));
+          $with.style.setProperty("border-top-color",pas.Graphics.JSColor(VTopColor));
+          $with.style.setProperty("border-right-color",pas.Graphics.JSColor(VBottomColor));
+          $with.style.setProperty("border-bottom-color",pas.Graphics.JSColor(VBottomColor));
         };
-        $with1.style.setProperty("outline","none");
-        $with1.style.setProperty("user-select","none");
-        $with1.style.setProperty("-moz-user-select","none");
-        $with1.style.setProperty("-ms-user-select","none");
-        $with1.style.setProperty("-khtml-user-select","none");
-        $with1.style.setProperty("-webkit-user-select","none");
+        $with.style.setProperty("outline","none");
+        $with.style.setProperty("user-select","none");
+        $with.style.setProperty("-moz-user-select","none");
+        $with.style.setProperty("-ms-user-select","none");
+        $with.style.setProperty("-khtml-user-select","none");
+        $with.style.setProperty("-webkit-user-select","none");
         if (this.GetText() > "") {
-          var $with3 = this.FContentElement;
-          $with3.innerHTML = "";
-          var $tmp4 = this.FAlignment;
-          if ($tmp4 === pas.Classes.TAlignment.taCenter) {
-            $with3.style.setProperty("text-align","center")}
-           else if ($tmp4 === pas.Classes.TAlignment.taLeftJustify) {
-            $with3.style.setProperty("text-align","left")}
-           else if ($tmp4 === pas.Classes.TAlignment.taRightJustify) $with3.style.setProperty("text-align","right");
-          var $tmp5 = this.FLayout;
-          if ($tmp5 === pas.Graphics.TTextLayout.tlBottom) {
-            $with3.style.setProperty("vertical-align","bottom")}
-           else if ($tmp5 === pas.Graphics.TTextLayout.tlCenter) {
-            $with3.style.setProperty("vertical-align","middle")}
-           else if ($tmp5 === pas.Graphics.TTextLayout.tlTop) $with3.style.setProperty("vertical-align","top");
+          var $with1 = this.FContentElement;
+          $with1.innerHTML = "";
+          var $tmp1 = this.FAlignment;
+          if ($tmp1 === pas.Classes.TAlignment.taCenter) {
+            $with1.style.setProperty("text-align","center")}
+           else if ($tmp1 === pas.Classes.TAlignment.taLeftJustify) {
+            $with1.style.setProperty("text-align","left")}
+           else if ($tmp1 === pas.Classes.TAlignment.taRightJustify) $with1.style.setProperty("text-align","right");
+          var $tmp2 = this.FLayout;
+          if ($tmp2 === pas.Graphics.TTextLayout.tlBottom) {
+            $with1.style.setProperty("vertical-align","bottom")}
+           else if ($tmp2 === pas.Graphics.TTextLayout.tlCenter) {
+            $with1.style.setProperty("vertical-align","middle")}
+           else if ($tmp2 === pas.Graphics.TTextLayout.tlTop) $with1.style.setProperty("vertical-align","top");
           if (this.FWordWrap) {
-            $with3.style.setProperty("word-wrap","break-word");
+            $with1.style.setProperty("word-wrap","break-word");
           } else {
-            $with3.style.removeProperty("word-wrap");
+            $with1.style.removeProperty("word-wrap");
           };
-          $with3.style.setProperty("overflow","hidden");
-          $with3.style.setProperty("text-overflow","ellipsis");
-          $with3.innerHTML = this.GetText();
+          $with1.style.setProperty("overflow","hidden");
+          $with1.style.setProperty("text-overflow","ellipsis");
+          $with1.innerHTML = this.GetText();
         };
       };
     };
@@ -5971,15 +7739,15 @@ rtl.module("ExtCtrls",["System","Classes","SysUtils","Types","Web","Graphics","C
       this.BeginUpdate();
       try {
         this.SetTabStop(false);
-        var $with1 = this.$class.GetControlClassDefaultSize();
-        this.SetBounds(0,0,$with1.cx,$with1.cy);
+        var $with = this.$class.GetControlClassDefaultSize();
+        this.SetBounds(0,0,$with.cx,$with.cy);
       } finally {
         this.EndUpdate();
       };
       return this;
     };
   });
-  rtl.createClass($mod,"TCustomTimer",pas.Classes.TComponent,function () {
+  rtl.createClass(this,"TCustomTimer",pas.Classes.TComponent,function () {
     this.$init = function () {
       pas.Classes.TComponent.$init.call(this);
       this.FEnabled = false;
@@ -6035,11 +7803,11 @@ rtl.module("ExtCtrls",["System","Classes","SysUtils","Types","Web","Graphics","C
       pas.Classes.TComponent.Destroy.call(this);
     };
   });
-},[]);
+},["LCLStrConsts"]);
 rtl.module("WebCtrls",["System","Classes","SysUtils","Types","Graphics","Controls","Forms","StdCtrls","ExtCtrls"],function () {
   "use strict";
   var $mod = this;
-  rtl.createClass($mod,"TComboBox",pas.StdCtrls.TCustomComboBox,function () {
+  rtl.createClass(this,"TComboBox",pas.StdCtrls.TCustomComboBox,function () {
     this.$init = function () {
       pas.StdCtrls.TCustomComboBox.$init.call(this);
       this.DroppedDown = false;
@@ -6082,7 +7850,7 @@ rtl.module("WebCtrls",["System","Classes","SysUtils","Types","Graphics","Control
     $r.addProperty("OnMouseUp",0,pas.Controls.$rtti["TMouseEvent"],"FOnMouseUp","FOnMouseUp");
     $r.addProperty("OnMouseWheel",0,pas.Controls.$rtti["TMouseWheelEvent"],"FOnMouseWheel","FOnMouseWheel");
   });
-  rtl.createClass($mod,"TListBox",pas.StdCtrls.TCustomListBox,function () {
+  rtl.createClass(this,"TListBox",pas.StdCtrls.TCustomListBox,function () {
     var $r = this.$rtti;
     $r.addProperty("Align",2,pas.Controls.$rtti["TAlign"],"FAlign","SetAlign");
     $r.addProperty("Anchors",2,pas.Controls.$rtti["TAnchors"],"FAnchors","SetAnchors");
@@ -6120,7 +7888,7 @@ rtl.module("WebCtrls",["System","Classes","SysUtils","Types","Graphics","Control
     $r.addProperty("OnMouseWheel",0,pas.Controls.$rtti["TMouseWheelEvent"],"FOnMouseWheel","FOnMouseWheel");
     $r.addProperty("OnSelectionChange",0,pas.StdCtrls.$rtti["TSelectionChangeEvent"],"FOnSelectionChange","FOnSelectionChange");
   });
-  rtl.createClass($mod,"TEdit",pas.StdCtrls.TCustomEdit,function () {
+  rtl.createClass(this,"TEdit",pas.StdCtrls.TCustomEdit,function () {
     var $r = this.$rtti;
     $r.addProperty("Align",2,pas.Controls.$rtti["TAlign"],"FAlign","SetAlign");
     $r.addProperty("Anchors",2,pas.Controls.$rtti["TAnchors"],"FAnchors","SetAnchors");
@@ -6162,7 +7930,7 @@ rtl.module("WebCtrls",["System","Classes","SysUtils","Types","Graphics","Control
     $r.addProperty("OnMouseWheel",0,pas.Controls.$rtti["TMouseWheelEvent"],"FOnMouseWheel","FOnMouseWheel");
     $r.addProperty("OnResize",0,pas.Classes.$rtti["TNotifyEvent"],"FOnResize","FOnResize");
   });
-  rtl.createClass($mod,"TMemo",pas.StdCtrls.TCustomMemo,function () {
+  rtl.createClass(this,"TMemo",pas.StdCtrls.TCustomMemo,function () {
     var $r = this.$rtti;
     $r.addProperty("Align",2,pas.Controls.$rtti["TAlign"],"FAlign","SetAlign");
     $r.addProperty("Anchors",2,pas.Controls.$rtti["TAnchors"],"FAnchors","SetAnchors");
@@ -6205,7 +7973,7 @@ rtl.module("WebCtrls",["System","Classes","SysUtils","Types","Graphics","Control
     $r.addProperty("OnMouseWheel",0,pas.Controls.$rtti["TMouseWheelEvent"],"FOnMouseWheel","FOnMouseWheel");
     $r.addProperty("OnResize",0,pas.Classes.$rtti["TNotifyEvent"],"FOnResize","FOnResize");
   });
-  rtl.createClass($mod,"TButton",pas.StdCtrls.TCustomButton,function () {
+  rtl.createClass(this,"TButton",pas.StdCtrls.TCustomButton,function () {
     var $r = this.$rtti;
     $r.addProperty("Align",2,pas.Controls.$rtti["TAlign"],"FAlign","SetAlign");
     $r.addProperty("Anchors",2,pas.Controls.$rtti["TAnchors"],"FAnchors","SetAnchors");
@@ -6239,7 +8007,7 @@ rtl.module("WebCtrls",["System","Classes","SysUtils","Types","Graphics","Control
     $r.addProperty("OnMouseWheel",0,pas.Controls.$rtti["TMouseWheelEvent"],"FOnMouseWheel","FOnMouseWheel");
     $r.addProperty("OnResize",0,pas.Classes.$rtti["TNotifyEvent"],"FOnResize","FOnResize");
   });
-  rtl.createClass($mod,"TCheckbox",pas.StdCtrls.TCustomCheckbox,function () {
+  rtl.createClass(this,"TCheckbox",pas.StdCtrls.TCustomCheckbox,function () {
     var $r = this.$rtti;
     $r.addProperty("Align",2,pas.Controls.$rtti["TAlign"],"FAlign","SetAlign");
     $r.addProperty("Alignment",2,pas.StdCtrls.$rtti["TLeftRight"],"FAlignment","SetAlignment",{Default: pas.Classes.TAlignment.taRightJustify});
@@ -6276,7 +8044,7 @@ rtl.module("WebCtrls",["System","Classes","SysUtils","Types","Graphics","Control
     $r.addProperty("OnMouseWheel",0,pas.Controls.$rtti["TMouseWheelEvent"],"FOnMouseWheel","FOnMouseWheel");
     $r.addProperty("OnResize",0,pas.Classes.$rtti["TNotifyEvent"],"FOnResize","FOnResize");
   });
-  rtl.createClass($mod,"TLabel",pas.StdCtrls.TCustomLabel,function () {
+  rtl.createClass(this,"TLabel",pas.StdCtrls.TCustomLabel,function () {
     var $r = this.$rtti;
     $r.addProperty("Align",2,pas.Controls.$rtti["TAlign"],"FAlign","SetAlign");
     $r.addProperty("Alignment",2,pas.Classes.$rtti["TAlignment"],"FAlignment","SetAlignment");
@@ -6308,7 +8076,7 @@ rtl.module("WebCtrls",["System","Classes","SysUtils","Types","Graphics","Control
     $r.addProperty("OnMouseWheel",0,pas.Controls.$rtti["TMouseWheelEvent"],"FOnMouseWheel","FOnMouseWheel");
     $r.addProperty("OnResize",0,pas.Classes.$rtti["TNotifyEvent"],"FOnResize","FOnResize");
   });
-  rtl.createClass($mod,"TImage",pas.ExtCtrls.TCustomImage,function () {
+  rtl.createClass(this,"TImage",pas.ExtCtrls.TCustomImage,function () {
     var $r = this.$rtti;
     $r.addProperty("Align",2,pas.Controls.$rtti["TAlign"],"FAlign","SetAlign");
     $r.addProperty("Anchors",2,pas.Controls.$rtti["TAnchors"],"FAnchors","SetAnchors");
@@ -6339,7 +8107,7 @@ rtl.module("WebCtrls",["System","Classes","SysUtils","Types","Graphics","Control
     $r.addProperty("OnPictureChanged",0,pas.Classes.$rtti["TNotifyEvent"],"FOnPictureChanged","FOnPictureChanged");
     $r.addProperty("OnResize",0,pas.Classes.$rtti["TNotifyEvent"],"FOnResize","FOnResize");
   });
-  rtl.createClass($mod,"TPanel",pas.ExtCtrls.TCustomPanel,function () {
+  rtl.createClass(this,"TPanel",pas.ExtCtrls.TCustomPanel,function () {
     var $r = this.$rtti;
     $r.addProperty("Align",2,pas.Controls.$rtti["TAlign"],"FAlign","SetAlign");
     $r.addProperty("Alignment",2,pas.Classes.$rtti["TAlignment"],"FAlignment","SetAlignment",{Default: pas.Classes.TAlignment.taCenter});
@@ -6379,7 +8147,7 @@ rtl.module("WebCtrls",["System","Classes","SysUtils","Types","Graphics","Control
     $r.addProperty("OnPaint",0,pas.Classes.$rtti["TNotifyEvent"],"FOnPaint","FOnPaint");
     $r.addProperty("OnResize",0,pas.Classes.$rtti["TNotifyEvent"],"FOnResize","FOnResize");
   });
-  rtl.createClass($mod,"TTimer",pas.ExtCtrls.TCustomTimer,function () {
+  rtl.createClass(this,"TTimer",pas.ExtCtrls.TCustomTimer,function () {
     var $r = this.$rtti;
     $r.addProperty("Enabled",2,rtl.boolean,"FEnabled","SetEnabled",{Default: true});
     $r.addProperty("Interval",2,rtl.longword,"FInterval","SetInterval",{Default: 1000});
@@ -6393,10 +8161,10 @@ rtl.module("Dialogs",["System","Classes","SysUtils","Types","Graphics","Controls
   var $mod = this;
   var $impl = $mod.$impl;
   this.TMsgDlgType = {"0": "mtWarning", mtWarning: 0, "1": "mtError", mtError: 1, "2": "mtInformation", mtInformation: 2, "3": "mtConfirmation", mtConfirmation: 3, "4": "mtCustom", mtCustom: 4};
-  $mod.$rtti.$Enum("TMsgDlgType",{minvalue: 0, maxvalue: 4, ordtype: 1, enumtype: this.TMsgDlgType});
+  this.$rtti.$Enum("TMsgDlgType",{minvalue: 0, maxvalue: 4, ordtype: 1, enumtype: this.TMsgDlgType});
   this.TMsgDlgBtn = {"0": "mbYes", mbYes: 0, "1": "mbNo", mbNo: 1, "2": "mbOK", mbOK: 2, "3": "mbCancel", mbCancel: 3, "4": "mbAbort", mbAbort: 4, "5": "mbRetry", mbRetry: 5, "6": "mbIgnore", mbIgnore: 6, "7": "mbAll", mbAll: 7, "8": "mbNoToAll", mbNoToAll: 8, "9": "mbYesToAll", mbYesToAll: 9, "10": "mbHelp", mbHelp: 10, "11": "mbClose", mbClose: 11};
-  $mod.$rtti.$Enum("TMsgDlgBtn",{minvalue: 0, maxvalue: 11, ordtype: 1, enumtype: this.TMsgDlgBtn});
-  $mod.$rtti.$Set("TMsgDlgButtons",{comptype: $mod.$rtti["TMsgDlgBtn"]});
+  this.$rtti.$Enum("TMsgDlgBtn",{minvalue: 0, maxvalue: 11, ordtype: 1, enumtype: this.TMsgDlgBtn});
+  this.$rtti.$Set("TMsgDlgButtons",{comptype: this.$rtti["TMsgDlgBtn"]});
   this.MessageDlg = function (AOwner, ACaption, AMessage, ADlgType, AButtons, ADefaultButton, AModalResultProc) {
     var VMessageDialog = null;
     if (!(AOwner != null)) AOwner = pas.Forms.Application().FActiveForm;
@@ -6415,202 +8183,200 @@ rtl.module("Dialogs",["System","Classes","SysUtils","Types","Graphics","Controls
   this.ShowMessage$1 = function (AMessage) {
     $mod.MessageDlg$2(pas.Forms.Application().FActiveForm,"",AMessage,$mod.TMsgDlgType.mtInformation,rtl.createSet($mod.TMsgDlgBtn.mbOK),null);
   };
-},null,function () {
-  "use strict";
-  var $mod = this;
-  var $impl = $mod.$impl;
-  $impl.DialogCaption = ["Warning","Error","Information","Confirmation",""];
-  $impl.ButtonCaption = ["Yes","No","Ok","Cancel","Abort","Retry","Ignore","All","No to All","Yes to All","Help","Close"];
-  $impl.DialogIcon = ['url("data:image\/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAJCElEQVR42u2aA3gk2dfGaxFzES\/Hth3bNoc7GRvB2LY9X8YzsW11x7ZtVON8t7PeSofdM0n\/5z7PL6jqe85939JzTjX2eXz08Xl8Hu9ssR9DnKT2Rp8a5x57atyH4P2SO97bYdL\/E+LfO3DPSL2zJLaj4AbQmwIRAdCedwVINxeGv7LBxnO0+Lc2mGjCxel+lJq3ADU3AYq3AJRsQ3\/fAbzSDWJOjn\/9whDj41gDAnd9a9tMPoRD3UOAovX\/YANAvRvUxu5o894mpMWR4p+twb5PubUoht7gCVC8HaBw3b8p3Qu0uveQeHFqgJc5JsxxBgTtFdvUknqMSq+6DvSCtb1Tcw8akvZ1+e0SteQo8e5WmEzq\/aVkWv07oBdtQmLX9E7xNnQWvAXSzXmRL2wxMY4xIHifxP62rFN0esV5oOev6Zuqq9BCdqYE7xHbyBHiX1hg47KeymfR616io7wBiVzdN4WOwPhs+t2lSa8dsB9GtXjAsC\/CXKRPtuecAXrZMaDnOQyM8jPQmnaYHnJQ0mlUG\/DKGpua90ojn17z5PfTO89+YOSvA3rtM8h+Ip\/x2g4bMyrFu7hgX0Yd+fF6Zz667oudgZ5rPzhKDkN75jEId5U5wziTRp0BH1ZzzS\/6oFdGr777hyi7wcG4FKofQP5rjeI39ti00XXXd8G+jj7205OugnNAL9wD9BzboVF0ALryzkDkkR9uvjDEvho1Bniu5V1R5m1aS6+4+ocYmyGC5lZehyJ33Yq39lwLRoV4L0eMJ\/rUmDfdheeBlr8VaNk2BBpCDOGJ8s\/gKsDVw2OFn6DaR5exj0jBTugqOAtRx39+lrAG4xr5R38Dj0pVoGUjvewsEmBNoCHEAA6L8MA+DPsXaFvPPuIcdCaUnYcyH6N6j028siNa\/CNLTAA1OHzxQiQ+9zegZVkReKL86x+iiTxV+ZU4h0GeI+AFZyD65Bj3F1tHcLnstUXQoCbEpo1WfAQt3LJXXAW4mRrgKsjDdB695BhUB1m0+mwV0h6xzY6k85NCKEWngJazBmiZFr3izMvF1ABnPi6m8xgxKYUnIf7sxIAXazCREWeA\/zZRu\/oIu25a4UHmIhAnJISZGnBSSqTPubRCJ6gNten02z7CymV31OwgX54WTS08jk5XW6BlmDPl4kQJpgZcmizZ11wU2w6ohccg+fLUiBFVLgft+m5TY5QDhZa\/Ey3UrE\/uLBnD1IA7y8b2O5+WvwsaIu0pgbu\/cxwxzQ7yzZnJ1AJXtEBLoKWb9skbkzlMDXhrPre\/+SiHFdAKD0Hq9dmJI6JcDtwrdqApbg2NmrsZqGiB\/RG6R5apAWF7ZQcUg5GrKdaBFrRf3OmTNzvS787PpOUfRAszB2qaSb+kXtNgakDadc0BxejJlX8AMu4tSH9rjY39dM0OZ\/GTzfFrgJq1Di3MeEBUeBgxNaDS02jAcRg5m+NWQ5iTxDkA7ItP0uzIfrgol5a7C6ipxgijAdFNsoQDX39JEI+2oX0WA47DyEnL2QXZj5cUMcrlj97siHCVutGa4ADUDDugphgOAiM4+8v3BAPOjRFj7BtcLJS7LdEBNU2kbhHLZTY3O\/KfLS2hZm8Z\/KIRD+UnEgx4pDBp0HF6cmdvhgK3lZWea7gWfrxmx2HpJ+2JduhatAQq2WDQeDksJBjgs3bRkGIx1tCe5ADRR2Weo7OA+6M0O4pfylZTM9f\/sQj9QRN3TIFgQPxxRca+oZGxFkreyNZ+2Mgrx\/5mx\/Ef33Qk2aDTzxSoJL0hkf9Yi2BA4VPtIcZDpJhAZ7IdxB7\/8YP7GoyffQas51EteyNXT0l3AApKPFQaggwJBjSGGA0rJmNNpe\/lW3w2CWmzrdkRc+Inn44kO6CQ0WKTdYcMTjICF\/6\/+wLobyRieDEZ87tI9hB36md\/tpTLvo6CBuXuCq2UVBuUUGfYXJwk+a8qkBUxKanWUOmp1Om\/TdiK5c2O+FO\/hnST7FAifaAkaQ+bx4p\/PwqfKE9iSUxKsh7gZDtIOjeGteWy\/zYhu2pv5S5KiiVKpMUSvOzn\/2WAt8N8lsWlpJhDra8KJWS3qCPLmh2kc2OjcZItSoCutUQtlhDtvOovA2JcVrEsLiVJB5lgC6RLk1hTLgfsEt1U56eKU8hmKIEm60i1B2re4R7Q36yNTTKBhgANWvCeb52H3ewgXZ6YjJOsf3c3QWOUgEwgW0PGzSlpwyqXUdvpAMNJSrIRCqo+ukg2hMZgLYhw+n5o5TKj2ZF6bUoGhWQJeLwGQn2UoQGMtWffnVX4zgabPvhmx8HvTjYEawKepI+CqbGUOg85eCwnCa78X\/fwaJUEVL5ayfI8eKIetEToQoSz2O1BlcuMZkfmrWk5eJI54HFqCFWWUecuC4eFCW+H0DYuxj6W5upZe7Ip5D2aSyyX+2x2OInfaA5FRz9BBwVRYSmP5aSYtsSeKEizPB+eoAWtUXoQfUiCUC4zbXbk3p9ZgieZAh6rilBhKX2\/G+QmzmEFicZQ\/H8Lar2I5TKx2RHpKv6kNVwL8HhNNFmZ1fRpwCEhHrbkxOM0oD1GH2KPSvddLnuu\/XpF4ZO51XiiIeAxSmzhscJEpgY8U53Mtrx4ggEUv1iCymX+3svl+zYYb9QhibdtEdrINTXAoxXZQpW7ORwW5iWIPyLKB3X+VmzLi8eoQmeMHsQek+n97bLnWh7FYrf5jXi8HpqgwD7iNKEu+Dd4qjK55\/sACHTkp\/RsQ8azN3e8DlS8Wdrht1nQkGBAhJPYndZQdfRBFcCjFNhLjDpQyOuBkrGvB\/Q32qbG\/rxIW1uEDkS6iD8iGIBufn7dCWbQHaWAkOdQkLZEC4hyEfclGBDtIva8IwYZgFzqjpTjTNBZ1h5pis4AsXsEA3w2CRqVv5XtwJNt\/jBBlnP4QzxOcoASt6X1Hut5FXptevpsF71f9k6xsz3OAXDyRsBTNnEGSEt7jC0Uua1ocd8ifOEmk+8b8kz9ARt3So9v1+vN3wR57vouxWv39xmcgAfS8mLTt35O6lyOv4hivzC0YkzGt4gxiKmIGRzG1D+0IY19j68RAggRDkOgR9u\/xufxefw\/CzT7sU6iahAAAAAASUVORK5CYII=")','url("data:image\/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAMV0lEQVR42uxaBXQbxxbdz2QHZDnM5drl1iSOLTRzmJmZmZmZ+fMPlRvGsimKJGMSRSaRUaE30p9X+FBJIe+U95x7zpyZt3PfvQtvdiTu5+Png+0xh+N+O4Xjnpz561\/LNgkEg3a2bLl6d5s2BymO7GnT5j0EtrFvR8uWqzAGY2dw3BNbOe43P1TRAVSEaEeLFksOduhw8kRUVGFOaurt\/AEDiGXKFGJdsIA4V64kNevXI7CNfV+MYUw2jf0gKqrgQPv2J7Y3b754zq9\/HYVzfu+F0yvdYYNQOPFQp05nP9LpHDfGjCHVq1aRmsWLSdXkyaRq5Ehw9u8Pju7dwZ6ZCfa0tC+AbezDMYzBWDynhp6Lc1ymc+GcGwWCCdM5rv33Tji9XTuuFwrnHH3hhWxT\/\/6kevlyUj1rFnEOGgS29HSwpaQ8FvBc5+DBgHPhnKZ+\/cixl17Sbw4OXjCHmv2dC5\/EcYFrGjcefDg0NLdw0CBSs2wZcYweTWwZGWBNTuYVOKcD7yjKUTBwIDkSEpKztnHjQZjDd\/Wch+5p2+5Ydkqqy7FoEXGOHAXW1DSwJiUzBXIgl5Nyfp6U7NrTtu3RmRwX8m0K\/\/XygIAuR0ND9ZYJE4hz6lRipc9wZVLStwrkRO6b48eToyEhV1YGBGRibkzFr+O4361t2nTqObnCZp8zl9jo81mRmPSdAnPAXM7KZFaa25SRNEcm4idw3J\/WBwUt+lijrXbOmUMqu3SFioTE7wWsXbuBY\/Ycclmlrt0sFC7FXHm\/8huCgpZ8npDockyfQSroc1gen\/C9QkVaOjhmzCSfxse7aK6L8E7g7ZnH2\/4jtbrGPnU6KU9KgbK4hAahvE9fcF246CYulwfhunzZXTF4SIPnxdzs06aTSzGqGnwc\/sZxv2qwAfjCOyuRWHHi8pRUShTfMPTuA6SmxvPNg9TWenCsofNjjrap08gZkbhySUBARoNL3eHnnsurmDiJlNFbrDQ2rkG4qYuF+vMX3B4\/R925c26MaShPeXoGYM40dz3V8PxjL3J2t259rGTQEFLeqw9YdHENxnW1Fkh9vcffQerqPRjDBxfmXDxwMNnVqtWRx\/qOWBnQePAnak19xdDhxKKNBT5wTaUB9927\/g24c8eDMXzxVQwbQT5WqepXBQb2f+S1\/T+efjqnbOxYYqG19qZWxwtKlCq453T6NeCuze7BGL74LLREltPl89+feirrkT6iNgiC5l9JSyelPXqBWaPjDcVKNdw2m\/0acPv6dQ\/G8MlZ1rM3XElJI+sFgjkP++Lr8M+nnskrGzGKmOltZFZreUNxjApcRqPfl6DLYHBjDJ+cX5gwYiTBO\/qh7oJ1TZtOzIlPJJZu3eGGSsMriqKVUHP5sl8DqunaoJjG8M2LWrLjE8i6Jk3G37\/m0yXk\/rZtz94cPJTc0MTCdaWGV6A4+9Fjfg2wHTniRpP45kUtqIluv52+b0WYR7exzkRE2Cy9+tAT1bwDDajYuZP4M6Bi+w6CMSy4UdOZ8Agb3aqL9GvApqDgJYakVLiRmALXYtS8o6izEixLlvo1wLJoMSmmMSy4b1BdV5NSYHNQ0AKf4nEHdneLVifMffpDCT2hJFrFO4pQ3PgJfg24NnYcwRiM5R30UbhJte1q2eoDn7vNuHV9\/PmQfHP3noBXgQWKFDFQ2KM3+DOgqEcvjGHGb+7eC44\/F2LCLXcvA3Av\/kKU+Nb15HQoViiZoEgeAyalxrcBbrcHxzCGFT9qOx8pctFtdqmXAWvo0vfTaCUpiU3Aq8AEhRQGqRzuOhzeq0C73WOUKjCGGX9JXCJ8qoghqwIb9\/d+AQqDV+tj46BIpYVCeTQzGCVyqNPrvUph3RW9G8dYcqM2vS4ONgqEK7wM2C5sdig\/MRWKOqugUBbNDEaxHBwnTnoZYH\/\/AzSAKTdqMyWkwBZhswNeBmwTNjtaSEtFAXWqQNqZGQzUgLJ9B7wMKNuzz41jLLm\/0EZL\/FZhs8O+DPigKDkV8mWdIV+qYAaDWAbmpcu9SqGZrg9wjCU3akON24Kbve\/bAHp75EsUTGGkIgtHj\/MyoGj0WGISy9nyS6kBCcm+DdgqFB7N1yWAiQZhIqxgFMnAmNnVqxQaM7rgGFPuL7RRjVuCfDwCWwTCQ3qlFozUKUyEFQwUuZQD6\/5\/DtrGPhxjyY3aqEZqgPCAdxkUCFdn4UJFGg3GKBkzGChyw8Vwx2r7j\/47lZUe7MMxltwmWQxk02qwsYlghY89wIDBl8OjiEmhpIlIWYIaIILa3Nz\/3AI1OTlu7GPNi9ouUY0+9whncpzs9Euvuoy0Vl6NlDAFirW+8+5\/DLDRNvax5kVtp6hGqlXi82PocKenjCalDq5GSJgiN0wElh27\/mMAtrGPNS9q+2fHJw1Uayefn8PbaSk0qnSgp8H6cDEz5IRFQcm8hf8phdjGPpacqMmg1MK2oOD3B\/n789XGxk0XfxwphatiBejDxMyQ94YIPn45DM6FvoLANvYx5URNqG1dE8F8zt9Bnw3RO8+GVhoUKnqSiBnyKLJfj4Cs174AtrGPKSdqevuZ561zfvObiPtuim4Pbn5GT4PzwvFKRf0ogFpQ0w5h81MP\/JlsTWDgxHOvhoFe3BlyX4\/6UQC1nH017N7qPwWOe6j\/+h1o3TZXL1d+OcFrkbzDoE2EqpOn3UB\/DEVUnT7rNqVkMuFCDajlQKs2WfTqt+Me5lgb0Gj2+dfCIC9KBjmvRfAKvTYe7lVVe+0I3auu9uAY33yo4dwrrxPU9Cj\/C+iwt2WbrFxpDGRTB7NfjeAFWa+Eg+PEKb8\/jDjeP+HGGL74MPccaTT8u1izgG0cicLwLAXsctUrLucaZidl5qorOGYGwTEzMzOz4HiZmTfkZlF0wmPG5R239\/7WkY5h4mhH+iRr4L3\/PT9PwPNGRZV6Pe7+\/2mPWKSLVjk9e3c2tfPtEGUAqj\/C+d69o3\/X+C97RzHHKH\/QvoJieMginSd04Pm5otIF8QhVAH2OpgPRrEn6lH9MwJGffxnFHCN8QTO0P19UOvdh0VNjOIH5Vnn1jnRDO5VvPR\/2R7Mi4VX4N\/g\/8G\/a1\/SbAHOy9ZMONXBofrOiZrd+REa83W+ynjxvhu2rdGM7V\/UyFoQSEOapwTn88F9sgofp4ESsoxtzsvIBjWkq\/bkzZn95v8l0PMu24ajZw1b52kU2x\/fbG9vGnfgUIVIU3DZ3gG+j\/+a+WrZi5AidDANfLV0+srW1g8doDHNE7asofdK4eHbtj49Y5eugnRnRcOiQvkTct8zu3pdu7OApf5SEKkLEPZQEZ4BvqPXwNTYnwDX6MCZsF5qgbSlpfJS0UumbDD8q+5iUf+9Cm\/2HYSoxOEySYBES7hCPOYO\/BX3C9qAFmhbZ7D89IeffT8FLLAdtYi8l4QGLdNNc2hPUpk6uhpt40h0+qkBDirTMnT77ywct8o1zxoOfaHjwxGTC5KMk3GoynfZqecWObfQjY7ixAx9vuIN\/jSuoZcXf2IVP+N5KGl4rr9xzs8lyejlpg0ZoNTIJE4hJxBTCTFiJvPMZiz5ZULxkqcOzT23r5ikSEqcNLO4O8rgroOUC2IYP+ILPxXb3XtKw6BzGItCkazPrWqF5Qs4SQBQ0MFZ9s9l82ctlFTvXBBRtuL2Pp6LNJDSkxZ0BQ4FNNdoy5mONX9FeKivfeYvZfGkTY1XQIpYAgUeAsBBSJglESR9Vw01m+bEXysp3rfGHj6gdfZra1KUlgvVajMo45vALgbWwAVuwucoXosArPrrdKj\/ZP37XS34TPDRZxB4B8STIRCFRTkxvZqz9KrP10ccLS1IfzKr9YWOkQVO7B0h8r5ZqaNUSSoMWD0S0mCekbaOS3ub0j0PX6MMY5mAu1mDtBqVee39m7Q+Pks0rzdZH6skHfMGn7lsWCN7QRFh\/k4RpxLGVjCm0G59znSS\/8UBBUeqN6mmfLLJ7Dq2i0t1c36rF23rGgkv3DgFcj\/VtoTHMWWh3H3qtauonDxYUJa+X5NcGyRZswjZ8\/CZ4q\/GBi+0NmWQUEccQNcQswkG3JtjA2NAQYxdebLI8cKNVfucOuWDVPXn5m+6VC5IA1+i7gcYuMpnux1yswVrY0G3V6LaLMkGLP+u5TchkXWABUUqU6+Kn6YHYCLse2G+x62Oz9Lk1+tpS3ZYFtnMfcG4Sk3lsMp8i8m82UYBr+Te7uF7OuQ\/0V0d+0gAdXWmtAAAAAElFTkSuQmCC")','url("data:image\/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAANXElEQVR42u2bBVQcSbfH572N+7cR4p51jUAWXdxdgkSQbOSTyPrG3XF3d4cYsnF3NEIcm2EGhxnkVs+rS2bPi8wK0P15nfM76XTfuvf+b1dVyzQ8jtt\/23\/bhymDePPD5g74PEJDwSxz1fQlJz1nLiuIp2TNXJqfh+A27ptmd8IDbdCWtyB4DmXgv6ho\/xEDFoapTLU7fuC9lWd+tna\/9+ibNEHnvsJmJvh6B4kt6SYp9wjJqJD2gNu4L4geQ5tv0gUdVh73Hr3reqpwqu2x\/QMWRSijz39+4Z8Fzpxglv3dx2sunF0VXdnofUlMUu4zJLJMStxvSsnOy1Ly\/TkprDslhbWFUlhVgLzYxn14DG3QFvsk32OI92UxWRX9vPEj6nOCec63vM\/DZvzzCf8kdNZEi+wdGltuFu3KayYJ5Qzxu8OQTReksLqAAbe8voF90Yc\/9YU+d+U1Ec2tt8umWB\/dg8X+xwtXCR\/5J4PU1ao\/XS\/ZQ4duDD1re64wZA1N3PUku6DPvdR3DC0ExlL+\/lrx23rpqzCHf4z4hWEfzVtemLs+WSCJLCZk5yWGrKSJupzgFoyBsTDmumS+eN6KwhzeopAP\/37Cv9wxYJRekr36plvl3pclxPM6IWvyCbgc\/\/uylsbE2J6XOojapptlo7VTlmBu3Io39Bk83iTzJ8eAJ6Kg20A2nWXA+Rj5h7LpHANBt4As8XskHGuU9SNvrs9gjha6mOEKFpn73CKrWvxvEfLnfIAVx\/45+EsBgD89IW4RVa0TrbIPYq6sn\/mJljkH1sTXSLxvEPLVCYDlR\/+5WHUSAHNbHVstUbDI3sfaSMB5NdYo86cV4ZUtHteAuB7rhmW57PPtz12w7VwXcTvedx+Ym8d1IMvDnrWMNcr4kWeb8la\/9Y\/STrK38q4QuV99IX5pDrt8dawTSvjdjFTWGsREuu2MhPTVnxvN0f1aN7HwrBCO0Ey26\/elTvG7ayWHLnWSVce7YGk2uzhlSuBqZSeKf6XVtnRLnTLa++x3FR1FmLPSd1fLeUoRH\/T5Jmf2soLcbfltZEN+NzhldbHOX3ObgZHKb+uPNffLN+a8Ja+VzHLKy+rTc8SfdFNXL4+oEm8+1U0cM7uAbRwyOmD\/qUYi\/ZX2lywR2vQrxpYz3WRZWFX72wbpbr2+t5+\/8XLxrnOdZEVOJzhkso99Wjt8n8uXW4CnIjFjE1ML9hmSfsVYTnNHDQvWX7rdq4coehnZvTZZRP56sosm0ckJS1LbwSqyCkqqWl6ZBW0dIF2XcI\/YJNSzEmddXhesoVom0Ie1P\/xIu2DjldKtZzqIIx2C9ukckSYBmzgRWPoVQdylKubKw0Ym40YtszzkDlhGVIJdcgsrcVADalm48WrRHxoF44yyv3OOrYM\/H6dnKa2DU2yTW8EqWgAm\/vfA0OsOGPuVg2VkDdgkNLIaB7U4xwpgnHH6N797uzvHufDc93kS4kDPkF0q99gmtYJ1fANY0dFgHVcPNkktrMdwSJcAaprrXHj6N68I+BrL8PAD0V9pxWxTJP9WoCb9gw9EAxTDv\/jVAky0PnrAJaEBltN5Y5Ms+bdiRWYHONOFVcH86B654vEN7AyngsK\/HRODXYqYdvr74JDSDlsKxcQlk9s4qAm1UY0Fct8246trpR9uP1iTKwHrJDHn2NKkfC6JiaAVXlz+Ool0XU4LpzFRm+IPN+\/xPgqe84Z+fBev7\/5YsiJDDFaJ7Zyy\/2w7qWzslr7e8u+3MZZxzZzFdaba9I88lAz4PEz9zVtfg\/TVFoHVxIEOFcuEdk5Ykd4GF5\/iw4\/8dut5G2MWJeIsvmOqGMwDqsloPTm3xgoWRz3to0X0stQGFvHss6OglTRJiPS3WtatOsY0UshJfMSOakONEy1yj7xRgMnWJxKWJTaDNRrHsYd1XCsk3m5nGEb6u21r1lNiGiHEfpyA2pYlNMEkq+NxbxbA9nj2iuTWHkPzWHZwTWuFcn5Xj\/SnQrF0e9p9si66RO4wILRCNqFPwDSqEftygiXVhhonWx\/PlFOAEwUuaWjYCmYsYBJZDw\/qupiOLiINKHhKtA9eBV3v+2AX\/gTkFeB+bRtjGFwFpjHN2J8TUJtLGi2A7cl8uQVwpgUwi2kFUxYwDOHD2uhy4hpyh2h7lIFBcDUYhQlh50mR3BGQfLWWMQoVYF\/OQG0rUn6lABNtjmYvTWyhhi1gEt1\/UKyu7yPQ9XsMhlSYcVQTGEfUQ9qtRrmrwY9pTwj2wb5cgdqc6Do3Sd4UmGR9LME+ls4\/LEAUO1BBFNH\/\/z9UCPf54jcK0NlNpCb+j2iBGtCOM1CbfUyD\/EVQwSzH0zq0Dsyjm8E4khssw\/kA5M0BcP1RI6MXUEkL0MRZbMQihuYQJoAJ8i6Do+mvvAZez4klrZJRRDP7hDfBphyh3PnvX1hJ9ANr0Y5TrKg2A89nZLR2upvcW2GNvRVim9hmMKTJso1BiBDirtbLnf+ukRVEP1iAdpyC2tT3PhDz5oeqyX0Y+mTD9ft28c1gQI3ZRi9IAMVV7W8UQNTSKdX2egT6oSK045QlVNvH66\/f5X0cMFvu4\/AUu7wC+zjZGQtjF6OgWsDF7vV24k4do+NXBQahjWjHGajJPrap5xL4qx9fjTfP2m\/sVwOmEU30jDSyR0gDrE8VyJ3\/u7OfEB3\/GrTjFLNIusD6VcNYk8zdv\/5K7LMwFcVNpUKraDpkQxpZQzdICCHn6+UWwDqwAnQCBGjHKahJ8adi0UClyMW\/+VJ0qn3eGevIBtqpAXSD2UHbnw+XHra8Mf\/5TR1STY\/HoBMoRDvOQC2oaeqSvFO\/+zPZaL2077QOPQHT8EbQCWpgBS2famgSv\/kC5OdSIaPp9fwVW+MwWVwWQS2aBx93jzFI+\/oP\/TAyx\/VssXU0rV5QPeiwgHNsjdwHIJ+850TTp6rHxiKiHk6UtTHPG7qkOgF8VuIiqAG1zFt5\/jZd\/Kbz\/kgbY5S+XefwM3o26PANrO8XWv51cDivTu78P3iskmj71sDBgibSKH5Rowv3GhgDv0rQDhD1OzbSo+HwE0J\/IN3eqy8+ZzmfvW0ZTquIIgL6zpe+tXCyRP4DUDdhpM2yt0TiTpDuz7hPFm+9DBruT2jhRP2Ki2DuFlTDTOczN3vOfm\/aSM2UVYt33GszCa0HTZpMX9HwqoLnIon0t1ppZQtj5XEVlPfcBnWPZ7RofOzbbzB3pW13W0dqJrr26YNnBcvj2fo+9BodRM+kn6hPqHk8h4radrkjoFXSLT2U\/YAobb0AKgfvU\/GVVLwQ+\/UbzFmPLr5UQ0afvxrDLzBnOZ8pMgkSgra\/EJPrNWruz2BfVgV5WXh7B0gjTz9ldHdfgC923QK1w4\/pSKlBe1bAXDHn2c5nSmWfyPS9DVVPXPLxhlt1piF0WFHnGj69AQtQBYt33YYfYktI5tVqxvf4I6K58zwdmtdA5UAFPV4JGt4CtGUFzBFz\/WjDLf5Q5QRrXn8bfmpG14Pv5v9Q3GASIqIVrgN1n15AxakcfgJKtAiLtlwGxR3XQfnAA1A98gzUvGrQhjUwN8xx\/g9FTSN107\/H3HlsNPzokL4v2Ke4tawdq6tBg6l59wIvWgQ6ElSOPKf\/VoKqZy3uZxUUj7kpbiltx1zxL1VY\/1R2pH7q3gU\/FDeah+JQqwNVKuyfAcwFc1rwY3HzaIOM\/fSSN4zHQftfnsKy4SM14zd9suFmnUVIHej50yJ4Cv6hYA4WwQKgOQlGaib8xJu8ahjmyrp4ygDKIJ7CJ8MHKQY7zlr+c5GRTzWYBglBHYe4h3yU3fmkP\/yaXw0a0yxYCEbeVTB7xamyIYsDnTA3zBFzZbMI\/0N5izKQMpgylDKC9+FmxfGmWUcXby1tt6ajwQBHgwcfBcMXR2oJF6BvjIGxMKbSlrK2caaZubx3flyEOclyGyzL9S3MnbMCUEbxxmpNGaocvG6GU36JzoHHxDZcCIZ+AqJMk118mF3QJ\/rGGNr7H5KZTvnFQ5WD\/sYbpzsZc+GmAHKmAGUIZdgvRaC8zZvqqDhcLdBjhsPxEq19D7rtQgXEPEhAtL3xzNUQpcN9A\/uiD\/SFPrX2VpAZS\/MqRqgHe\/OmLVmEsV8SPwxzkz8FuCvCcMpoigJlBm+iwZfDFQ+6K5in31jw7Y0mI\/enxD6sjtiE1hGTAAHR8+ETTc9aoupOC0MFLj70AtzGfXgMbdAW+2Bf9DH\/mxtNCuapN4YrHTmCMTCWLCbGHt4H8awWYuhLRZhOmccbNnshb9oy55EqnlFjDeNvvLfyVKXy1uJOnf0VxMz7GbEJrCb2oXziFCFAerZxHx5DG7R9d+Wp52MNE66PVPaKQF\/oE31jjJfED2VBOCtrwy\/FGEOZQJlKmU15jzdwzOe8cXomvOnLvhr6+bYDo9R9k0ZrhheM0Yk6P0Y35noPOtHncd8odZ+kIZ9u34+22Af7og+Zr6ky32N+Ec3OXGe\/IANkCY6ijKUoyJKfLhMyl\/IuCnuNd2XHZstsp8r6jpX5Qp8DuBfMRWFk0+alq8jwlxZRBLeHv7SKy4Yz90L\/D1wmRcCSWFt6AAAAAElFTkSuQmCC")','url("data:image\/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAN10lEQVR42u1bBVhbWbfNe1OnNkrH3b0CDFQGdwIEq1BqQzvuU3cv7u7uVYrVvSUV6mgFSwgJmiD73LyzKaOEdkhyad97\/\/m+VeDec\/Zaax+7Vs5\/yn8Ky+X99GGciZFvDPk0eoamTY77S855Pq+4FiZR7HxlTkE+An\/HYy867ffGOliXMynsdYqh\/0tNB40eMjlS7wWn3G3vLDp8gOd1o+LnTEHnlqJmJuxcB0m43E3SbxCSXSZH9PyOx0LpOazzc5agw977RsXbCw4WveC4b+uQKdG6GPPRN\/5JyCvP2Oz69cMlx4+4x92V+J2UkvSbDIm5KidefDlZf0pOfjsqh+8OyuHLIjm4F94D\/o7H8BzWwbrYJu0GQ\/xOSYl73B3JBzTmM9zdv3A+jXz50TP+UcSrE2x3rZuxin9pQ34zSb7GkMCLDFlxXA6LCxlYmK8csC3GCKKxMOaG\/Caiv\/rC1ed5ezdhsh++cb2oMY+bZSyeuvzc5U106MbTXtt0miFLqPAFeeoFxtxMY8fTRCCX7m9nS54wyXJHDQ\/H\/OTID96cW7Tn+zSBLKaEkPUnGbKICp2\/n10gB3Ih53dp9dI33Yp2c6aEvz94xj9fN2SsSarL9BXnr\/mdkhGfc4QsKSAwP3dw8SXlRG6fkx1k2gr+1XGG6c6ojV3z5v7Dn7bKWT4ruEoUegHIiiMMzNtHHipWHGUg9DwQ58CKhictdi7jvOE\/nKWFLl5D0zZny8KY6pag84R8VQDgtu\/RwNeFAEG0QxZGV7dOsN+1HbWqvecn2O3etiSpVuZXTMgX+wHm7n204J4HgNoWJ9TING13bcGRoLY5\/6RFznK3qLst3meBLNjXDa57Hk2gNu9zQOZG3m550iJ7Gccx\/TGV\/Y81THWx9ysTeZ25Z37ObtWweH83bDreRaIudpGUq10k83oXvQrsIkHFXWT1kS6VORbS9l5nu4mtT1nDaP00J5W3Oq1fz17ecbKTuOd2wZxdymHh3g6Iu9hBboqAIYz8vqULGPn52m7G41QHcVWSzz23G1Cz9q9nrnG0o99T+iLnNdfCPWsK2sgPBd0we2fXwJHTCeF8GWntpK6VKOWNwPxWICXKcKPmVfmt5NXZ+TuVuo943Dhj8dzoaunKg91kVk4XDAxovgOO31LsXNTaKT96s5HJ5tcxB66JmGqxrN8kdHQz8m3HpEppWHW4m7hGVrc\/YZa1cMDX9hN\/PFWy4WgncdvdCTNzBgaXbBnkl8n6mG+Vdcu355YTS5+zYBlwEayDr4JV4CUwp3+vyrpBaiWyfqfF0vwWMlAdc6l29DDp+5MXBnQTRbeRjV+micg3eV3UTOeAsTSvmTD\/sI9\/\/5xyjdiElQMvUQgOyY3gmCLp+emQ2ADciErgBvDh4p1mhaOmorGLccpoG7CW7\/K7YAn18gy9WfvXt7STfjx9ZfXhDjIruwNcsgYGp\/RWKCqV9jFx\/lYzYxt5GxyTxeCcKf1bG\/wbk8GLF4BjSAn0NxJ+y5WQgepBD+hl8o9nLv2rUfCUxa5f5yUI4avcTiqsY8BwSJbAlRoFCbjdyvASReCcIeu3rWNqC9jH1kPUsRqiKAGBx5uIU1rbgDWhl3kJAnjKMuvnB17uvj6v6Ohv+TIyM1MGThkDhz01eaqi7zCWdhE5nntQe16SGDwL6xQmIOyEiDikNA9Y08wsGaCnN+YVHbrvjoCPscw9SkXf0Iw5psuUgn1CIwQf7NuDnd00AfEN4JgmvW97XnIzxJ0VK0zA9oJ6gueV0YWeTLeXioZoRX3WbwIm8PZum0\/n6NxsOpTTZErBLlECdmEVUFbf\/rdRsPt8PWMb2wAOqdIHtr9S23cHwQPzEu6AfVKzUrrc6LY8jy64mty9mxSaxyewL88uLPp2n5QuZChSOfBS24AbUw82fnwILLxFcorrmG17yom5fwnYxose2P6HXYp7n1\/VxNhE1QAvpVUpXegJvVGPhQqfNuOja+2lF0qX7JFRE1JVQHuxCWyia8E88AaY+tJ9PqiUJkVAe6\/lvu3w\/KFyad\/ep0e+T7pJuLENKulCb1pL+Tc4H4S93sc\/Pos39aqUuWVTISntKsOOmuHGif6AXXLrA9ss3SdReKuQfqaGsQytoiNIrJKmedSbqWe5bMinkdP7XvqaZS22DakhM9OlVGz7oMOejpoKUVcf\/yfLxIypbwlYRwtpUttU4piVIQVucA0ZZ6Lg0ljTdq+PC+0pRzqHbZMGGYmtEHW2tc\/cv1Hbylj6XgCryDrgxjepzONEvaHHCbZ7PPsk4Dne\/mRXusfyegQNLhZliKGj++\/+iyubGCsfPliG14BNrFgtPOjNNbkJnrXPTeybAMfcXW5prT0VuQmDBmquCY5W\/H3hKygRMiY7isEirAasYxrVxmVHvaHH53i5OQoSsL9wfiZWbAWbQcT3OY3kr+6TTtxlDHfwwZz2vBU1r04u9DY\/kybAMa9AYQLm0QTYxLeC9eCAGhTDico\/e3\/\/JQFj4Em3zbBaek6idj705pbeTwImOOzdNSelhVZsAau4wYFzvBC6gfnjIYml70UwC68DS2qeDT70Npuuc88qmgLP8vYluyRIgIsJiGUfltESCDwmIX\/c6By4Q0yD79LjYtY40ZtLvFjxIqhps9uHFyEEblwz7QH2YU65jpS2\/DH850aWglmYgFVO2\/hmsIsUwDOKtsFx9C2vme8dYkezZBHdzDpMQ+uhtP7e\/Be3dcmN\/avAPLKRVU576s3M5zYZZ5i1UOGl8IzNZVKHBNo7UU2swyS4Bu42yuRYzpRLGOOgapoACauc6G365lIpZ2LENIU3Qx\/9cO6mU1IzmNHKbMOIGq6VdMixHLouZoyDa1nndKbePvz+3HXOh8GvKbwdft4pv9Al8V62zCLZhVFgNVQJ2+VAGHlWsZAmoI5VPvTkktDUswX2+\/HV09ydWy0Da8E6uglMIySswjDgLuitPwG6q4\/AtM18wASwyWcT0wSWgTXwpFXOxv4fiX0Sqae14kqDfRydo+ESVmEUVAf6vrcoqsDA7w4YBQtY5UNPWstLREO1Y3Tu+1D0BZf8w7wYMW0kBuMwdmEUKgKjkAYwDm1klQe9oKcXnPMPPvA12TiTzF8NdlSBdZSEChT\/nwB60d9e2T3eLPOnf\/Vi5PUFR0p4ceKenjFiCS4JYvA\/2kJCT7aQn3aKCVs86AG9vLno2AW6+L3E+TdlvEXWWiOP22AZKQbDkEa1Y81eMcGXnn8th8ukjEmIUO1cPR48qgh9Qbp2QF98vjrvyAW7KJpFGsQgWH3ghteDtJPIFZWgoxKiH9SgNi7Ubks9vDLvML+n9wdSxuinu+usu9FmFdEI+kEiteDzQCFszhWie4WlpLqdmeFbozY+1K695nrrGP2UBUp98Kxpl7vL1L8WTEMbqXiRypjhVwfrd1X3mwB+ZTMzzfuOWrhQs4l\/DVAP2Up\/NYZfYL467\/Alq9AGMKRD8\/MA1TDDtxZMPK5BI733V1Q2ZJWTaV63VeZBraj5tXmHr\/R+IqN8GTk9xfnDH84LrcPpsEIT\/spjum896G0vh3lBfFLdKP3be8OQgkqis+ECTPOqVokDNaLWD344Xz9SN5nHUbXgp2Z0Pfh14tISsVW4iGZYCNP9lcdUrzugs\/kqvSo7BLP9zxL3MD6ZuvowaK05A3oeVTDdr17p2KgNNU5ceqlpjHHWb6ido46CHx3S5wVbtFZfbcfszqBk0\/yUhK8A9DzvgC4dCTqbroL2xhL4bGsp6Hrcgqk+dUrHRfOoTWvVlXbUiv9TRe2fyo4xzdg8aWmJhBuBQ432JjWjLNCsnlf1PXjXqhQLtaCmSctKmseZZW+lW94oDgvlvzmarhpj9JNWfPQDX2gbLgSTICE1InioQA22YQKgmgRj9JOXc55zH4Va1W6eYgjFMI7mRxrDtMJmvTr3wCULus1Yh+LiJqC9qBi6XvVEFfQXdwbltAlrAAu\/anjN7eDVETohs1EbakSt6kzCf1E8RjGUYjjFSIrRnPdXaj1tvXOvzuor7Tw6GsxwNHjXo2H4zLOOsAGMjRzIhZzaq662PWWds4fz1rIpqKlX2\/BerY+hdtYSQDGW86TB8yN1w757eXbBZaNtlcQxqgHMAwVEl4rV8VAvMCbGRg7DreXkldkFJSN1Q7\/lPGX8HGphKQF9pwDFCIpRvYRI\/ATnhVlaGtNCvF+emXvZYEtpt1OEgHBDBcTQD3uulmh7KAdsizEwFsY02FxGXp6TXzZ6epgf50XnKcj9F\/OjUJuiKcBmEjQoxlFoUrzMmWD2uYbWdi9NblbxpF+Kmyy8bhGXSCFxiBASq2ABMfGvJ\/o+dWSqF00MNaiz4x7wdzyG57AO1sU22BZjTPy5uEmTm1Gsoe3piRzI1cuJ3BqqmVc9ESP\/koSXKN7kjHptMudF13lj9HxinzRPKn5n0cG7uqtLOo22lhEbv9vEIaSGuETUk9nRAkTP73gMz2EdrPv2ooN3njRPPjdG1zcaY2FMjI0cfzE\/kgXjyqwNfyRjPMUzFC9QvEbxDmfo+E85T5lYcV5y\/WLkp2u2jZ0ekDpOP6pwvFHssfHG8ed6YBR3DI+Nne6fOuLjtVuxLrbBthijN9YLvbHH\/2FaqbnOfkKG9AocS\/EkhWav+Jd6jbxB8TYa+wfe7j33GtbtbaPZG2Nsb8wh7BhmPzG90+aPXUTjL4soAn\/X+Msq3juc2Tf6P74DTjn\/URUqAAAAAElFTkSuQmCC")','url("data:image\/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAANXElEQVR42u2bBVQcSbfH572N+7cR4p51jUAWXdxdgkSQbOSTyPrG3XF3d4cYsnF3NEIcm2EGhxnkVs+rS2bPi8wK0P15nfM76XTfuvf+b1dVyzQ8jtt\/23\/bhymDePPD5g74PEJDwSxz1fQlJz1nLiuIp2TNXJqfh+A27ptmd8IDbdCWtyB4DmXgv6ho\/xEDFoapTLU7fuC9lWd+tna\/9+ibNEHnvsJmJvh6B4kt6SYp9wjJqJD2gNu4L4geQ5tv0gUdVh73Hr3reqpwqu2x\/QMWRSijz39+4Z8Fzpxglv3dx2sunF0VXdnofUlMUu4zJLJMStxvSsnOy1Ly\/TkprDslhbWFUlhVgLzYxn14DG3QFvsk32OI92UxWRX9vPEj6nOCec63vM\/DZvzzCf8kdNZEi+wdGltuFu3KayYJ5Qzxu8OQTReksLqAAbe8voF90Yc\/9YU+d+U1Ec2tt8umWB\/dg8X+xwtXCR\/5J4PU1ao\/XS\/ZQ4duDD1re64wZA1N3PUku6DPvdR3DC0ExlL+\/lrx23rpqzCHf4z4hWEfzVtemLs+WSCJLCZk5yWGrKSJupzgFoyBsTDmumS+eN6KwhzeopAP\/37Cv9wxYJRekr36plvl3pclxPM6IWvyCbgc\/\/uylsbE2J6XOojapptlo7VTlmBu3Io39Bk83iTzJ8eAJ6Kg20A2nWXA+Rj5h7LpHANBt4As8XskHGuU9SNvrs9gjha6mOEKFpn73CKrWvxvEfLnfIAVx\/45+EsBgD89IW4RVa0TrbIPYq6sn\/mJljkH1sTXSLxvEPLVCYDlR\/+5WHUSAHNbHVstUbDI3sfaSMB5NdYo86cV4ZUtHteAuB7rhmW57PPtz12w7VwXcTvedx+Ym8d1IMvDnrWMNcr4kWeb8la\/9Y\/STrK38q4QuV99IX5pDrt8dawTSvjdjFTWGsREuu2MhPTVnxvN0f1aN7HwrBCO0Ey26\/elTvG7ayWHLnWSVce7YGk2uzhlSuBqZSeKf6XVtnRLnTLa++x3FR1FmLPSd1fLeUoRH\/T5Jmf2soLcbfltZEN+NzhldbHOX3ObgZHKb+uPNffLN+a8Ja+VzHLKy+rTc8SfdFNXL4+oEm8+1U0cM7uAbRwyOmD\/qUYi\/ZX2lywR2vQrxpYz3WRZWFX72wbpbr2+t5+\/8XLxrnOdZEVOJzhkso99Wjt8n8uXW4CnIjFjE1ML9hmSfsVYTnNHDQvWX7rdq4coehnZvTZZRP56sosm0ckJS1LbwSqyCkqqWl6ZBW0dIF2XcI\/YJNSzEmddXhesoVom0Ie1P\/xIu2DjldKtZzqIIx2C9ukckSYBmzgRWPoVQdylKubKw0Ym40YtszzkDlhGVIJdcgsrcVADalm48WrRHxoF44yyv3OOrYM\/H6dnKa2DU2yTW8EqWgAm\/vfA0OsOGPuVg2VkDdgkNLIaB7U4xwpgnHH6N797uzvHufDc93kS4kDPkF0q99gmtYJ1fANY0dFgHVcPNkktrMdwSJcAaprrXHj6N68I+BrL8PAD0V9pxWxTJP9WoCb9gw9EAxTDv\/jVAky0PnrAJaEBltN5Y5Ms+bdiRWYHONOFVcH86B654vEN7AyngsK\/HRODXYqYdvr74JDSDlsKxcQlk9s4qAm1UY0Fct8246trpR9uP1iTKwHrJDHn2NKkfC6JiaAVXlz+Ool0XU4LpzFRm+IPN+\/xPgqe84Z+fBev7\/5YsiJDDFaJ7Zyy\/2w7qWzslr7e8u+3MZZxzZzFdaba9I88lAz4PEz9zVtfg\/TVFoHVxIEOFcuEdk5Ykd4GF5\/iw4\/8dut5G2MWJeIsvmOqGMwDqsloPTm3xgoWRz3to0X0stQGFvHss6OglTRJiPS3WtatOsY0UshJfMSOakONEy1yj7xRgMnWJxKWJTaDNRrHsYd1XCsk3m5nGEb6u21r1lNiGiHEfpyA2pYlNMEkq+NxbxbA9nj2iuTWHkPzWHZwTWuFcn5Xj\/SnQrF0e9p9si66RO4wILRCNqFPwDSqEftygiXVhhonWx\/PlFOAEwUuaWjYCmYsYBJZDw\/qupiOLiINKHhKtA9eBV3v+2AX\/gTkFeB+bRtjGFwFpjHN2J8TUJtLGi2A7cl8uQVwpgUwi2kFUxYwDOHD2uhy4hpyh2h7lIFBcDUYhQlh50mR3BGQfLWWMQoVYF\/OQG0rUn6lABNtjmYvTWyhhi1gEt1\/UKyu7yPQ9XsMhlSYcVQTGEfUQ9qtRrmrwY9pTwj2wb5cgdqc6Do3Sd4UmGR9LME+ls4\/LEAUO1BBFNH\/\/z9UCPf54jcK0NlNpCb+j2iBGtCOM1CbfUyD\/EVQwSzH0zq0Dsyjm8E4khssw\/kA5M0BcP1RI6MXUEkL0MRZbMQihuYQJoAJ8i6Do+mvvAZez4klrZJRRDP7hDfBphyh3PnvX1hJ9ANr0Y5TrKg2A89nZLR2upvcW2GNvRVim9hmMKTJso1BiBDirtbLnf+ukRVEP1iAdpyC2tT3PhDz5oeqyX0Y+mTD9ft28c1gQI3ZRi9IAMVV7W8UQNTSKdX2egT6oSK045QlVNvH66\/f5X0cMFvu4\/AUu7wC+zjZGQtjF6OgWsDF7vV24k4do+NXBQahjWjHGajJPrap5xL4qx9fjTfP2m\/sVwOmEU30jDSyR0gDrE8VyJ3\/u7OfEB3\/GrTjFLNIusD6VcNYk8zdv\/5K7LMwFcVNpUKraDpkQxpZQzdICCHn6+UWwDqwAnQCBGjHKahJ8adi0UClyMW\/+VJ0qn3eGevIBtqpAXSD2UHbnw+XHra8Mf\/5TR1STY\/HoBMoRDvOQC2oaeqSvFO\/+zPZaL2077QOPQHT8EbQCWpgBS2famgSv\/kC5OdSIaPp9fwVW+MwWVwWQS2aBx93jzFI+\/oP\/TAyx\/VssXU0rV5QPeiwgHNsjdwHIJ+850TTp6rHxiKiHk6UtTHPG7qkOgF8VuIiqAG1zFt5\/jZd\/Kbz\/kgbY5S+XefwM3o26PANrO8XWv51cDivTu78P3iskmj71sDBgibSKH5Rowv3GhgDv0rQDhD1OzbSo+HwE0J\/IN3eqy8+ZzmfvW0ZTquIIgL6zpe+tXCyRP4DUDdhpM2yt0TiTpDuz7hPFm+9DBruT2jhRP2Ki2DuFlTDTOczN3vOfm\/aSM2UVYt33GszCa0HTZpMX9HwqoLnIon0t1ppZQtj5XEVlPfcBnWPZ7RofOzbbzB3pW13W0dqJrr26YNnBcvj2fo+9BodRM+kn6hPqHk8h4radrkjoFXSLT2U\/YAobb0AKgfvU\/GVVLwQ+\/UbzFmPLr5UQ0afvxrDLzBnOZ8pMgkSgra\/EJPrNWruz2BfVgV5WXh7B0gjTz9ldHdfgC923QK1w4\/pSKlBe1bAXDHn2c5nSmWfyPS9DVVPXPLxhlt1piF0WFHnGj69AQtQBYt33YYfYktI5tVqxvf4I6K58zwdmtdA5UAFPV4JGt4CtGUFzBFz\/WjDLf5Q5QRrXn8bfmpG14Pv5v9Q3GASIqIVrgN1n15AxakcfgJKtAiLtlwGxR3XQfnAA1A98gzUvGrQhjUwN8xx\/g9FTSN107\/H3HlsNPzokL4v2Ke4tawdq6tBg6l59wIvWgQ6ElSOPKf\/VoKqZy3uZxUUj7kpbiltx1zxL1VY\/1R2pH7q3gU\/FDeah+JQqwNVKuyfAcwFc1rwY3HzaIOM\/fSSN4zHQftfnsKy4SM14zd9suFmnUVIHej50yJ4Cv6hYA4WwQKgOQlGaib8xJu8ahjmyrp4ygDKIJ7CJ8MHKQY7zlr+c5GRTzWYBglBHYe4h3yU3fmkP\/yaXw0a0yxYCEbeVTB7xamyIYsDnTA3zBFzZbMI\/0N5izKQMpgylDKC9+FmxfGmWUcXby1tt6ajwQBHgwcfBcMXR2oJF6BvjIGxMKbSlrK2caaZubx3flyEOclyGyzL9S3MnbMCUEbxxmpNGaocvG6GU36JzoHHxDZcCIZ+AqJMk118mF3QJ\/rGGNr7H5KZTvnFQ5WD\/sYbpzsZc+GmAHKmAGUIZdgvRaC8zZvqqDhcLdBjhsPxEq19D7rtQgXEPEhAtL3xzNUQpcN9A\/uiD\/SFPrX2VpAZS\/MqRqgHe\/OmLVmEsV8SPwxzkz8FuCvCcMpoigJlBm+iwZfDFQ+6K5in31jw7Y0mI\/enxD6sjtiE1hGTAAHR8+ETTc9aoupOC0MFLj70AtzGfXgMbdAW+2Bf9DH\/mxtNCuapN4YrHTmCMTCWLCbGHt4H8awWYuhLRZhOmccbNnshb9oy55EqnlFjDeNvvLfyVKXy1uJOnf0VxMz7GbEJrCb2oXziFCFAerZxHx5DG7R9d+Wp52MNE66PVPaKQF\/oE31jjJfED2VBOCtrwy\/FGEOZQJlKmU15jzdwzOe8cXomvOnLvhr6+bYDo9R9k0ZrhheM0Yk6P0Y35noPOtHncd8odZ+kIZ9u34+22Af7og+Zr6ky32N+Ec3OXGe\/IANkCY6ijKUoyJKfLhMyl\/IuCnuNd2XHZstsp8r6jpX5Qp8DuBfMRWFk0+alq8jwlxZRBLeHv7SKy4Yz90L\/D1wmRcCSWFt6AAAAAElFTkSuQmCC")'];
-  $impl.ButtonModalResult = [6,7,1,2,3,4,5,8,9,10,0,11];
-  rtl.createClass($impl,"TMessageDialog",pas.Forms.TForm,function () {
-    this.CControlsSpacing = 2;
-    this.CMinDialogHeight = 200;
-    this.CMinDialogWidth = 300;
-    this.CMinButtonHeight = 25;
-    this.CMinButtonWidth = 100;
-    this.CMinImageHeight = 70;
-    this.CMinImageWidth = 70;
-    this.$init = function () {
-      pas.Forms.TForm.$init.call(this);
-      this.FButtons = {};
-      this.FDefaultButton = 0;
-      this.FDialogType = 0;
-      this.FMessage = "";
-      this.FButtonPanel = null;
-      this.FInfoImage = null;
-      this.FMessageText = null;
-    };
-    this.$final = function () {
-      this.FButtons = undefined;
-      this.FButtonPanel = undefined;
-      this.FInfoImage = undefined;
-      this.FMessageText = undefined;
-      pas.Forms.TForm.$final.call(this);
-    };
-    this.PrepareButtons = function () {
-      var VMsgDlgBtn = 0;
-      var VButton = null;
-      var VButtonCount = 0;
-      var VButtonHeight = 0;
-      var VButtonWidth = 0;
-      var VFormWidth = 0;
-      var VSize = pas.Types.TSize.$new();
-      var buttonofs = 0;
-      VButtonCount = 0;
-      buttonofs = 0;
-      VButtonHeight = 25;
-      VButtonWidth = 100;
-      this.BeginUpdate();
-      try {
-        for (var $l1 = $mod.TMsgDlgBtn.mbYes, $end2 = $mod.TMsgDlgBtn.mbClose; $l1 <= $end2; $l1++) {
-          VMsgDlgBtn = $l1;
-          if (VMsgDlgBtn in this.FButtons) {
-            VButtonCount += 1;
-            VSize.$assign(pas.Graphics.JSMeasureText($impl.ButtonCaption[VMsgDlgBtn],this.FFont.FName,this.FFont.FSize,0));
-            if (VSize.cy > VButtonHeight) {
-              VButtonHeight = VSize.cy;
-            };
-            if (VSize.cx > VButtonWidth) {
-              VButtonWidth = VSize.cx;
+  $mod.$implcode = function () {
+    $impl.DialogCaption = ["Warning","Error","Information","Confirmation",""];
+    $impl.ButtonCaption = ["Yes","No","Ok","Cancel","Abort","Retry","Ignore","All","No to All","Yes to All","Help","Close"];
+    $impl.DialogIcon = ['url("data:image\/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAJCElEQVR42u2aA3gk2dfGaxFzES\/Hth3bNoc7GRvB2LY9X8YzsW11x7ZtVON8t7PeSofdM0n\/5z7PL6jqe85939JzTjX2eXz08Xl8Hu9ssR9DnKT2Rp8a5x57atyH4P2SO97bYdL\/E+LfO3DPSL2zJLaj4AbQmwIRAdCedwVINxeGv7LBxnO0+Lc2mGjCxel+lJq3ADU3AYq3AJRsQ3\/fAbzSDWJOjn\/9whDj41gDAnd9a9tMPoRD3UOAovX\/YANAvRvUxu5o894mpMWR4p+twb5PubUoht7gCVC8HaBw3b8p3Qu0uveQeHFqgJc5JsxxBgTtFdvUknqMSq+6DvSCtb1Tcw8akvZ1+e0SteQo8e5WmEzq\/aVkWv07oBdtQmLX9E7xNnQWvAXSzXmRL2wxMY4xIHifxP62rFN0esV5oOev6Zuqq9BCdqYE7xHbyBHiX1hg47KeymfR616io7wBiVzdN4WOwPhs+t2lSa8dsB9GtXjAsC\/CXKRPtuecAXrZMaDnOQyM8jPQmnaYHnJQ0mlUG\/DKGpua90ojn17z5PfTO89+YOSvA3rtM8h+Ip\/x2g4bMyrFu7hgX0Yd+fF6Zz667oudgZ5rPzhKDkN75jEId5U5wziTRp0BH1ZzzS\/6oFdGr777hyi7wcG4FKofQP5rjeI39ti00XXXd8G+jj7205OugnNAL9wD9BzboVF0ALryzkDkkR9uvjDEvho1Bniu5V1R5m1aS6+4+ocYmyGC5lZehyJ33Yq39lwLRoV4L0eMJ\/rUmDfdheeBlr8VaNk2BBpCDOGJ8s\/gKsDVw2OFn6DaR5exj0jBTugqOAtRx39+lrAG4xr5R38Dj0pVoGUjvewsEmBNoCHEAA6L8MA+DPsXaFvPPuIcdCaUnYcyH6N6j028siNa\/CNLTAA1OHzxQiQ+9zegZVkReKL86x+iiTxV+ZU4h0GeI+AFZyD65Bj3F1tHcLnstUXQoCbEpo1WfAQt3LJXXAW4mRrgKsjDdB695BhUB1m0+mwV0h6xzY6k85NCKEWngJazBmiZFr3izMvF1ABnPi6m8xgxKYUnIf7sxIAXazCREWeA\/zZRu\/oIu25a4UHmIhAnJISZGnBSSqTPubRCJ6gNten02z7CymV31OwgX54WTS08jk5XW6BlmDPl4kQJpgZcmizZ11wU2w6ohccg+fLUiBFVLgft+m5TY5QDhZa\/Ey3UrE\/uLBnD1IA7y8b2O5+WvwsaIu0pgbu\/cxwxzQ7yzZnJ1AJXtEBLoKWb9skbkzlMDXhrPre\/+SiHFdAKD0Hq9dmJI6JcDtwrdqApbg2NmrsZqGiB\/RG6R5apAWF7ZQcUg5GrKdaBFrRf3OmTNzvS787PpOUfRAszB2qaSb+kXtNgakDadc0BxejJlX8AMu4tSH9rjY39dM0OZ\/GTzfFrgJq1Di3MeEBUeBgxNaDS02jAcRg5m+NWQ5iTxDkA7ItP0uzIfrgol5a7C6ipxgijAdFNsoQDX39JEI+2oX0WA47DyEnL2QXZj5cUMcrlj97siHCVutGa4ADUDDugphgOAiM4+8v3BAPOjRFj7BtcLJS7LdEBNU2kbhHLZTY3O\/KfLS2hZm8Z\/KIRD+UnEgx4pDBp0HF6cmdvhgK3lZWea7gWfrxmx2HpJ+2JduhatAQq2WDQeDksJBjgs3bRkGIx1tCe5ADRR2Weo7OA+6M0O4pfylZTM9f\/sQj9QRN3TIFgQPxxRca+oZGxFkreyNZ+2Mgrx\/5mx\/Ef33Qk2aDTzxSoJL0hkf9Yi2BA4VPtIcZDpJhAZ7IdxB7\/8YP7GoyffQas51EteyNXT0l3AApKPFQaggwJBjSGGA0rJmNNpe\/lW3w2CWmzrdkRc+Inn44kO6CQ0WKTdYcMTjICF\/6\/+wLobyRieDEZ87tI9hB36md\/tpTLvo6CBuXuCq2UVBuUUGfYXJwk+a8qkBUxKanWUOmp1Om\/TdiK5c2O+FO\/hnST7FAifaAkaQ+bx4p\/PwqfKE9iSUxKsh7gZDtIOjeGteWy\/zYhu2pv5S5KiiVKpMUSvOzn\/2WAt8N8lsWlpJhDra8KJWS3qCPLmh2kc2OjcZItSoCutUQtlhDtvOovA2JcVrEsLiVJB5lgC6RLk1hTLgfsEt1U56eKU8hmKIEm60i1B2re4R7Q36yNTTKBhgANWvCeb52H3ewgXZ6YjJOsf3c3QWOUgEwgW0PGzSlpwyqXUdvpAMNJSrIRCqo+ukg2hMZgLYhw+n5o5TKj2ZF6bUoGhWQJeLwGQn2UoQGMtWffnVX4zgabPvhmx8HvTjYEawKepI+CqbGUOg85eCwnCa78X\/fwaJUEVL5ayfI8eKIetEToQoSz2O1BlcuMZkfmrWk5eJI54HFqCFWWUecuC4eFCW+H0DYuxj6W5upZe7Ip5D2aSyyX+2x2OInfaA5FRz9BBwVRYSmP5aSYtsSeKEizPB+eoAWtUXoQfUiCUC4zbXbk3p9ZgieZAh6rilBhKX2\/G+QmzmEFicZQ\/H8Lar2I5TKx2RHpKv6kNVwL8HhNNFmZ1fRpwCEhHrbkxOM0oD1GH2KPSvddLnuu\/XpF4ZO51XiiIeAxSmzhscJEpgY8U53Mtrx4ggEUv1iCymX+3svl+zYYb9QhibdtEdrINTXAoxXZQpW7ORwW5iWIPyLKB3X+VmzLi8eoQmeMHsQek+n97bLnWh7FYrf5jXi8HpqgwD7iNKEu+Dd4qjK55\/sACHTkp\/RsQ8azN3e8DlS8Wdrht1nQkGBAhJPYndZQdfRBFcCjFNhLjDpQyOuBkrGvB\/Q32qbG\/rxIW1uEDkS6iD8iGIBufn7dCWbQHaWAkOdQkLZEC4hyEfclGBDtIva8IwYZgFzqjpTjTNBZ1h5pis4AsXsEA3w2CRqVv5XtwJNt\/jBBlnP4QzxOcoASt6X1Hut5FXptevpsF71f9k6xsz3OAXDyRsBTNnEGSEt7jC0Uua1ocd8ifOEmk+8b8kz9ARt3So9v1+vN3wR57vouxWv39xmcgAfS8mLTt35O6lyOv4hivzC0YkzGt4gxiKmIGRzG1D+0IY19j68RAggRDkOgR9u\/xufxefw\/CzT7sU6iahAAAAAASUVORK5CYII=")','url("data:image\/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAMV0lEQVR42uxaBXQbxxbdz2QHZDnM5drl1iSOLTRzmJmZmZmZ+fMPlRvGsimKJGMSRSaRUaE30p9X+FBJIe+U95x7zpyZt3PfvQtvdiTu5+Png+0xh+N+O4Xjnpz561\/LNgkEg3a2bLl6d5s2BymO7GnT5j0EtrFvR8uWqzAGY2dw3BNbOe43P1TRAVSEaEeLFksOduhw8kRUVGFOaurt\/AEDiGXKFGJdsIA4V64kNevXI7CNfV+MYUw2jf0gKqrgQPv2J7Y3b754zq9\/HYVzfu+F0yvdYYNQOPFQp05nP9LpHDfGjCHVq1aRmsWLSdXkyaRq5Ehw9u8Pju7dwZ6ZCfa0tC+AbezDMYzBWDynhp6Lc1ymc+GcGwWCCdM5rv33Tji9XTuuFwrnHH3hhWxT\/\/6kevlyUj1rFnEOGgS29HSwpaQ8FvBc5+DBgHPhnKZ+\/cixl17Sbw4OXjCHmv2dC5\/EcYFrGjcefDg0NLdw0CBSs2wZcYweTWwZGWBNTuYVOKcD7yjKUTBwIDkSEpKztnHjQZjDd\/Wch+5p2+5Ydkqqy7FoEXGOHAXW1DSwJiUzBXIgl5Nyfp6U7NrTtu3RmRwX8m0K\/\/XygIAuR0ND9ZYJE4hz6lRipc9wZVLStwrkRO6b48eToyEhV1YGBGRibkzFr+O4361t2nTqObnCZp8zl9jo81mRmPSdAnPAXM7KZFaa25SRNEcm4idw3J\/WBwUt+lijrXbOmUMqu3SFioTE7wWsXbuBY\/Ycclmlrt0sFC7FXHm\/8huCgpZ8npDockyfQSroc1gen\/C9QkVaOjhmzCSfxse7aK6L8E7g7ZnH2\/4jtbrGPnU6KU9KgbK4hAahvE9fcF246CYulwfhunzZXTF4SIPnxdzs06aTSzGqGnwc\/sZxv2qwAfjCOyuRWHHi8pRUShTfMPTuA6SmxvPNg9TWenCsofNjjrap08gZkbhySUBARoNL3eHnnsurmDiJlNFbrDQ2rkG4qYuF+vMX3B4\/R925c26MaShPeXoGYM40dz3V8PxjL3J2t259rGTQEFLeqw9YdHENxnW1Fkh9vcffQerqPRjDBxfmXDxwMNnVqtWRx\/qOWBnQePAnak19xdDhxKKNBT5wTaUB9927\/g24c8eDMXzxVQwbQT5WqepXBQb2f+S1\/T+efjqnbOxYYqG19qZWxwtKlCq453T6NeCuze7BGL74LLREltPl89+feirrkT6iNgiC5l9JSyelPXqBWaPjDcVKNdw2m\/0acPv6dQ\/G8MlZ1rM3XElJI+sFgjkP++Lr8M+nnskrGzGKmOltZFZreUNxjApcRqPfl6DLYHBjDJ+cX5gwYiTBO\/qh7oJ1TZtOzIlPJJZu3eGGSsMriqKVUHP5sl8DqunaoJjG8M2LWrLjE8i6Jk3G37\/m0yXk\/rZtz94cPJTc0MTCdaWGV6A4+9Fjfg2wHTniRpP45kUtqIluv52+b0WYR7exzkRE2Cy9+tAT1bwDDajYuZP4M6Bi+w6CMSy4UdOZ8Agb3aqL9GvApqDgJYakVLiRmALXYtS8o6izEixLlvo1wLJoMSmmMSy4b1BdV5NSYHNQ0AKf4nEHdneLVifMffpDCT2hJFrFO4pQ3PgJfg24NnYcwRiM5R30UbhJte1q2eoDn7vNuHV9\/PmQfHP3noBXgQWKFDFQ2KM3+DOgqEcvjGHGb+7eC44\/F2LCLXcvA3Av\/kKU+Nb15HQoViiZoEgeAyalxrcBbrcHxzCGFT9qOx8pctFtdqmXAWvo0vfTaCUpiU3Aq8AEhRQGqRzuOhzeq0C73WOUKjCGGX9JXCJ8qoghqwIb9\/d+AQqDV+tj46BIpYVCeTQzGCVyqNPrvUph3RW9G8dYcqM2vS4ONgqEK7wM2C5sdig\/MRWKOqugUBbNDEaxHBwnTnoZYH\/\/AzSAKTdqMyWkwBZhswNeBmwTNjtaSEtFAXWqQNqZGQzUgLJ9B7wMKNuzz41jLLm\/0EZL\/FZhs8O+DPigKDkV8mWdIV+qYAaDWAbmpcu9SqGZrg9wjCU3akON24Kbve\/bAHp75EsUTGGkIgtHj\/MyoGj0WGISy9nyS6kBCcm+DdgqFB7N1yWAiQZhIqxgFMnAmNnVqxQaM7rgGFPuL7RRjVuCfDwCWwTCQ3qlFozUKUyEFQwUuZQD6\/5\/DtrGPhxjyY3aqEZqgPCAdxkUCFdn4UJFGg3GKBkzGChyw8Vwx2r7j\/47lZUe7MMxltwmWQxk02qwsYlghY89wIDBl8OjiEmhpIlIWYIaIILa3Nz\/3AI1OTlu7GPNi9ouUY0+9whncpzs9Euvuoy0Vl6NlDAFirW+8+5\/DLDRNvax5kVtp6hGqlXi82PocKenjCalDq5GSJgiN0wElh27\/mMAtrGPNS9q+2fHJw1Uayefn8PbaSk0qnSgp8H6cDEz5IRFQcm8hf8phdjGPpacqMmg1MK2oOD3B\/n789XGxk0XfxwphatiBejDxMyQ94YIPn45DM6FvoLANvYx5URNqG1dE8F8zt9Bnw3RO8+GVhoUKnqSiBnyKLJfj4Cs174AtrGPKSdqevuZ561zfvObiPtuim4Pbn5GT4PzwvFKRf0ogFpQ0w5h81MP\/JlsTWDgxHOvhoFe3BlyX4\/6UQC1nH017N7qPwWOe6j\/+h1o3TZXL1d+OcFrkbzDoE2EqpOn3UB\/DEVUnT7rNqVkMuFCDajlQKs2WfTqt+Me5lgb0Gj2+dfCIC9KBjmvRfAKvTYe7lVVe+0I3auu9uAY33yo4dwrrxPU9Cj\/C+iwt2WbrFxpDGRTB7NfjeAFWa+Eg+PEKb8\/jDjeP+HGGL74MPccaTT8u1izgG0cicLwLAXsctUrLucaZidl5qorOGYGwTEzMzOz4HiZmTfkZlF0wmPG5R239\/7WkY5h4mhH+iRr4L3\/PT9PwPNGRZV6Pe7+\/2mPWKSLVjk9e3c2tfPtEGUAqj\/C+d69o3\/X+C97RzHHKH\/QvoJieMginSd04Pm5otIF8QhVAH2OpgPRrEn6lH9MwJGffxnFHCN8QTO0P19UOvdh0VNjOIH5Vnn1jnRDO5VvPR\/2R7Mi4VX4N\/g\/8G\/a1\/SbAHOy9ZMONXBofrOiZrd+REa83W+ynjxvhu2rdGM7V\/UyFoQSEOapwTn88F9sgofp4ESsoxtzsvIBjWkq\/bkzZn95v8l0PMu24ajZw1b52kU2x\/fbG9vGnfgUIVIU3DZ3gG+j\/+a+WrZi5AidDANfLV0+srW1g8doDHNE7asofdK4eHbtj49Y5eugnRnRcOiQvkTct8zu3pdu7OApf5SEKkLEPZQEZ4BvqPXwNTYnwDX6MCZsF5qgbSlpfJS0UumbDD8q+5iUf+9Cm\/2HYSoxOEySYBES7hCPOYO\/BX3C9qAFmhbZ7D89IeffT8FLLAdtYi8l4QGLdNNc2hPUpk6uhpt40h0+qkBDirTMnT77ywct8o1zxoOfaHjwxGTC5KMk3GoynfZqecWObfQjY7ixAx9vuIN\/jSuoZcXf2IVP+N5KGl4rr9xzs8lyejlpg0ZoNTIJE4hJxBTCTFiJvPMZiz5ZULxkqcOzT23r5ikSEqcNLO4O8rgroOUC2IYP+ILPxXb3XtKw6BzGItCkazPrWqF5Qs4SQBQ0MFZ9s9l82ctlFTvXBBRtuL2Pp6LNJDSkxZ0BQ4FNNdoy5mONX9FeKivfeYvZfGkTY1XQIpYAgUeAsBBSJglESR9Vw01m+bEXysp3rfGHj6gdfZra1KUlgvVajMo45vALgbWwAVuwucoXosArPrrdKj\/ZP37XS34TPDRZxB4B8STIRCFRTkxvZqz9KrP10ccLS1IfzKr9YWOkQVO7B0h8r5ZqaNUSSoMWD0S0mCekbaOS3ub0j0PX6MMY5mAu1mDtBqVee39m7Q+Pks0rzdZH6skHfMGn7lsWCN7QRFh\/k4RpxLGVjCm0G59znSS\/8UBBUeqN6mmfLLJ7Dq2i0t1c36rF23rGgkv3DgFcj\/VtoTHMWWh3H3qtauonDxYUJa+X5NcGyRZswjZ8\/CZ4q\/GBi+0NmWQUEccQNcQswkG3JtjA2NAQYxdebLI8cKNVfucOuWDVPXn5m+6VC5IA1+i7gcYuMpnux1yswVrY0G3V6LaLMkGLP+u5TchkXWABUUqU6+Kn6YHYCLse2G+x62Oz9Lk1+tpS3ZYFtnMfcG4Sk3lsMp8i8m82UYBr+Te7uF7OuQ\/0V0d+0gAdXWmtAAAAAElFTkSuQmCC")','url("data:image\/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAANXElEQVR42u2bBVQcSbfH572N+7cR4p51jUAWXdxdgkSQbOSTyPrG3XF3d4cYsnF3NEIcm2EGhxnkVs+rS2bPi8wK0P15nfM76XTfuvf+b1dVyzQ8jtt\/23\/bhymDePPD5g74PEJDwSxz1fQlJz1nLiuIp2TNXJqfh+A27ptmd8IDbdCWtyB4DmXgv6ho\/xEDFoapTLU7fuC9lWd+tna\/9+ibNEHnvsJmJvh6B4kt6SYp9wjJqJD2gNu4L4geQ5tv0gUdVh73Hr3reqpwqu2x\/QMWRSijz39+4Z8Fzpxglv3dx2sunF0VXdnofUlMUu4zJLJMStxvSsnOy1Ly\/TkprDslhbWFUlhVgLzYxn14DG3QFvsk32OI92UxWRX9vPEj6nOCec63vM\/DZvzzCf8kdNZEi+wdGltuFu3KayYJ5Qzxu8OQTReksLqAAbe8voF90Yc\/9YU+d+U1Ec2tt8umWB\/dg8X+xwtXCR\/5J4PU1ao\/XS\/ZQ4duDD1re64wZA1N3PUku6DPvdR3DC0ExlL+\/lrx23rpqzCHf4z4hWEfzVtemLs+WSCJLCZk5yWGrKSJupzgFoyBsTDmumS+eN6KwhzeopAP\/37Cv9wxYJRekr36plvl3pclxPM6IWvyCbgc\/\/uylsbE2J6XOojapptlo7VTlmBu3Io39Bk83iTzJ8eAJ6Kg20A2nWXA+Rj5h7LpHANBt4As8XskHGuU9SNvrs9gjha6mOEKFpn73CKrWvxvEfLnfIAVx\/45+EsBgD89IW4RVa0TrbIPYq6sn\/mJljkH1sTXSLxvEPLVCYDlR\/+5WHUSAHNbHVstUbDI3sfaSMB5NdYo86cV4ZUtHteAuB7rhmW57PPtz12w7VwXcTvedx+Ym8d1IMvDnrWMNcr4kWeb8la\/9Y\/STrK38q4QuV99IX5pDrt8dawTSvjdjFTWGsREuu2MhPTVnxvN0f1aN7HwrBCO0Ey26\/elTvG7ayWHLnWSVce7YGk2uzhlSuBqZSeKf6XVtnRLnTLa++x3FR1FmLPSd1fLeUoRH\/T5Jmf2soLcbfltZEN+NzhldbHOX3ObgZHKb+uPNffLN+a8Ja+VzHLKy+rTc8SfdFNXL4+oEm8+1U0cM7uAbRwyOmD\/qUYi\/ZX2lywR2vQrxpYz3WRZWFX72wbpbr2+t5+\/8XLxrnOdZEVOJzhkso99Wjt8n8uXW4CnIjFjE1ML9hmSfsVYTnNHDQvWX7rdq4coehnZvTZZRP56sosm0ckJS1LbwSqyCkqqWl6ZBW0dIF2XcI\/YJNSzEmddXhesoVom0Ie1P\/xIu2DjldKtZzqIIx2C9ukckSYBmzgRWPoVQdylKubKw0Ym40YtszzkDlhGVIJdcgsrcVADalm48WrRHxoF44yyv3OOrYM\/H6dnKa2DU2yTW8EqWgAm\/vfA0OsOGPuVg2VkDdgkNLIaB7U4xwpgnHH6N797uzvHufDc93kS4kDPkF0q99gmtYJ1fANY0dFgHVcPNkktrMdwSJcAaprrXHj6N68I+BrL8PAD0V9pxWxTJP9WoCb9gw9EAxTDv\/jVAky0PnrAJaEBltN5Y5Ms+bdiRWYHONOFVcH86B654vEN7AyngsK\/HRODXYqYdvr74JDSDlsKxcQlk9s4qAm1UY0Fct8246trpR9uP1iTKwHrJDHn2NKkfC6JiaAVXlz+Ool0XU4LpzFRm+IPN+\/xPgqe84Z+fBev7\/5YsiJDDFaJ7Zyy\/2w7qWzslr7e8u+3MZZxzZzFdaba9I88lAz4PEz9zVtfg\/TVFoHVxIEOFcuEdk5Ykd4GF5\/iw4\/8dut5G2MWJeIsvmOqGMwDqsloPTm3xgoWRz3to0X0stQGFvHss6OglTRJiPS3WtatOsY0UshJfMSOakONEy1yj7xRgMnWJxKWJTaDNRrHsYd1XCsk3m5nGEb6u21r1lNiGiHEfpyA2pYlNMEkq+NxbxbA9nj2iuTWHkPzWHZwTWuFcn5Xj\/SnQrF0e9p9si66RO4wILRCNqFPwDSqEftygiXVhhonWx\/PlFOAEwUuaWjYCmYsYBJZDw\/qupiOLiINKHhKtA9eBV3v+2AX\/gTkFeB+bRtjGFwFpjHN2J8TUJtLGi2A7cl8uQVwpgUwi2kFUxYwDOHD2uhy4hpyh2h7lIFBcDUYhQlh50mR3BGQfLWWMQoVYF\/OQG0rUn6lABNtjmYvTWyhhi1gEt1\/UKyu7yPQ9XsMhlSYcVQTGEfUQ9qtRrmrwY9pTwj2wb5cgdqc6Do3Sd4UmGR9LME+ls4\/LEAUO1BBFNH\/\/z9UCPf54jcK0NlNpCb+j2iBGtCOM1CbfUyD\/EVQwSzH0zq0Dsyjm8E4khssw\/kA5M0BcP1RI6MXUEkL0MRZbMQihuYQJoAJ8i6Do+mvvAZez4klrZJRRDP7hDfBphyh3PnvX1hJ9ANr0Y5TrKg2A89nZLR2upvcW2GNvRVim9hmMKTJso1BiBDirtbLnf+ukRVEP1iAdpyC2tT3PhDz5oeqyX0Y+mTD9ft28c1gQI3ZRi9IAMVV7W8UQNTSKdX2egT6oSK045QlVNvH66\/f5X0cMFvu4\/AUu7wC+zjZGQtjF6OgWsDF7vV24k4do+NXBQahjWjHGajJPrap5xL4qx9fjTfP2m\/sVwOmEU30jDSyR0gDrE8VyJ3\/u7OfEB3\/GrTjFLNIusD6VcNYk8zdv\/5K7LMwFcVNpUKraDpkQxpZQzdICCHn6+UWwDqwAnQCBGjHKahJ8adi0UClyMW\/+VJ0qn3eGevIBtqpAXSD2UHbnw+XHra8Mf\/5TR1STY\/HoBMoRDvOQC2oaeqSvFO\/+zPZaL2077QOPQHT8EbQCWpgBS2famgSv\/kC5OdSIaPp9fwVW+MwWVwWQS2aBx93jzFI+\/oP\/TAyx\/VssXU0rV5QPeiwgHNsjdwHIJ+850TTp6rHxiKiHk6UtTHPG7qkOgF8VuIiqAG1zFt5\/jZd\/Kbz\/kgbY5S+XefwM3o26PANrO8XWv51cDivTu78P3iskmj71sDBgibSKH5Rowv3GhgDv0rQDhD1OzbSo+HwE0J\/IN3eqy8+ZzmfvW0ZTquIIgL6zpe+tXCyRP4DUDdhpM2yt0TiTpDuz7hPFm+9DBruT2jhRP2Ki2DuFlTDTOczN3vOfm\/aSM2UVYt33GszCa0HTZpMX9HwqoLnIon0t1ppZQtj5XEVlPfcBnWPZ7RofOzbbzB3pW13W0dqJrr26YNnBcvj2fo+9BodRM+kn6hPqHk8h4radrkjoFXSLT2U\/YAobb0AKgfvU\/GVVLwQ+\/UbzFmPLr5UQ0afvxrDLzBnOZ8pMgkSgra\/EJPrNWruz2BfVgV5WXh7B0gjTz9ldHdfgC923QK1w4\/pSKlBe1bAXDHn2c5nSmWfyPS9DVVPXPLxhlt1piF0WFHnGj69AQtQBYt33YYfYktI5tVqxvf4I6K58zwdmtdA5UAFPV4JGt4CtGUFzBFz\/WjDLf5Q5QRrXn8bfmpG14Pv5v9Q3GASIqIVrgN1n15AxakcfgJKtAiLtlwGxR3XQfnAA1A98gzUvGrQhjUwN8xx\/g9FTSN107\/H3HlsNPzokL4v2Ke4tawdq6tBg6l59wIvWgQ6ElSOPKf\/VoKqZy3uZxUUj7kpbiltx1zxL1VY\/1R2pH7q3gU\/FDeah+JQqwNVKuyfAcwFc1rwY3HzaIOM\/fSSN4zHQftfnsKy4SM14zd9suFmnUVIHej50yJ4Cv6hYA4WwQKgOQlGaib8xJu8ahjmyrp4ygDKIJ7CJ8MHKQY7zlr+c5GRTzWYBglBHYe4h3yU3fmkP\/yaXw0a0yxYCEbeVTB7xamyIYsDnTA3zBFzZbMI\/0N5izKQMpgylDKC9+FmxfGmWUcXby1tt6ajwQBHgwcfBcMXR2oJF6BvjIGxMKbSlrK2caaZubx3flyEOclyGyzL9S3MnbMCUEbxxmpNGaocvG6GU36JzoHHxDZcCIZ+AqJMk118mF3QJ\/rGGNr7H5KZTvnFQ5WD\/sYbpzsZc+GmAHKmAGUIZdgvRaC8zZvqqDhcLdBjhsPxEq19D7rtQgXEPEhAtL3xzNUQpcN9A\/uiD\/SFPrX2VpAZS\/MqRqgHe\/OmLVmEsV8SPwxzkz8FuCvCcMpoigJlBm+iwZfDFQ+6K5in31jw7Y0mI\/enxD6sjtiE1hGTAAHR8+ETTc9aoupOC0MFLj70AtzGfXgMbdAW+2Bf9DH\/mxtNCuapN4YrHTmCMTCWLCbGHt4H8awWYuhLRZhOmccbNnshb9oy55EqnlFjDeNvvLfyVKXy1uJOnf0VxMz7GbEJrCb2oXziFCFAerZxHx5DG7R9d+Wp52MNE66PVPaKQF\/oE31jjJfED2VBOCtrwy\/FGEOZQJlKmU15jzdwzOe8cXomvOnLvhr6+bYDo9R9k0ZrhheM0Yk6P0Y35noPOtHncd8odZ+kIZ9u34+22Af7og+Zr6ky32N+Ec3OXGe\/IANkCY6ijKUoyJKfLhMyl\/IuCnuNd2XHZstsp8r6jpX5Qp8DuBfMRWFk0+alq8jwlxZRBLeHv7SKy4Yz90L\/D1wmRcCSWFt6AAAAAElFTkSuQmCC")','url("data:image\/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAN10lEQVR42u1bBVhbWbfNe1OnNkrH3b0CDFQGdwIEq1BqQzvuU3cv7u7uVYrVvSUV6mgFSwgJmiD73LyzKaOEdkhyad97\/\/m+VeDec\/Zaax+7Vs5\/yn8Ky+X99GGciZFvDPk0eoamTY77S855Pq+4FiZR7HxlTkE+An\/HYy867ffGOliXMynsdYqh\/0tNB40eMjlS7wWn3G3vLDp8gOd1o+LnTEHnlqJmJuxcB0m43E3SbxCSXSZH9PyOx0LpOazzc5agw977RsXbCw4WveC4b+uQKdG6GPPRN\/5JyCvP2Oz69cMlx4+4x92V+J2UkvSbDIm5KidefDlZf0pOfjsqh+8OyuHLIjm4F94D\/o7H8BzWwbrYJu0GQ\/xOSYl73B3JBzTmM9zdv3A+jXz50TP+UcSrE2x3rZuxin9pQ34zSb7GkMCLDFlxXA6LCxlYmK8csC3GCKKxMOaG\/Caiv\/rC1ed5ezdhsh++cb2oMY+bZSyeuvzc5U106MbTXtt0miFLqPAFeeoFxtxMY8fTRCCX7m9nS54wyXJHDQ\/H\/OTID96cW7Tn+zSBLKaEkPUnGbKICp2\/n10gB3Ih53dp9dI33Yp2c6aEvz94xj9fN2SsSarL9BXnr\/mdkhGfc4QsKSAwP3dw8SXlRG6fkx1k2gr+1XGG6c6ojV3z5v7Dn7bKWT4ruEoUegHIiiMMzNtHHipWHGUg9DwQ58CKhictdi7jvOE\/nKWFLl5D0zZny8KY6pag84R8VQDgtu\/RwNeFAEG0QxZGV7dOsN+1HbWqvecn2O3etiSpVuZXTMgX+wHm7n204J4HgNoWJ9TING13bcGRoLY5\/6RFznK3qLst3meBLNjXDa57Hk2gNu9zQOZG3m550iJ7Gccx\/TGV\/Y81THWx9ysTeZ25Z37ObtWweH83bDreRaIudpGUq10k83oXvQrsIkHFXWT1kS6VORbS9l5nu4mtT1nDaP00J5W3Oq1fz17ecbKTuOd2wZxdymHh3g6Iu9hBboqAIYz8vqULGPn52m7G41QHcVWSzz23G1Cz9q9nrnG0o99T+iLnNdfCPWsK2sgPBd0we2fXwJHTCeF8GWntpK6VKOWNwPxWICXKcKPmVfmt5NXZ+TuVuo943Dhj8dzoaunKg91kVk4XDAxovgOO31LsXNTaKT96s5HJ5tcxB66JmGqxrN8kdHQz8m3HpEppWHW4m7hGVrc\/YZa1cMDX9hN\/PFWy4WgncdvdCTNzBgaXbBnkl8n6mG+Vdcu355YTS5+zYBlwEayDr4JV4CUwp3+vyrpBaiWyfqfF0vwWMlAdc6l29DDp+5MXBnQTRbeRjV+micg3eV3UTOeAsTSvmTD\/sI9\/\/5xyjdiElQMvUQgOyY3gmCLp+emQ2ADciErgBvDh4p1mhaOmorGLccpoG7CW7\/K7YAn18gy9WfvXt7STfjx9ZfXhDjIruwNcsgYGp\/RWKCqV9jFx\/lYzYxt5GxyTxeCcKf1bG\/wbk8GLF4BjSAn0NxJ+y5WQgepBD+hl8o9nLv2rUfCUxa5f5yUI4avcTiqsY8BwSJbAlRoFCbjdyvASReCcIeu3rWNqC9jH1kPUsRqiKAGBx5uIU1rbgDWhl3kJAnjKMuvnB17uvj6v6Ohv+TIyM1MGThkDhz01eaqi7zCWdhE5nntQe16SGDwL6xQmIOyEiDikNA9Y08wsGaCnN+YVHbrvjoCPscw9SkXf0Iw5psuUgn1CIwQf7NuDnd00AfEN4JgmvW97XnIzxJ0VK0zA9oJ6gueV0YWeTLeXioZoRX3WbwIm8PZum0\/n6NxsOpTTZErBLlECdmEVUFbf\/rdRsPt8PWMb2wAOqdIHtr9S23cHwQPzEu6AfVKzUrrc6LY8jy64mty9mxSaxyewL88uLPp2n5QuZChSOfBS24AbUw82fnwILLxFcorrmG17yom5fwnYxose2P6HXYp7n1\/VxNhE1QAvpVUpXegJvVGPhQqfNuOja+2lF0qX7JFRE1JVQHuxCWyia8E88AaY+tJ9PqiUJkVAe6\/lvu3w\/KFyad\/ep0e+T7pJuLENKulCb1pL+Tc4H4S93sc\/Pos39aqUuWVTISntKsOOmuHGif6AXXLrA9ss3SdReKuQfqaGsQytoiNIrJKmedSbqWe5bMinkdP7XvqaZS22DakhM9OlVGz7oMOejpoKUVcf\/yfLxIypbwlYRwtpUttU4piVIQVucA0ZZ6Lg0ljTdq+PC+0pRzqHbZMGGYmtEHW2tc\/cv1Hbylj6XgCryDrgxjepzONEvaHHCbZ7PPsk4Dne\/mRXusfyegQNLhZliKGj++\/+iyubGCsfPliG14BNrFgtPOjNNbkJnrXPTeybAMfcXW5prT0VuQmDBmquCY5W\/H3hKygRMiY7isEirAasYxrVxmVHvaHH53i5OQoSsL9wfiZWbAWbQcT3OY3kr+6TTtxlDHfwwZz2vBU1r04u9DY\/kybAMa9AYQLm0QTYxLeC9eCAGhTDico\/e3\/\/JQFj4Em3zbBaek6idj705pbeTwImOOzdNSelhVZsAau4wYFzvBC6gfnjIYml70UwC68DS2qeDT70Npuuc88qmgLP8vYluyRIgIsJiGUfltESCDwmIX\/c6By4Q0yD79LjYtY40ZtLvFjxIqhps9uHFyEEblwz7QH2YU65jpS2\/DH850aWglmYgFVO2\/hmsIsUwDOKtsFx9C2vme8dYkezZBHdzDpMQ+uhtP7e\/Be3dcmN\/avAPLKRVU576s3M5zYZZ5i1UOGl8IzNZVKHBNo7UU2swyS4Bu42yuRYzpRLGOOgapoACauc6G365lIpZ2LENIU3Qx\/9cO6mU1IzmNHKbMOIGq6VdMixHLouZoyDa1nndKbePvz+3HXOh8GvKbwdft4pv9Al8V62zCLZhVFgNVQJ2+VAGHlWsZAmoI5VPvTkktDUswX2+\/HV09ydWy0Da8E6uglMIySswjDgLuitPwG6q4\/AtM18wASwyWcT0wSWgTXwpFXOxv4fiX0Sqae14kqDfRydo+ESVmEUVAf6vrcoqsDA7w4YBQtY5UNPWstLREO1Y3Tu+1D0BZf8w7wYMW0kBuMwdmEUKgKjkAYwDm1klQe9oKcXnPMPPvA12TiTzF8NdlSBdZSEChT\/nwB60d9e2T3eLPOnf\/Vi5PUFR0p4ceKenjFiCS4JYvA\/2kJCT7aQn3aKCVs86AG9vLno2AW6+L3E+TdlvEXWWiOP22AZKQbDkEa1Y81eMcGXnn8th8ukjEmIUO1cPR48qgh9Qbp2QF98vjrvyAW7KJpFGsQgWH3ghteDtJPIFZWgoxKiH9SgNi7Ubks9vDLvML+n9wdSxuinu+usu9FmFdEI+kEiteDzQCFszhWie4WlpLqdmeFbozY+1K695nrrGP2UBUp98Kxpl7vL1L8WTEMbqXiRypjhVwfrd1X3mwB+ZTMzzfuOWrhQs4l\/DVAP2Up\/NYZfYL467\/Alq9AGMKRD8\/MA1TDDtxZMPK5BI733V1Q2ZJWTaV63VeZBraj5tXmHr\/R+IqN8GTk9xfnDH84LrcPpsEIT\/spjum896G0vh3lBfFLdKP3be8OQgkqis+ECTPOqVokDNaLWD344Xz9SN5nHUbXgp2Z0Pfh14tISsVW4iGZYCNP9lcdUrzugs\/kqvSo7BLP9zxL3MD6ZuvowaK05A3oeVTDdr17p2KgNNU5ceqlpjHHWb6ido46CHx3S5wVbtFZfbcfszqBk0\/yUhK8A9DzvgC4dCTqbroL2xhL4bGsp6Hrcgqk+dUrHRfOoTWvVlXbUiv9TRe2fyo4xzdg8aWmJhBuBQ432JjWjLNCsnlf1PXjXqhQLtaCmSctKmseZZW+lW94oDgvlvzmarhpj9JNWfPQDX2gbLgSTICE1InioQA22YQKgmgRj9JOXc55zH4Va1W6eYgjFMI7mRxrDtMJmvTr3wCULus1Yh+LiJqC9qBi6XvVEFfQXdwbltAlrAAu\/anjN7eDVETohs1EbakSt6kzCf1E8RjGUYjjFSIrRnPdXaj1tvXOvzuor7Tw6GsxwNHjXo2H4zLOOsAGMjRzIhZzaq662PWWds4fz1rIpqKlX2\/BerY+hdtYSQDGW86TB8yN1w757eXbBZaNtlcQxqgHMAwVEl4rV8VAvMCbGRg7DreXkldkFJSN1Q7\/lPGX8HGphKQF9pwDFCIpRvYRI\/ATnhVlaGtNCvF+emXvZYEtpt1OEgHBDBcTQD3uulmh7KAdsizEwFsY02FxGXp6TXzZ6epgf50XnKcj9F\/OjUJuiKcBmEjQoxlFoUrzMmWD2uYbWdi9NblbxpF+Kmyy8bhGXSCFxiBASq2ABMfGvJ\/o+dWSqF00MNaiz4x7wdzyG57AO1sU22BZjTPy5uEmTm1Gsoe3piRzI1cuJ3BqqmVc9ESP\/koSXKN7kjHptMudF13lj9HxinzRPKn5n0cG7uqtLOo22lhEbv9vEIaSGuETUk9nRAkTP73gMz2EdrPv2ooN3njRPPjdG1zcaY2FMjI0cfzE\/kgXjyqwNfyRjPMUzFC9QvEbxDmfo+E85T5lYcV5y\/WLkp2u2jZ0ekDpOP6pwvFHssfHG8ed6YBR3DI+Nne6fOuLjtVuxLrbBthijN9YLvbHH\/2FaqbnOfkKG9AocS\/EkhWav+Jd6jbxB8TYa+wfe7j33GtbtbaPZG2Nsb8wh7BhmPzG90+aPXUTjL4soAn\/X+Msq3juc2Tf6P74DTjn\/URUqAAAAAElFTkSuQmCC")','url("data:image\/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAANXElEQVR42u2bBVQcSbfH572N+7cR4p51jUAWXdxdgkSQbOSTyPrG3XF3d4cYsnF3NEIcm2EGhxnkVs+rS2bPi8wK0P15nfM76XTfuvf+b1dVyzQ8jtt\/23\/bhymDePPD5g74PEJDwSxz1fQlJz1nLiuIp2TNXJqfh+A27ptmd8IDbdCWtyB4DmXgv6ho\/xEDFoapTLU7fuC9lWd+tna\/9+ibNEHnvsJmJvh6B4kt6SYp9wjJqJD2gNu4L4geQ5tv0gUdVh73Hr3reqpwqu2x\/QMWRSijz39+4Z8Fzpxglv3dx2sunF0VXdnofUlMUu4zJLJMStxvSsnOy1Ly\/TkprDslhbWFUlhVgLzYxn14DG3QFvsk32OI92UxWRX9vPEj6nOCec63vM\/DZvzzCf8kdNZEi+wdGltuFu3KayYJ5Qzxu8OQTReksLqAAbe8voF90Yc\/9YU+d+U1Ec2tt8umWB\/dg8X+xwtXCR\/5J4PU1ao\/XS\/ZQ4duDD1re64wZA1N3PUku6DPvdR3DC0ExlL+\/lrx23rpqzCHf4z4hWEfzVtemLs+WSCJLCZk5yWGrKSJupzgFoyBsTDmumS+eN6KwhzeopAP\/37Cv9wxYJRekr36plvl3pclxPM6IWvyCbgc\/\/uylsbE2J6XOojapptlo7VTlmBu3Io39Bk83iTzJ8eAJ6Kg20A2nWXA+Rj5h7LpHANBt4As8XskHGuU9SNvrs9gjha6mOEKFpn73CKrWvxvEfLnfIAVx\/45+EsBgD89IW4RVa0TrbIPYq6sn\/mJljkH1sTXSLxvEPLVCYDlR\/+5WHUSAHNbHVstUbDI3sfaSMB5NdYo86cV4ZUtHteAuB7rhmW57PPtz12w7VwXcTvedx+Ym8d1IMvDnrWMNcr4kWeb8la\/9Y\/STrK38q4QuV99IX5pDrt8dawTSvjdjFTWGsREuu2MhPTVnxvN0f1aN7HwrBCO0Ey26\/elTvG7ayWHLnWSVce7YGk2uzhlSuBqZSeKf6XVtnRLnTLa++x3FR1FmLPSd1fLeUoRH\/T5Jmf2soLcbfltZEN+NzhldbHOX3ObgZHKb+uPNffLN+a8Ja+VzHLKy+rTc8SfdFNXL4+oEm8+1U0cM7uAbRwyOmD\/qUYi\/ZX2lywR2vQrxpYz3WRZWFX72wbpbr2+t5+\/8XLxrnOdZEVOJzhkso99Wjt8n8uXW4CnIjFjE1ML9hmSfsVYTnNHDQvWX7rdq4coehnZvTZZRP56sosm0ckJS1LbwSqyCkqqWl6ZBW0dIF2XcI\/YJNSzEmddXhesoVom0Ie1P\/xIu2DjldKtZzqIIx2C9ukckSYBmzgRWPoVQdylKubKw0Ym40YtszzkDlhGVIJdcgsrcVADalm48WrRHxoF44yyv3OOrYM\/H6dnKa2DU2yTW8EqWgAm\/vfA0OsOGPuVg2VkDdgkNLIaB7U4xwpgnHH6N797uzvHufDc93kS4kDPkF0q99gmtYJ1fANY0dFgHVcPNkktrMdwSJcAaprrXHj6N68I+BrL8PAD0V9pxWxTJP9WoCb9gw9EAxTDv\/jVAky0PnrAJaEBltN5Y5Ms+bdiRWYHONOFVcH86B654vEN7AyngsK\/HRODXYqYdvr74JDSDlsKxcQlk9s4qAm1UY0Fct8246trpR9uP1iTKwHrJDHn2NKkfC6JiaAVXlz+Ool0XU4LpzFRm+IPN+\/xPgqe84Z+fBev7\/5YsiJDDFaJ7Zyy\/2w7qWzslr7e8u+3MZZxzZzFdaba9I88lAz4PEz9zVtfg\/TVFoHVxIEOFcuEdk5Ykd4GF5\/iw4\/8dut5G2MWJeIsvmOqGMwDqsloPTm3xgoWRz3to0X0stQGFvHss6OglTRJiPS3WtatOsY0UshJfMSOakONEy1yj7xRgMnWJxKWJTaDNRrHsYd1XCsk3m5nGEb6u21r1lNiGiHEfpyA2pYlNMEkq+NxbxbA9nj2iuTWHkPzWHZwTWuFcn5Xj\/SnQrF0e9p9si66RO4wILRCNqFPwDSqEftygiXVhhonWx\/PlFOAEwUuaWjYCmYsYBJZDw\/qupiOLiINKHhKtA9eBV3v+2AX\/gTkFeB+bRtjGFwFpjHN2J8TUJtLGi2A7cl8uQVwpgUwi2kFUxYwDOHD2uhy4hpyh2h7lIFBcDUYhQlh50mR3BGQfLWWMQoVYF\/OQG0rUn6lABNtjmYvTWyhhi1gEt1\/UKyu7yPQ9XsMhlSYcVQTGEfUQ9qtRrmrwY9pTwj2wb5cgdqc6Do3Sd4UmGR9LME+ls4\/LEAUO1BBFNH\/\/z9UCPf54jcK0NlNpCb+j2iBGtCOM1CbfUyD\/EVQwSzH0zq0Dsyjm8E4khssw\/kA5M0BcP1RI6MXUEkL0MRZbMQihuYQJoAJ8i6Do+mvvAZez4klrZJRRDP7hDfBphyh3PnvX1hJ9ANr0Y5TrKg2A89nZLR2upvcW2GNvRVim9hmMKTJso1BiBDirtbLnf+ukRVEP1iAdpyC2tT3PhDz5oeqyX0Y+mTD9ft28c1gQI3ZRi9IAMVV7W8UQNTSKdX2egT6oSK045QlVNvH66\/f5X0cMFvu4\/AUu7wC+zjZGQtjF6OgWsDF7vV24k4do+NXBQahjWjHGajJPrap5xL4qx9fjTfP2m\/sVwOmEU30jDSyR0gDrE8VyJ3\/u7OfEB3\/GrTjFLNIusD6VcNYk8zdv\/5K7LMwFcVNpUKraDpkQxpZQzdICCHn6+UWwDqwAnQCBGjHKahJ8adi0UClyMW\/+VJ0qn3eGevIBtqpAXSD2UHbnw+XHra8Mf\/5TR1STY\/HoBMoRDvOQC2oaeqSvFO\/+zPZaL2077QOPQHT8EbQCWpgBS2famgSv\/kC5OdSIaPp9fwVW+MwWVwWQS2aBx93jzFI+\/oP\/TAyx\/VssXU0rV5QPeiwgHNsjdwHIJ+850TTp6rHxiKiHk6UtTHPG7qkOgF8VuIiqAG1zFt5\/jZd\/Kbz\/kgbY5S+XefwM3o26PANrO8XWv51cDivTu78P3iskmj71sDBgibSKH5Rowv3GhgDv0rQDhD1OzbSo+HwE0J\/IN3eqy8+ZzmfvW0ZTquIIgL6zpe+tXCyRP4DUDdhpM2yt0TiTpDuz7hPFm+9DBruT2jhRP2Ki2DuFlTDTOczN3vOfm\/aSM2UVYt33GszCa0HTZpMX9HwqoLnIon0t1ppZQtj5XEVlPfcBnWPZ7RofOzbbzB3pW13W0dqJrr26YNnBcvj2fo+9BodRM+kn6hPqHk8h4radrkjoFXSLT2U\/YAobb0AKgfvU\/GVVLwQ+\/UbzFmPLr5UQ0afvxrDLzBnOZ8pMgkSgra\/EJPrNWruz2BfVgV5WXh7B0gjTz9ldHdfgC923QK1w4\/pSKlBe1bAXDHn2c5nSmWfyPS9DVVPXPLxhlt1piF0WFHnGj69AQtQBYt33YYfYktI5tVqxvf4I6K58zwdmtdA5UAFPV4JGt4CtGUFzBFz\/WjDLf5Q5QRrXn8bfmpG14Pv5v9Q3GASIqIVrgN1n15AxakcfgJKtAiLtlwGxR3XQfnAA1A98gzUvGrQhjUwN8xx\/g9FTSN107\/H3HlsNPzokL4v2Ke4tawdq6tBg6l59wIvWgQ6ElSOPKf\/VoKqZy3uZxUUj7kpbiltx1zxL1VY\/1R2pH7q3gU\/FDeah+JQqwNVKuyfAcwFc1rwY3HzaIOM\/fSSN4zHQftfnsKy4SM14zd9suFmnUVIHej50yJ4Cv6hYA4WwQKgOQlGaib8xJu8ahjmyrp4ygDKIJ7CJ8MHKQY7zlr+c5GRTzWYBglBHYe4h3yU3fmkP\/yaXw0a0yxYCEbeVTB7xamyIYsDnTA3zBFzZbMI\/0N5izKQMpgylDKC9+FmxfGmWUcXby1tt6ajwQBHgwcfBcMXR2oJF6BvjIGxMKbSlrK2caaZubx3flyEOclyGyzL9S3MnbMCUEbxxmpNGaocvG6GU36JzoHHxDZcCIZ+AqJMk118mF3QJ\/rGGNr7H5KZTvnFQ5WD\/sYbpzsZc+GmAHKmAGUIZdgvRaC8zZvqqDhcLdBjhsPxEq19D7rtQgXEPEhAtL3xzNUQpcN9A\/uiD\/SFPrX2VpAZS\/MqRqgHe\/OmLVmEsV8SPwxzkz8FuCvCcMpoigJlBm+iwZfDFQ+6K5in31jw7Y0mI\/enxD6sjtiE1hGTAAHR8+ETTc9aoupOC0MFLj70AtzGfXgMbdAW+2Bf9DH\/mxtNCuapN4YrHTmCMTCWLCbGHt4H8awWYuhLRZhOmccbNnshb9oy55EqnlFjDeNvvLfyVKXy1uJOnf0VxMz7GbEJrCb2oXziFCFAerZxHx5DG7R9d+Wp52MNE66PVPaKQF\/oE31jjJfED2VBOCtrwy\/FGEOZQJlKmU15jzdwzOe8cXomvOnLvhr6+bYDo9R9k0ZrhheM0Yk6P0Y35noPOtHncd8odZ+kIZ9u34+22Af7og+Zr6ky32N+Ec3OXGe\/IANkCY6ijKUoyJKfLhMyl\/IuCnuNd2XHZstsp8r6jpX5Qp8DuBfMRWFk0+alq8jwlxZRBLeHv7SKy4Yz90L\/D1wmRcCSWFt6AAAAAElFTkSuQmCC")'];
+    $impl.ButtonModalResult = [6,7,1,2,3,4,5,8,9,10,0,11];
+    rtl.createClass($impl,"TMessageDialog",pas.Forms.TForm,function () {
+      this.CControlsSpacing = 2;
+      this.CMinDialogHeight = 200;
+      this.CMinDialogWidth = 300;
+      this.CMinButtonHeight = 25;
+      this.CMinButtonWidth = 100;
+      this.CMinImageHeight = 70;
+      this.CMinImageWidth = 70;
+      this.$init = function () {
+        pas.Forms.TForm.$init.call(this);
+        this.FButtons = {};
+        this.FDefaultButton = 0;
+        this.FDialogType = 0;
+        this.FMessage = "";
+        this.FButtonPanel = null;
+        this.FInfoImage = null;
+        this.FMessageText = null;
+      };
+      this.$final = function () {
+        this.FButtons = undefined;
+        this.FButtonPanel = undefined;
+        this.FInfoImage = undefined;
+        this.FMessageText = undefined;
+        pas.Forms.TForm.$final.call(this);
+      };
+      this.PrepareButtons = function () {
+        var VMsgDlgBtn = 0;
+        var VButton = null;
+        var VButtonCount = 0;
+        var VButtonHeight = 0;
+        var VButtonWidth = 0;
+        var VFormWidth = 0;
+        var VSize = pas.Types.TSize.$new();
+        var buttonofs = 0;
+        VButtonCount = 0;
+        buttonofs = 0;
+        VButtonHeight = 25;
+        VButtonWidth = 100;
+        this.BeginUpdate();
+        try {
+          for (var $l = $mod.TMsgDlgBtn.mbYes, $end = $mod.TMsgDlgBtn.mbClose; $l <= $end; $l++) {
+            VMsgDlgBtn = $l;
+            if (VMsgDlgBtn in this.FButtons) {
+              VButtonCount += 1;
+              VSize.$assign(pas.Graphics.JSMeasureText($impl.ButtonCaption[VMsgDlgBtn],this.FFont.FName,this.FFont.FSize,0));
+              if (VSize.cy > VButtonHeight) {
+                VButtonHeight = VSize.cy;
+              };
+              if (VSize.cx > VButtonWidth) {
+                VButtonWidth = VSize.cx;
+              };
             };
           };
-        };
-        for (var $l3 = $mod.TMsgDlgBtn.mbYes, $end4 = $mod.TMsgDlgBtn.mbClose; $l3 <= $end4; $l3++) {
-          VMsgDlgBtn = $l3;
-          if (VMsgDlgBtn in this.FButtons) {
-            VButton = pas.WebCtrls.TButton.$create("Create$1",[this.FButtonPanel]);
-            VButton.BeginUpdate();
-            try {
-              VButton.SetParent(this.FButtonPanel);
-              VButton.FBorderSpacing.SetAround(2);
-              VButton.SetBounds(buttonofs,0,VButtonWidth,VButtonHeight);
-              VButton.FModalResult = $impl.ButtonModalResult[VMsgDlgBtn];
-              VButton.SetText($impl.ButtonCaption[VMsgDlgBtn]);
-              VButton.SetAlign(pas.Controls.TAlign.alRight);
-            } finally {
-              VButton.EndUpdate();
+          for (var $l1 = $mod.TMsgDlgBtn.mbYes, $end1 = $mod.TMsgDlgBtn.mbClose; $l1 <= $end1; $l1++) {
+            VMsgDlgBtn = $l1;
+            if (VMsgDlgBtn in this.FButtons) {
+              VButton = pas.WebCtrls.TButton.$create("Create$1",[this.FButtonPanel]);
+              VButton.BeginUpdate();
+              try {
+                VButton.SetParent(this.FButtonPanel);
+                VButton.FBorderSpacing.SetAround(2);
+                VButton.SetBounds(buttonofs,0,VButtonWidth,VButtonHeight);
+                VButton.FModalResult = $impl.ButtonModalResult[VMsgDlgBtn];
+                VButton.SetText($impl.ButtonCaption[VMsgDlgBtn]);
+                VButton.SetAlign(pas.Controls.TAlign.alRight);
+              } finally {
+                VButton.EndUpdate();
+              };
+              if (VMsgDlgBtn === this.FDefaultButton) {
+                this.SetActiveControl(VButton);
+              };
             };
-            if (VMsgDlgBtn === this.FDefaultButton) {
-              this.SetActiveControl(VButton);
-            };
+            buttonofs = buttonofs + VButtonWidth;
           };
-          buttonofs = buttonofs + VButtonWidth;
-        };
-        this.FButtonPanel.SetHeight(VButtonHeight + (2 * 2));
-        VFormWidth = ((VButtonWidth + (2 * 2)) * VButtonCount) + (2 * 2);
-        if (VFormWidth < 300) {
-          VFormWidth = 300;
-        };
-        this.SetWidth(VFormWidth);
-      } finally {
-        this.EndUpdate();
-      };
-    };
-    this.PrepareImage = function () {
-      this.FInfoImage.SetURL($impl.DialogIcon[this.FDialogType]);
-    };
-    this.PrepareText = function () {
-      this.FMessageText.SetText(this.FMessage);
-    };
-    this.PrepareTitle = function () {
-      this.SetText(pas.Controls.IfThen$3(this.GetText() !== "",this.GetText(),$impl.DialogCaption[this.FDialogType]));
-    };
-    this.PrepareLayout = function () {
-      this.PrepareTitle();
-      this.PrepareText();
-      this.PrepareImage();
-      this.PrepareButtons();
-    };
-    this.KeyDown = function (Key, Shift) {
-      pas.Controls.TWinControl.KeyDown.call(this,Key,rtl.refSet(Shift));
-      var $tmp1 = Key.get();
-      if ($tmp1 === 27) {
-        this.SetModalResult(2);
-        this.Close();
-      };
-    };
-    this.Create$1 = function (AOwner) {
-      pas.Forms.TCustomForm.CreateNew.call(this,AOwner,1);
-      this.BeginUpdate();
-      try {
-        this.FKeyPreview = true;
-        this.SetBounds(0,0,300,200);
-        this.FButtonPanel = pas.WebCtrls.TPanel.$create("Create$1",[this]);
-        this.FButtonPanel.BeginUpdate();
-        try {
-          this.FButtonPanel.SetParent(this);
-          this.FButtonPanel.FBorderSpacing.SetAround(2);
-          this.FButtonPanel.SetBevelOuter(pas.Controls.TBevelCut.bvNone);
-          this.FButtonPanel.SetBounds(0,0,300,25);
-          this.FButtonPanel.SetAlign(pas.Controls.TAlign.alBottom);
+          this.FButtonPanel.SetHeight(VButtonHeight + (2 * 2));
+          VFormWidth = ((VButtonWidth + (2 * 2)) * VButtonCount) + (2 * 2);
+          if (VFormWidth < 300) {
+            VFormWidth = 300;
+          };
+          this.SetWidth(VFormWidth);
         } finally {
-          this.FButtonPanel.EndUpdate();
+          this.EndUpdate();
         };
-        this.FInfoImage = pas.WebCtrls.TImage.$create("Create$1",[this]);
-        this.FInfoImage.BeginUpdate();
-        try {
-          this.FInfoImage.SetParent(this);
-          this.FInfoImage.FBorderSpacing.SetAround(2);
-          this.FInfoImage.SetBounds(0,0,70,70);
-          this.FInfoImage.SetCenter(true);
-          this.FInfoImage.SetAlign(pas.Controls.TAlign.alLeft);
-        } finally {
-          this.FInfoImage.EndUpdate();
-        };
-        this.FMessageText = pas.WebCtrls.TLabel.$create("Create$1",[this]);
-        this.FMessageText.BeginUpdate();
-        try {
-          this.FMessageText.SetParent(this);
-          this.FMessageText.FBorderSpacing.SetAround(2);
-          this.FMessageText.SetWordWrap(true);
-          this.FMessageText.SetAlign(pas.Controls.TAlign.alClient);
-        } finally {
-          this.FMessageText.EndUpdate();
-        };
-      } finally {
-        this.EndUpdate();
       };
-      return this;
+      this.PrepareImage = function () {
+        this.FInfoImage.SetURL($impl.DialogIcon[this.FDialogType]);
+      };
+      this.PrepareText = function () {
+        this.FMessageText.SetText(this.FMessage);
+      };
+      this.PrepareTitle = function () {
+        this.SetText(pas.Controls.IfThen$3(this.GetText() !== "",this.GetText(),$impl.DialogCaption[this.FDialogType]));
+      };
+      this.PrepareLayout = function () {
+        this.PrepareTitle();
+        this.PrepareText();
+        this.PrepareImage();
+        this.PrepareButtons();
+      };
+      this.KeyDown = function (Key, Shift) {
+        pas.Controls.TWinControl.KeyDown.call(this,Key,rtl.refSet(Shift));
+        var $tmp = Key.get();
+        if ($tmp === 27) {
+          this.SetModalResult(2);
+          this.Close();
+        };
+      };
+      this.Create$1 = function (AOwner) {
+        pas.Forms.TCustomForm.CreateNew.call(this,AOwner,1);
+        this.BeginUpdate();
+        try {
+          this.FKeyPreview = true;
+          this.SetBounds(0,0,300,200);
+          this.FButtonPanel = pas.WebCtrls.TPanel.$create("Create$1",[this]);
+          this.FButtonPanel.BeginUpdate();
+          try {
+            this.FButtonPanel.SetParent(this);
+            this.FButtonPanel.FBorderSpacing.SetAround(2);
+            this.FButtonPanel.SetBevelOuter(pas.Controls.TBevelCut.bvNone);
+            this.FButtonPanel.SetBounds(0,0,300,25);
+            this.FButtonPanel.SetAlign(pas.Controls.TAlign.alBottom);
+          } finally {
+            this.FButtonPanel.EndUpdate();
+          };
+          this.FInfoImage = pas.WebCtrls.TImage.$create("Create$1",[this]);
+          this.FInfoImage.BeginUpdate();
+          try {
+            this.FInfoImage.SetParent(this);
+            this.FInfoImage.FBorderSpacing.SetAround(2);
+            this.FInfoImage.SetBounds(0,0,70,70);
+            this.FInfoImage.SetCenter(true);
+            this.FInfoImage.SetAlign(pas.Controls.TAlign.alLeft);
+          } finally {
+            this.FInfoImage.EndUpdate();
+          };
+          this.FMessageText = pas.WebCtrls.TLabel.$create("Create$1",[this]);
+          this.FMessageText.BeginUpdate();
+          try {
+            this.FMessageText.SetParent(this);
+            this.FMessageText.FBorderSpacing.SetAround(2);
+            this.FMessageText.SetWordWrap(true);
+            this.FMessageText.SetAlign(pas.Controls.TAlign.alClient);
+          } finally {
+            this.FMessageText.EndUpdate();
+          };
+        } finally {
+          this.EndUpdate();
+        };
+        return this;
+      };
+      var $r = this.$rtti;
+      $r.addProperty("Buttons",0,$mod.$rtti["TMsgDlgButtons"],"FButtons","FButtons");
+      $r.addProperty("DefaultButton",0,$mod.$rtti["TMsgDlgBtn"],"FDefaultButton","FDefaultButton");
+      $r.addProperty("DialogType",0,$mod.$rtti["TMsgDlgType"],"FDialogType","FDialogType");
+      $r.addProperty("Message",0,rtl.string,"FMessage","FMessage");
+    });
+    $impl.ModalDefaultButton = function (AButtons) {
+      var Result = 0;
+      if ($mod.TMsgDlgBtn.mbYes in AButtons) {
+        Result = $mod.TMsgDlgBtn.mbYes;
+      } else if ($mod.TMsgDlgBtn.mbOK in AButtons) {
+        Result = $mod.TMsgDlgBtn.mbOK;
+      } else if ($mod.TMsgDlgBtn.mbYesToAll in AButtons) {
+        Result = $mod.TMsgDlgBtn.mbYesToAll;
+      } else if ($mod.TMsgDlgBtn.mbAll in AButtons) {
+        Result = $mod.TMsgDlgBtn.mbAll;
+      } else if ($mod.TMsgDlgBtn.mbRetry in AButtons) {
+        Result = $mod.TMsgDlgBtn.mbRetry;
+      } else if ($mod.TMsgDlgBtn.mbHelp in AButtons) {
+        Result = $mod.TMsgDlgBtn.mbHelp;
+      } else if ($mod.TMsgDlgBtn.mbCancel in AButtons) {
+        Result = $mod.TMsgDlgBtn.mbCancel;
+      } else if ($mod.TMsgDlgBtn.mbNo in AButtons) {
+        Result = $mod.TMsgDlgBtn.mbNo;
+      } else if ($mod.TMsgDlgBtn.mbNoToAll in AButtons) {
+        Result = $mod.TMsgDlgBtn.mbNoToAll;
+      } else if ($mod.TMsgDlgBtn.mbAbort in AButtons) {
+        Result = $mod.TMsgDlgBtn.mbAbort;
+      } else if ($mod.TMsgDlgBtn.mbIgnore in AButtons) {
+        Result = $mod.TMsgDlgBtn.mbIgnore;
+      } else if ($mod.TMsgDlgBtn.mbClose in AButtons) {
+        Result = $mod.TMsgDlgBtn.mbClose;
+      } else {
+        Result = $mod.TMsgDlgBtn.mbOK;
+      };
+      return Result;
     };
-    var $r = this.$rtti;
-    $r.addProperty("Buttons",0,$mod.$rtti["TMsgDlgButtons"],"FButtons","FButtons");
-    $r.addProperty("DefaultButton",0,$mod.$rtti["TMsgDlgBtn"],"FDefaultButton","FDefaultButton");
-    $r.addProperty("DialogType",0,$mod.$rtti["TMsgDlgType"],"FDialogType","FDialogType");
-    $r.addProperty("Message",0,rtl.string,"FMessage","FMessage");
-  });
-  $impl.ModalDefaultButton = function (AButtons) {
-    var Result = 0;
-    if ($mod.TMsgDlgBtn.mbYes in AButtons) {
-      Result = $mod.TMsgDlgBtn.mbYes;
-    } else if ($mod.TMsgDlgBtn.mbOK in AButtons) {
-      Result = $mod.TMsgDlgBtn.mbOK;
-    } else if ($mod.TMsgDlgBtn.mbYesToAll in AButtons) {
-      Result = $mod.TMsgDlgBtn.mbYesToAll;
-    } else if ($mod.TMsgDlgBtn.mbAll in AButtons) {
-      Result = $mod.TMsgDlgBtn.mbAll;
-    } else if ($mod.TMsgDlgBtn.mbRetry in AButtons) {
-      Result = $mod.TMsgDlgBtn.mbRetry;
-    } else if ($mod.TMsgDlgBtn.mbHelp in AButtons) {
-      Result = $mod.TMsgDlgBtn.mbHelp;
-    } else if ($mod.TMsgDlgBtn.mbCancel in AButtons) {
-      Result = $mod.TMsgDlgBtn.mbCancel;
-    } else if ($mod.TMsgDlgBtn.mbNo in AButtons) {
-      Result = $mod.TMsgDlgBtn.mbNo;
-    } else if ($mod.TMsgDlgBtn.mbNoToAll in AButtons) {
-      Result = $mod.TMsgDlgBtn.mbNoToAll;
-    } else if ($mod.TMsgDlgBtn.mbAbort in AButtons) {
-      Result = $mod.TMsgDlgBtn.mbAbort;
-    } else if ($mod.TMsgDlgBtn.mbIgnore in AButtons) {
-      Result = $mod.TMsgDlgBtn.mbIgnore;
-    } else if ($mod.TMsgDlgBtn.mbClose in AButtons) {
-      Result = $mod.TMsgDlgBtn.mbClose;
-    } else {
-      Result = $mod.TMsgDlgBtn.mbOK;
-    };
-    return Result;
   };
-});
+},[]);
 rtl.module("browserapp",["System","Classes","SysUtils","Types","JS","Web"],function () {
   "use strict";
   var $mod = this;
@@ -6618,6 +8384,7 @@ rtl.module("browserapp",["System","Classes","SysUtils","Types","JS","Web"],funct
   this.ReloadEnvironmentStrings = function () {
     var I = 0;
     var S = "";
+    var N = "";
     var A = [];
     var P = [];
     if ($impl.EnvNames != null) pas.SysUtils.FreeAndNil({p: $impl, get: function () {
@@ -6629,12 +8396,50 @@ rtl.module("browserapp",["System","Classes","SysUtils","Types","JS","Web"],funct
     S = window.location.search;
     S = pas.System.Copy(S,2,S.length - 1);
     A = S.split("&");
-    for (var $l1 = 0, $end2 = rtl.length(A) - 1; $l1 <= $end2; $l1++) {
-      I = $l1;
+    for (var $l = 0, $end = rtl.length(A) - 1; $l <= $end; $l++) {
+      I = $l;
       P = A[I].split("=");
+      N = pas.SysUtils.LowerCase(decodeURIComponent(P[0]));
       if (rtl.length(P) === 2) {
-        $impl.EnvNames[decodeURIComponent(P[0])] = decodeURIComponent(P[1])}
-       else if (rtl.length(P) === 1) $impl.EnvNames[decodeURIComponent(P[0])] = "";
+        $impl.EnvNames[N] = decodeURIComponent(P[1])}
+       else if (rtl.length(P) === 1) $impl.EnvNames[N] = "";
+    };
+  };
+  $mod.$implcode = function () {
+    $impl.EnvNames = null;
+    $impl.Params = [];
+    $impl.ReloadParamStrings = function () {
+      $impl.Params = rtl.arraySetLength($impl.Params,"",1);
+      $impl.Params[0] = window.location.pathname;
+    };
+    $impl.GetParamCount = function () {
+      var Result = 0;
+      Result = rtl.length($impl.Params) - 1;
+      return Result;
+    };
+    $impl.GetParamStr = function (Index) {
+      var Result = "";
+      Result = $impl.Params[Index];
+      return Result;
+    };
+    $impl.MyGetEnvironmentVariable = function (EnvVar) {
+      var Result = "";
+      var aName = "";
+      aName = pas.SysUtils.LowerCase(EnvVar);
+      if ($impl.EnvNames.hasOwnProperty(aName)) {
+        Result = "" + $impl.EnvNames[aName]}
+       else Result = "";
+      return Result;
+    };
+    $impl.MyGetEnvironmentVariableCount = function () {
+      var Result = 0;
+      Result = rtl.length(Object.getOwnPropertyNames($impl.EnvNames));
+      return Result;
+    };
+    $impl.MyGetEnvironmentString = function (Index) {
+      var Result = "";
+      Result = "" + $impl.EnvNames[Object.getOwnPropertyNames($impl.EnvNames)[Index]];
+      return Result;
     };
   };
   $mod.$init = function () {
@@ -6647,54 +8452,22 @@ rtl.module("browserapp",["System","Classes","SysUtils","Types","JS","Web"],funct
     pas.SysUtils.OnGetEnvironmentVariableCount = $impl.MyGetEnvironmentVariableCount;
     pas.SysUtils.OnGetEnvironmentString = $impl.MyGetEnvironmentString;
   };
-},null,function () {
-  "use strict";
-  var $mod = this;
-  var $impl = $mod.$impl;
-  $impl.EnvNames = null;
-  $impl.Params = [];
-  $impl.ReloadParamStrings = function () {
-    $impl.Params = rtl.arraySetLength($impl.Params,"",1);
-    $impl.Params[0] = window.location.pathname;
-  };
-  $impl.GetParamCount = function () {
-    var Result = 0;
-    Result = rtl.length($impl.Params) - 1;
-    return Result;
-  };
-  $impl.GetParamStr = function (Index) {
-    var Result = "";
-    Result = $impl.Params[Index];
-    return Result;
-  };
-  $impl.MyGetEnvironmentVariable = function (EnvVar) {
-    var Result = "";
-    Result = "" + $impl.EnvNames[EnvVar];
-    return Result;
-  };
-  $impl.MyGetEnvironmentVariableCount = function () {
-    var Result = 0;
-    Result = rtl.length(Object.getOwnPropertyNames($impl.EnvNames));
-    return Result;
-  };
-  $impl.MyGetEnvironmentString = function (Index) {
-    var Result = "";
-    Result = "" + $impl.EnvNames[Object.getOwnPropertyNames($impl.EnvNames)[Index]];
-    return Result;
-  };
-});
+},[]);
 rtl.module("WebCtrlsMore",["System","Classes","SysUtils","Types","Graphics","Controls","StdCtrls","ExtCtrls","Forms","browserapp"],function () {
   "use strict";
   var $mod = this;
-  rtl.createClass($mod,"TGroupBox",pas.ExtCtrls.TCustomPanel,function () {
+  rtl.createClass(this,"TGroupBox",pas.ExtCtrls.TCustomPanel,function () {
   });
   this.TOpenOption = {"0": "ofReadOnly", ofReadOnly: 0, "1": "ofOverwritePrompt", ofOverwritePrompt: 1, "2": "ofHideReadOnly", ofHideReadOnly: 2, "3": "ofNoChangeDir", ofNoChangeDir: 3, "4": "ofShowHelp", ofShowHelp: 4, "5": "ofNoValidate", ofNoValidate: 5, "6": "ofAllowMultiSelect", ofAllowMultiSelect: 6, "7": "ofExtensionDifferent", ofExtensionDifferent: 7, "8": "ofPathMustExist", ofPathMustExist: 8, "9": "ofFileMustExist", ofFileMustExist: 9, "10": "ofCreatePrompt", ofCreatePrompt: 10, "11": "ofShareAware", ofShareAware: 11, "12": "ofNoReadOnlyReturn", ofNoReadOnlyReturn: 12, "13": "ofNoTestFileCreate", ofNoTestFileCreate: 13, "14": "ofNoNetworkButton", ofNoNetworkButton: 14, "15": "ofNoLongNames", ofNoLongNames: 15, "16": "ofOldStyleDialog", ofOldStyleDialog: 16, "17": "ofNoDereferenceLinks", ofNoDereferenceLinks: 17, "18": "ofEnableIncludeNotify", ofEnableIncludeNotify: 18, "19": "ofEnableSizing", ofEnableSizing: 19, "20": "ofDontAddToRecent", ofDontAddToRecent: 20, "21": "ofForceShowHidden", ofForceShowHidden: 21, "22": "ofViewDetail", ofViewDetail: 22, "23": "ofAutoPreview", ofAutoPreview: 23};
-  rtl.createClass($mod,"TOpenDialog",pas.ExtCtrls.TCustomPanel,function () {
+  this.$rtti.$Enum("TOpenOption",{minvalue: 0, maxvalue: 23, ordtype: 1, enumtype: this.TOpenOption});
+  this.$rtti.$Set("TOpenOptions",{comptype: this.$rtti["TOpenOption"]});
+  rtl.createClass(this,"TOpenDialog",pas.ExtCtrls.TCustomPanel,function () {
     this.$init = function () {
       pas.ExtCtrls.TCustomPanel.$init.call(this);
       this.FileName = "";
       this.Filter = "";
       this.FilterIndex = 0;
+      this.InitialDir = "";
       this.Options = {};
       this.Title = "";
     };
@@ -6706,14 +8479,24 @@ rtl.module("WebCtrlsMore",["System","Classes","SysUtils","Types","Graphics","Con
       var Result = false;
       return Result;
     };
+    var $r = this.$rtti;
+    $r.addField("FileName",rtl.string);
+    $r.addField("Filter",rtl.string);
+    $r.addField("FilterIndex",rtl.longint);
+    $r.addField("InitialDir",rtl.string);
+    $r.addField("Options",$mod.$rtti["TOpenOptions"]);
+    $r.addField("Title",rtl.string);
+    $r.addMethod("Execute",1,[],rtl.boolean);
   });
-  rtl.createClass($mod,"TSaveDialog",pas.ExtCtrls.TCustomPanel,function () {
+  rtl.createClass(this,"TSaveDialog",pas.ExtCtrls.TCustomPanel,function () {
     this.$init = function () {
       pas.ExtCtrls.TCustomPanel.$init.call(this);
       this.FileName = "";
       this.Filter = "";
       this.FilterIndex = 0;
+      this.InitialDir = "";
       this.Options = {};
+      this.Title = "";
     };
     this.$final = function () {
       this.Options = undefined;
@@ -6723,44 +8506,57 @@ rtl.module("WebCtrlsMore",["System","Classes","SysUtils","Types","Graphics","Con
       var Result = false;
       return Result;
     };
+    var $r = this.$rtti;
+    $r.addField("FileName",rtl.string);
+    $r.addField("Filter",rtl.string);
+    $r.addField("FilterIndex",rtl.longint);
+    $r.addField("InitialDir",rtl.string);
+    $r.addField("Options",$mod.$rtti["TOpenOptions"]);
+    $r.addField("Title",rtl.string);
+    $r.addMethod("Execute",1,[],rtl.boolean);
   });
-  rtl.createClass($mod,"TRadioButton",pas.ExtCtrls.TCustomPanel,function () {
+  rtl.createClass(this,"TRadioButton",pas.ExtCtrls.TCustomPanel,function () {
     this.$init = function () {
       pas.ExtCtrls.TCustomPanel.$init.call(this);
       this.Checked = false;
     };
+    var $r = this.$rtti;
+    $r.addField("Checked",rtl.boolean);
   });
   this.TStaticBorderStyle = {"0": "sbsNone", sbsNone: 0, "1": "sbsSingle", sbsSingle: 1, "2": "sbsSunken", sbsSunken: 2};
-  rtl.createClass($mod,"TStaticText",pas.ExtCtrls.TCustomPanel,function () {
+  this.$rtti.$Enum("TStaticBorderStyle",{minvalue: 0, maxvalue: 2, ordtype: 1, enumtype: this.TStaticBorderStyle});
+  rtl.createClass(this,"TStaticText",pas.ExtCtrls.TCustomPanel,function () {
     this.$init = function () {
       pas.ExtCtrls.TCustomPanel.$init.call(this);
       this.BorderStyle = 0;
     };
     this.Changed = function () {
-      var $tmp1 = this.BorderStyle;
-      if ($tmp1 === $mod.TStaticBorderStyle.sbsNone) {
+      var $tmp = this.BorderStyle;
+      if ($tmp === $mod.TStaticBorderStyle.sbsNone) {
         this.SetBevelWidth(1);
         this.SetBevelOuter(pas.Controls.TBevelCut.bvNone);
-      } else if ($tmp1 === $mod.TStaticBorderStyle.sbsSingle) {
+      } else if ($tmp === $mod.TStaticBorderStyle.sbsSingle) {
         this.SetBevelWidth(1);
         this.SetBevelColor(0);
         this.SetBevelOuter(pas.Controls.TBevelCut.bvSpace);
-      } else if ($tmp1 === $mod.TStaticBorderStyle.sbsSunken) {
+      } else if ($tmp === $mod.TStaticBorderStyle.sbsSunken) {
         this.SetBevelWidth(1);
         this.SetBevelOuter(pas.Controls.TBevelCut.bvLowered);
       };
       pas.ExtCtrls.TCustomPanel.Changed.call(this);
     };
+    var $r = this.$rtti;
+    $r.addField("BorderStyle",$mod.$rtti["TStaticBorderStyle"]);
   });
-  rtl.createClass($mod,"TProgressBar",pas.ExtCtrls.TCustomPanel,function () {
+  rtl.createClass(this,"TProgressBar",pas.ExtCtrls.TCustomPanel,function () {
     this.$init = function () {
       pas.ExtCtrls.TCustomPanel.$init.call(this);
       this.Position = 0;
       this.BorderWidth = 0;
     };
     this.Changed = function () {
-      var $tmp1 = this.BorderWidth;
-      if ($tmp1 === 0) {
+      var $tmp = this.BorderWidth;
+      if ($tmp === 0) {
         this.SetBevelWidth(1);
         this.SetBevelOuter(pas.Controls.TBevelCut.bvNone);
       } else {
@@ -6772,21 +8568,29 @@ rtl.module("WebCtrlsMore",["System","Classes","SysUtils","Types","Graphics","Con
     };
     this.StepIt = function () {
     };
+    var $r = this.$rtti;
+    $r.addField("Position",rtl.longint);
+    $r.addField("BorderWidth",rtl.longint);
   });
-  rtl.createClass($mod,"TMainMenu",pas.ExtCtrls.TCustomPanel,function () {
+  rtl.createClass(this,"TMainMenu",pas.ExtCtrls.TCustomPanel,function () {
   });
-  rtl.createClass($mod,"TMenuItem",pas.ExtCtrls.TCustomPanel,function () {
+  rtl.createClass(this,"TMenuItem",pas.ExtCtrls.TCustomPanel,function () {
     this.$init = function () {
       pas.ExtCtrls.TCustomPanel.$init.call(this);
       this.AutoCheck = false;
       this.Checked = false;
     };
+    var $r = this.$rtti;
+    $r.addField("AutoCheck",rtl.boolean);
+    $r.addField("Checked",rtl.boolean);
   });
-  rtl.createClass($mod,"TPopupMenu",pas.ExtCtrls.TCustomPanel,function () {
+  rtl.createClass(this,"TPopupMenu",pas.ExtCtrls.TCustomPanel,function () {
     this.Popup = function (X, Y) {
     };
+    var $r = this.$rtti;
+    $r.addMethod("Popup",0,[["X",rtl.longint],["Y",rtl.longint]]);
   });
-  rtl.createClass($mod,"TTrackBar",pas.ExtCtrls.TCustomPanel,function () {
+  rtl.createClass(this,"TTrackBar",pas.ExtCtrls.TCustomPanel,function () {
     this.$init = function () {
       pas.ExtCtrls.TCustomPanel.$init.call(this);
       this.Position = 0;
@@ -6804,9 +8608,13 @@ rtl.module("WebCtrlsMore",["System","Classes","SysUtils","Types","Graphics","Con
       pas.ExtCtrls.TCustomPanel.Changed.call(this);
     };
     var $r = this.$rtti;
+    $r.addField("Position",rtl.longint);
+    $r.addField("Max",rtl.longint);
     $r.addProperty("OnChange",0,pas.Classes.$rtti["TNotifyEvent"],"FOnChange","FOnChange");
   });
-  rtl.createClass($mod,"TMouse",pas.Controls.TWinControl,function () {
+  rtl.createClass(this,"TXPManifest",pas.ExtCtrls.TCustomPanel,function () {
+  });
+  rtl.createClass(this,"TMouse",pas.Controls.TWinControl,function () {
     this.$init = function () {
       pas.Controls.TWinControl.$init.call(this);
       this.CursorPos = pas.Types.TPoint.$new();
@@ -6815,6 +8623,8 @@ rtl.module("WebCtrlsMore",["System","Classes","SysUtils","Types","Graphics","Con
       this.CursorPos = undefined;
       pas.Controls.TWinControl.$final.call(this);
     };
+    var $r = this.$rtti;
+    $r.addField("CursorPos",pas.Types.$rtti["TPoint"]);
   });
   this.Mouse = null;
   $mod.$init = function () {
@@ -6825,7 +8635,7 @@ rtl.module("Unit1",["System","SysUtils","Classes","Dialogs","Controls","StdCtrls
   "use strict";
   var $mod = this;
   var $impl = $mod.$impl;
-  rtl.createClass($mod,"TForm1",pas.Forms.TForm,function () {
+  rtl.createClass(this,"TForm1",pas.Forms.TForm,function () {
     this.$init = function () {
       pas.Forms.TForm.$init.call(this);
       this.Button1 = null;
@@ -6872,6 +8682,7 @@ rtl.module("Unit1",["System","SysUtils","Classes","Dialogs","Controls","StdCtrls
       this.MenuItem12 = null;
       this.MenuItem13 = null;
       this.PopupMenu1 = null;
+      this.XPManifest1 = null;
       this.TrackBar1 = null;
     };
     this.$final = function () {
@@ -6919,6 +8730,7 @@ rtl.module("Unit1",["System","SysUtils","Classes","Dialogs","Controls","StdCtrls
       this.MenuItem12 = undefined;
       this.MenuItem13 = undefined;
       this.PopupMenu1 = undefined;
+      this.XPManifest1 = undefined;
       this.TrackBar1 = undefined;
       pas.Forms.TForm.$final.call(this);
     };
@@ -6931,16 +8743,16 @@ rtl.module("Unit1",["System","SysUtils","Classes","Dialogs","Controls","StdCtrls
     this.FormCreate = function (Sender) {
       this.Timer1.SetEnabled(false);
       this.TrackBar1 = pas.WebCtrlsMore.TTrackBar.$create("Create$1",[this]);
-      var $with1 = this.TrackBar1;
-      $with1.SetName("TrackBar1");
-      $with1.SetLeft(184);
-      $with1.SetHeight(28);
-      $with1.SetTop(184);
-      $with1.SetWidth(215);
-      $with1.FOnChange = rtl.createCallback(this,"TrackBar1Change");
-      $with1.SetParent(this);
-      $with1.SetVisible(true);
-      $with1.SetTabOrder(this.ListBox1.FTabOrder + 1);
+      var $with = this.TrackBar1;
+      $with.SetName("TrackBar1");
+      $with.SetLeft(184);
+      $with.SetHeight(28);
+      $with.SetTop(184);
+      $with.SetWidth(215);
+      $with.FOnChange = rtl.createCallback(this,"TrackBar1Change");
+      $with.SetParent(this);
+      $with.SetVisible(true);
+      $with.SetTabOrder(this.ListBox1.FTabOrder + 1);
     };
     this.Button1Click = function (Sender) {
       this.ComboBox1.FItems.Add(this.Edit1.GetText());
@@ -7053,23 +8865,97 @@ rtl.module("Unit1",["System","SysUtils","Classes","Dialogs","Controls","StdCtrls
       this.SaveDialog1.FileName = "MyFile.tmp";
       if (this.SaveDialog1.Execute()) pas.Dialogs.ShowMessage$1("File to save: " + this.SaveDialog1.FileName);
     };
+    var $r = this.$rtti;
+    $r.addField("Button1",pas.WebCtrls.$rtti["TButton"]);
+    $r.addField("Button2",pas.WebCtrls.$rtti["TButton"]);
+    $r.addField("Button3",pas.WebCtrls.$rtti["TButton"]);
+    $r.addField("Button4",pas.WebCtrls.$rtti["TButton"]);
+    $r.addField("Button5",pas.WebCtrls.$rtti["TButton"]);
+    $r.addField("Button6",pas.WebCtrls.$rtti["TButton"]);
+    $r.addField("Button7",pas.WebCtrls.$rtti["TButton"]);
+    $r.addField("Button8",pas.WebCtrls.$rtti["TButton"]);
+    $r.addField("Button9",pas.WebCtrls.$rtti["TButton"]);
+    $r.addField("Button10",pas.WebCtrls.$rtti["TButton"]);
+    $r.addField("Button11",pas.WebCtrls.$rtti["TButton"]);
+    $r.addField("Edit1",pas.WebCtrls.$rtti["TEdit"]);
+    $r.addField("ComboBox1",pas.WebCtrls.$rtti["TComboBox"]);
+    $r.addField("ListBox1",pas.WebCtrls.$rtti["TListBox"]);
+    $r.addField("Memo1",pas.WebCtrls.$rtti["TMemo"]);
+    $r.addField("CheckBox1",pas.WebCtrls.$rtti["TCheckbox"]);
+    $r.addField("CheckBox2",pas.WebCtrls.$rtti["TCheckbox"]);
+    $r.addField("CheckBox3",pas.WebCtrls.$rtti["TCheckbox"]);
+    $r.addField("GroupBox1",pas.WebCtrlsMore.$rtti["TGroupBox"]);
+    $r.addField("OpenDialog1",pas.WebCtrlsMore.$rtti["TOpenDialog"]);
+    $r.addField("RadioButton1",pas.WebCtrlsMore.$rtti["TRadioButton"]);
+    $r.addField("RadioButton2",pas.WebCtrlsMore.$rtti["TRadioButton"]);
+    $r.addField("ComboBox2",pas.WebCtrls.$rtti["TComboBox"]);
+    $r.addField("Label1",pas.WebCtrls.$rtti["TLabel"]);
+    $r.addField("SaveDialog1",pas.WebCtrlsMore.$rtti["TSaveDialog"]);
+    $r.addField("StaticText1",pas.WebCtrlsMore.$rtti["TStaticText"]);
+    $r.addField("ProgressBar1",pas.WebCtrlsMore.$rtti["TProgressBar"]);
+    $r.addField("StaticText2",pas.WebCtrlsMore.$rtti["TStaticText"]);
+    $r.addField("Timer1",pas.WebCtrls.$rtti["TTimer"]);
+    $r.addField("MainMenu1",pas.WebCtrlsMore.$rtti["TMainMenu"]);
+    $r.addField("MenuItem1",pas.WebCtrlsMore.$rtti["TMenuItem"]);
+    $r.addField("MenuItem2",pas.WebCtrlsMore.$rtti["TMenuItem"]);
+    $r.addField("MenuItem3",pas.WebCtrlsMore.$rtti["TMenuItem"]);
+    $r.addField("MenuItem4",pas.WebCtrlsMore.$rtti["TMenuItem"]);
+    $r.addField("MenuItem5",pas.WebCtrlsMore.$rtti["TMenuItem"]);
+    $r.addField("MenuItem6",pas.WebCtrlsMore.$rtti["TMenuItem"]);
+    $r.addField("MenuItem7",pas.WebCtrlsMore.$rtti["TMenuItem"]);
+    $r.addField("MenuItem8",pas.WebCtrlsMore.$rtti["TMenuItem"]);
+    $r.addField("MenuItem9",pas.WebCtrlsMore.$rtti["TMenuItem"]);
+    $r.addField("MenuItem10",pas.WebCtrlsMore.$rtti["TMenuItem"]);
+    $r.addField("MenuItem11",pas.WebCtrlsMore.$rtti["TMenuItem"]);
+    $r.addField("MenuItem12",pas.WebCtrlsMore.$rtti["TMenuItem"]);
+    $r.addField("MenuItem13",pas.WebCtrlsMore.$rtti["TMenuItem"]);
+    $r.addField("PopupMenu1",pas.WebCtrlsMore.$rtti["TPopupMenu"]);
+    $r.addField("XPManifest1",pas.WebCtrlsMore.$rtti["TXPManifest"]);
+    $r.addMethod("Button10Click",0,[["Sender",pas.System.$rtti["TObject"]]]);
+    $r.addMethod("Button8Click",0,[["Sender",pas.System.$rtti["TObject"]]]);
+    $r.addMethod("FormCreate",0,[["Sender",pas.System.$rtti["TObject"]]]);
+    $r.addMethod("Button1Click",0,[["Sender",pas.System.$rtti["TObject"]]]);
+    $r.addMethod("Button2Click",0,[["Sender",pas.System.$rtti["TObject"]]]);
+    $r.addMethod("Button3Click",0,[["Sender",pas.System.$rtti["TObject"]]]);
+    $r.addMethod("Button4Click",0,[["Sender",pas.System.$rtti["TObject"]]]);
+    $r.addMethod("Button5Click",0,[["Sender",pas.System.$rtti["TObject"]]]);
+    $r.addMethod("Button6Click",0,[["Sender",pas.System.$rtti["TObject"]]]);
+    $r.addMethod("Button7Click",0,[["Sender",pas.System.$rtti["TObject"]]]);
+    $r.addMethod("Button9Click",0,[["Sender",pas.System.$rtti["TObject"]]]);
+    $r.addMethod("Button11Click",0,[["Sender",pas.System.$rtti["TObject"]]]);
+    $r.addMethod("Edit1Change",0,[["Sender",pas.System.$rtti["TObject"]]]);
+    $r.addMethod("Edit1DblClick",0,[["Sender",pas.System.$rtti["TObject"]]]);
+    $r.addMethod("ComboBox1Change",0,[["Sender",pas.System.$rtti["TObject"]]]);
+    $r.addMethod("ListBox1DblClick",0,[["Sender",pas.System.$rtti["TObject"]]]);
+    $r.addMethod("FormMouseDown",0,[["Sender",pas.System.$rtti["TObject"]],["Button",pas.Controls.$rtti["TMouseButton"]],["Shift",pas.Controls.$rtti["TShiftState"]],["X",rtl.nativeint],["Y",rtl.nativeint]]);
+    $r.addMethod("FormMouseUp",0,[["Sender",pas.System.$rtti["TObject"]],["Button",pas.Controls.$rtti["TMouseButton"]],["Shift",pas.Controls.$rtti["TShiftState"]],["X",rtl.nativeint],["Y",rtl.nativeint]]);
+    $r.addMethod("FormKeyDown",0,[["Sender",pas.System.$rtti["TObject"]],["Key",rtl.nativeint,1],["Shift",pas.Controls.$rtti["TShiftState"]]]);
+    $r.addMethod("FormKeyUp",0,[["Sender",pas.System.$rtti["TObject"]],["Key",rtl.nativeint,1],["Shift",pas.Controls.$rtti["TShiftState"]]]);
+    $r.addMethod("FormKeyPress",0,[["Sender",pas.System.$rtti["TObject"]],["Key",rtl.char,1]]);
+    $r.addMethod("Timer1Timer",0,[["Sender",pas.System.$rtti["TObject"]]]);
+    $r.addMethod("TrackBar1Change",0,[["Sender",pas.System.$rtti["TObject"]]]);
+    $r.addMethod("MenuItem6Click",0,[["Sender",pas.System.$rtti["TObject"]]]);
+    $r.addMethod("MenuItem7Click",0,[["Sender",pas.System.$rtti["TObject"]]]);
+    $r.addMethod("MenuItem8Click",0,[["Sender",pas.System.$rtti["TObject"]]]);
+    $r.addMethod("MenuItem9Click",0,[["Sender",pas.System.$rtti["TObject"]]]);
+    $r.addMethod("MenuItem10Click",0,[["Sender",pas.System.$rtti["TObject"]]]);
+    $r.addMethod("MenuItem11Click",0,[["Sender",pas.System.$rtti["TObject"]]]);
+    $r.addMethod("MenuItem12Click",0,[["Sender",pas.System.$rtti["TObject"]]]);
   });
   this.Form1 = null;
-},null,function () {
-  "use strict";
-  var $mod = this;
-  var $impl = $mod.$impl;
-  $impl.MemoAddLineFmt = function (MemoCtrl, s, Args) {
-    MemoCtrl.Append(s);
+  $mod.$implcode = function () {
+    $impl.MemoAddLineFmt = function (MemoCtrl, s, Args) {
+      MemoCtrl.Append(s);
+    };
   };
-});
+},[]);
 rtl.module("unit1frm",["System","SysUtils","Classes","Dialogs","Controls","StdCtrls","Forms","Graphics","WebCtrls","WebCtrlsMore"],function () {
   "use strict";
   var $mod = this;
   this.Loaded = function () {
     pas.Unit1.Form1.SetHandleId("form1");
     pas.Unit1.Form1.FFormType = pas.Forms.TFormType.ftTop;
-    var $with1 = pas.Unit1.Form1;
+    var $with = pas.Unit1.Form1;
     pas.Unit1.Form1.BeginUpdate();
     pas.Unit1.Form1.SetLeft(245);
     pas.Unit1.Form1.SetHeight(561);
@@ -7080,405 +8966,405 @@ rtl.module("unit1frm",["System","SysUtils","Classes","Dialogs","Controls","StdCt
     pas.Unit1.Form1.SetClientWidth(450);
     pas.Unit1.Form1.FFont.SetSize(9);
     pas.Unit1.Form1.FKeyPreview = true;
-    pas.Unit1.Form1.FOnCreate = rtl.createCallback($with1,"FormCreate");
-    pas.Unit1.Form1.FOnKeyDown = rtl.createCallback($with1,"FormKeyDown");
-    pas.Unit1.Form1.FOnKeyPress = rtl.createCallback($with1,"FormKeyPress");
-    pas.Unit1.Form1.FOnKeyUp = rtl.createCallback($with1,"FormKeyUp");
-    pas.Unit1.Form1.FOnMouseDown = rtl.createCallback($with1,"FormMouseDown");
-    pas.Unit1.Form1.FOnMouseUp = rtl.createCallback($with1,"FormMouseUp");
-    $with1.GroupBox1 = pas.WebCtrlsMore.TGroupBox.$create("Create$1",[pas.Unit1.Form1]);
-    $with1.GroupBox1.BeginUpdate();
-    $with1.GroupBox1.SetParent(pas.Unit1.Form1);
-    $with1.GroupBox1.SetLeft(8);
-    $with1.GroupBox1.SetHeight(65);
-    $with1.GroupBox1.SetTop(140);
-    $with1.GroupBox1.SetWidth(129);
-    $with1.GroupBox1.SetText("GroupBox1");
-    $with1.GroupBox1.SetClientHeight(110);
-    $with1.GroupBox1.SetClientWidth(125);
-    $with1.GroupBox1.FFont.SetColor(0);
-    $with1.GroupBox1.FFont.SetName("Tahoma");
-    $with1.GroupBox1.SetParentFont(false);
-    $with1.RadioButton1 = pas.WebCtrlsMore.TRadioButton.$create("Create$1",[$with1.GroupBox1]);
-    $with1.RadioButton1.BeginUpdate();
-    $with1.RadioButton1.SetParent($with1.GroupBox1);
-    $with1.RadioButton1.SetLeft(18);
-    $with1.RadioButton1.SetHeight(21);
-    $with1.RadioButton1.SetTop(13);
-    $with1.RadioButton1.SetWidth(87);
-    $with1.RadioButton1.SetText("RadioButton1");
-    $with1.RadioButton1.FFont.SetColor(0);
-    $with1.RadioButton1.FFont.SetName("Tahoma");
-    $with1.RadioButton1.FFont.SetStyle(rtl.createSet(pas.Graphics.TFontStyle.fsItalic));
-    $with1.RadioButton1.SetParentFont(false);
-    $with1.RadioButton1.EndUpdate();
-    $with1.RadioButton2 = pas.WebCtrlsMore.TRadioButton.$create("Create$1",[$with1.GroupBox1]);
-    $with1.RadioButton2.BeginUpdate();
-    $with1.RadioButton2.SetParent($with1.GroupBox1);
-    $with1.RadioButton2.SetLeft(18);
-    $with1.RadioButton2.SetHeight(21);
-    $with1.RadioButton2.SetTop(32);
-    $with1.RadioButton2.SetWidth(87);
-    $with1.RadioButton2.SetText("RadioButton2");
-    $with1.RadioButton2.Checked = true;
-    $with1.RadioButton2.FFont.SetColor(0);
-    $with1.RadioButton2.FFont.SetName("Tahoma");
-    $with1.RadioButton2.SetParentFont(false);
-    $with1.RadioButton2.EndUpdate();
-    $with1.GroupBox1.EndUpdate();
-    $with1.ComboBox1 = pas.WebCtrls.TComboBox.$create("Create$1",[pas.Unit1.Form1]);
-    $with1.ComboBox1.BeginUpdate();
-    $with1.ComboBox1.SetParent(pas.Unit1.Form1);
-    $with1.ComboBox1.SetLeft(8);
-    $with1.ComboBox1.SetHeight(21);
-    $with1.ComboBox1.SetTop(12);
-    $with1.ComboBox1.SetWidth(133);
-    $with1.ComboBox1.FFont.SetColor(0);
-    $with1.ComboBox1.FFont.SetName("Tahoma");
-    $with1.ComboBox1.FFont.SetStyle(rtl.createSet(pas.Graphics.TFontStyle.fsBold));
-    $with1.ComboBox1.SetItemHeight(13);
-    $with1.ComboBox1.FItems.SetCommaText("11,22,44,33");
-    $with1.ComboBox1.SetItemIndex(0);
-    $with1.ComboBox1.FOnChange = rtl.createCallback($with1,"ComboBox1Change");
-    $with1.ComboBox1.SetParentFont(false);
-    $with1.ComboBox1.SetText("sample text");
-    $with1.ComboBox1.EndUpdate();
-    $with1.Edit1 = pas.WebCtrls.TEdit.$create("Create$1",[pas.Unit1.Form1]);
-    $with1.Edit1.BeginUpdate();
-    $with1.Edit1.SetParent(pas.Unit1.Form1);
-    $with1.Edit1.SetLeft(276);
-    $with1.Edit1.SetHeight(25);
-    $with1.Edit1.SetTop(12);
-    $with1.Edit1.SetWidth(125);
-    $with1.Edit1.FOnChange = rtl.createCallback($with1,"Edit1Change");
-    $with1.Edit1.FOnDblClick = rtl.createCallback($with1,"Edit1DblClick");
-    $with1.Edit1.SetText("New item name");
-    $with1.Edit1.EndUpdate();
-    $with1.Button1 = pas.WebCtrls.TButton.$create("Create$1",[pas.Unit1.Form1]);
-    $with1.Button1.BeginUpdate();
-    $with1.Button1.SetParent(pas.Unit1.Form1);
-    $with1.Button1.SetLeft(184);
-    $with1.Button1.SetHeight(25);
-    $with1.Button1.SetTop(12);
-    $with1.Button1.SetWidth(75);
-    $with1.Button1.SetText("Add");
-    $with1.Button1.FFont.SetColor(0);
-    $with1.Button1.FFont.SetHeight(-10);
-    $with1.Button1.FFont.SetName("Tahoma");
-    $with1.Button1.FFont.SetStyle(rtl.createSet(pas.Graphics.TFontStyle.fsBold));
-    $with1.Button1.FOnClick = rtl.createCallback($with1,"Button1Click");
-    $with1.Button1.SetParentFont(false);
-    $with1.Button1.EndUpdate();
-    $with1.Button3 = pas.WebCtrls.TButton.$create("Create$1",[pas.Unit1.Form1]);
-    $with1.Button3.BeginUpdate();
-    $with1.Button3.SetParent(pas.Unit1.Form1);
-    $with1.Button3.SetLeft(184);
-    $with1.Button3.SetHeight(25);
-    $with1.Button3.SetTop(44);
-    $with1.Button3.SetWidth(75);
-    $with1.Button3.SetText("Clear");
-    $with1.Button3.FOnClick = rtl.createCallback($with1,"Button3Click");
-    $with1.Button3.EndUpdate();
-    $with1.ListBox1 = pas.WebCtrls.TListBox.$create("Create$1",[pas.Unit1.Form1]);
-    $with1.ListBox1.BeginUpdate();
-    $with1.ListBox1.SetParent(pas.Unit1.Form1);
-    $with1.ListBox1.SetLeft(184);
-    $with1.ListBox1.SetHeight(100);
-    $with1.ListBox1.SetTop(76);
-    $with1.ListBox1.SetWidth(217);
-    $with1.ListBox1.FFont.SetColor(0);
-    $with1.ListBox1.FFont.SetHeight(-10);
-    $with1.ListBox1.FFont.SetName("Tahoma");
-    $with1.ListBox1.FFont.SetStyle(rtl.createSet(pas.Graphics.TFontStyle.fsBold));
-    $with1.ListBox1.FItems.SetCommaText("444,111,333,222");
-    $with1.ListBox1.SetItemHeight(13);
-    $with1.ListBox1.FOnDblClick = rtl.createCallback($with1,"ListBox1DblClick");
-    $with1.ListBox1.SetParentFont(false);
-    $with1.ListBox1.EndUpdate();
-    $with1.Memo1 = pas.WebCtrls.TMemo.$create("Create$1",[pas.Unit1.Form1]);
-    $with1.Memo1.BeginUpdate();
-    $with1.Memo1.SetParent(pas.Unit1.Form1);
-    $with1.Memo1.SetLeft(8);
-    $with1.Memo1.SetHeight(285);
-    $with1.Memo1.SetTop(216);
-    $with1.Memo1.SetWidth(393);
-    $with1.Memo1.FLines.SetCommaText("asd,zxc");
-    $with1.Memo1.EndUpdate();
-    $with1.Button2 = pas.WebCtrls.TButton.$create("Create$1",[pas.Unit1.Form1]);
-    $with1.Button2.BeginUpdate();
-    $with1.Button2.SetParent(pas.Unit1.Form1);
-    $with1.Button2.SetLeft(276);
-    $with1.Button2.SetHeight(25);
-    $with1.Button2.SetTop(44);
-    $with1.Button2.SetWidth(53);
-    $with1.Button2.SetText("GetText");
-    $with1.Button2.FOnClick = rtl.createCallback($with1,"Button2Click");
-    $with1.Button2.EndUpdate();
-    $with1.Button4 = pas.WebCtrls.TButton.$create("Create$1",[pas.Unit1.Form1]);
-    $with1.Button4.BeginUpdate();
-    $with1.Button4.SetParent(pas.Unit1.Form1);
-    $with1.Button4.SetLeft(348);
-    $with1.Button4.SetHeight(25);
-    $with1.Button4.SetTop(44);
-    $with1.Button4.SetWidth(53);
-    $with1.Button4.SetText("SetText");
-    $with1.Button4.FOnClick = rtl.createCallback($with1,"Button4Click");
-    $with1.Button4.EndUpdate();
-    $with1.CheckBox1 = pas.WebCtrls.TCheckbox.$create("Create$1",[pas.Unit1.Form1]);
-    $with1.CheckBox1.BeginUpdate();
-    $with1.CheckBox1.SetParent(pas.Unit1.Form1);
-    $with1.CheckBox1.SetLeft(8);
-    $with1.CheckBox1.SetHeight(21);
-    $with1.CheckBox1.SetTop(76);
-    $with1.CheckBox1.SetWidth(100);
-    $with1.CheckBox1.SetText("CheckBox1");
-    $with1.CheckBox1.SetState(pas.StdCtrls.TCheckBoxState.cbGrayed);
-    $with1.CheckBox1.EndUpdate();
-    $with1.Button6 = pas.WebCtrls.TButton.$create("Create$1",[pas.Unit1.Form1]);
-    $with1.Button6.BeginUpdate();
-    $with1.Button6.SetParent(pas.Unit1.Form1);
-    $with1.Button6.SetLeft(88);
-    $with1.Button6.SetHeight(25);
-    $with1.Button6.SetTop(92);
-    $with1.Button6.SetWidth(53);
-    $with1.Button6.SetText("Grayed");
-    $with1.Button6.FOnClick = rtl.createCallback($with1,"Button6Click");
-    $with1.Button6.EndUpdate();
-    $with1.Button7 = pas.WebCtrls.TButton.$create("Create$1",[pas.Unit1.Form1]);
-    $with1.Button7.BeginUpdate();
-    $with1.Button7.SetParent(pas.Unit1.Form1);
-    $with1.Button7.SetLeft(148);
-    $with1.Button7.SetHeight(25);
-    $with1.Button7.SetTop(12);
-    $with1.Button7.SetWidth(29);
-    $with1.Button7.SetText("DD");
-    $with1.Button7.FOnClick = rtl.createCallback($with1,"Button7Click");
-    $with1.Button7.EndUpdate();
-    $with1.Button8 = pas.WebCtrls.TButton.$create("Create$1",[pas.Unit1.Form1]);
-    $with1.Button8.BeginUpdate();
-    $with1.Button8.SetParent(pas.Unit1.Form1);
-    $with1.Button8.SetLeft(80);
-    $with1.Button8.SetHeight(21);
-    $with1.Button8.SetTop(44);
-    $with1.Button8.SetWidth(61);
-    $with1.Button8.SetText("Disabled");
-    $with1.Button8.SetEnabled(false);
-    $with1.Button8.FOnClick = rtl.createCallback($with1,"Button8Click");
-    $with1.Button8.EndUpdate();
-    $with1.Button9 = pas.WebCtrls.TButton.$create("Create$1",[pas.Unit1.Form1]);
-    $with1.Button9.BeginUpdate();
-    $with1.Button9.SetParent(pas.Unit1.Form1);
-    $with1.Button9.SetLeft(144);
-    $with1.Button9.SetHeight(25);
-    $with1.Button9.SetTop(180);
-    $with1.Button9.SetWidth(33);
-    $with1.Button9.SetText("Sh\/H");
-    $with1.Button9.FOnClick = rtl.createCallback($with1,"Button9Click");
-    $with1.Button9.EndUpdate();
-    $with1.Button10 = pas.WebCtrls.TButton.$create("Create$1",[pas.Unit1.Form1]);
-    $with1.Button10.BeginUpdate();
-    $with1.Button10.SetParent(pas.Unit1.Form1);
-    $with1.Button10.SetLeft(8);
-    $with1.Button10.SetHeight(21);
-    $with1.Button10.SetTop(44);
-    $with1.Button10.SetWidth(69);
-    $with1.Button10.SetText("Invisible!!!");
-    $with1.Button10.FOnClick = rtl.createCallback($with1,"Button10Click");
-    $with1.Button10.SetVisible(false);
-    $with1.Button10.EndUpdate();
-    $with1.CheckBox2 = pas.WebCtrls.TCheckbox.$create("Create$1",[pas.Unit1.Form1]);
-    $with1.CheckBox2.BeginUpdate();
-    $with1.CheckBox2.SetParent(pas.Unit1.Form1);
-    $with1.CheckBox2.SetLeft(8);
-    $with1.CheckBox2.SetHeight(21);
-    $with1.CheckBox2.SetTop(96);
-    $with1.CheckBox2.SetWidth(100);
-    $with1.CheckBox2.SetText("CheckBox2");
-    $with1.CheckBox2.SetChecked(true);
-    $with1.CheckBox2.SetState(pas.StdCtrls.TCheckBoxState.cbChecked);
-    $with1.CheckBox2.EndUpdate();
-    $with1.CheckBox3 = pas.WebCtrls.TCheckbox.$create("Create$1",[pas.Unit1.Form1]);
-    $with1.CheckBox3.BeginUpdate();
-    $with1.CheckBox3.SetParent(pas.Unit1.Form1);
-    $with1.CheckBox3.SetLeft(8);
-    $with1.CheckBox3.SetHeight(21);
-    $with1.CheckBox3.SetTop(116);
-    $with1.CheckBox3.SetWidth(100);
-    $with1.CheckBox3.SetText("CheckBox3");
-    $with1.CheckBox3.EndUpdate();
-    $with1.ComboBox2 = pas.WebCtrls.TComboBox.$create("Create$1",[pas.Unit1.Form1]);
-    $with1.ComboBox2.BeginUpdate();
-    $with1.ComboBox2.SetParent(pas.Unit1.Form1);
-    $with1.ComboBox2.SetLeft(148);
-    $with1.ComboBox2.SetHeight(129);
-    $with1.ComboBox2.SetTop(44);
-    $with1.ComboBox2.SetWidth(25);
-    $with1.ComboBox2.SetItemHeight(17);
-    $with1.ComboBox2.FItems.SetCommaText("5,4,3,2,1");
-    $with1.ComboBox2.fStyle = pas.StdCtrls.TComboBoxStyle.csSimple;
-    $with1.ComboBox2.SetText("10");
-    $with1.ComboBox2.EndUpdate();
-    $with1.StaticText1 = pas.WebCtrlsMore.TStaticText.$create("Create$1",[pas.Unit1.Form1]);
-    $with1.StaticText1.BeginUpdate();
-    $with1.StaticText1.SetParent(pas.Unit1.Form1);
-    $with1.StaticText1.SetLeft(44);
-    $with1.StaticText1.SetHeight(30);
-    $with1.StaticText1.SetTop(512);
-    $with1.StaticText1.SetWidth(70);
-    $with1.StaticText1.SetAlignment(pas.Classes.TAlignment.taCenter);
-    $with1.StaticText1.BorderStyle = pas.WebCtrlsMore.TStaticBorderStyle.sbsSunken;
-    $with1.StaticText1.SetText("StaticText");
-    $with1.StaticText1.EndUpdate();
-    $with1.Label1 = pas.WebCtrls.TLabel.$create("Create$1",[pas.Unit1.Form1]);
-    $with1.Label1.BeginUpdate();
-    $with1.Label1.SetParent(pas.Unit1.Form1);
-    $with1.Label1.SetLeft(8);
-    $with1.Label1.SetHeight(17);
-    $with1.Label1.SetTop(512);
-    $with1.Label1.SetWidth(31);
-    $with1.Label1.SetText("Label");
-    $with1.Label1.SetParentColor(false);
-    $with1.Label1.EndUpdate();
-    $with1.Button5 = pas.WebCtrls.TButton.$create("Create$1",[pas.Unit1.Form1]);
-    $with1.Button5.BeginUpdate();
-    $with1.Button5.SetParent(pas.Unit1.Form1);
-    $with1.Button5.SetLeft(120);
-    $with1.Button5.SetHeight(25);
-    $with1.Button5.SetTop(512);
-    $with1.Button5.SetWidth(94);
-    $with1.Button5.SetCancel(true);
-    $with1.Button5.SetText("Cancel Button");
-    $with1.Button5.FOnClick = rtl.createCallback($with1,"Button5Click");
-    $with1.Button5.EndUpdate();
-    $with1.Button11 = pas.WebCtrls.TButton.$create("Create$1",[pas.Unit1.Form1]);
-    $with1.Button11.BeginUpdate();
-    $with1.Button11.SetParent(pas.Unit1.Form1);
-    $with1.Button11.SetLeft(216);
-    $with1.Button11.SetHeight(25);
-    $with1.Button11.SetTop(512);
-    $with1.Button11.SetWidth(94);
-    $with1.Button11.SetText("Default Button");
-    $with1.Button11.SetDefault(true);
-    $with1.Button11.FOnClick = rtl.createCallback($with1,"Button11Click");
-    $with1.Button11.EndUpdate();
-    $with1.ProgressBar1 = pas.WebCtrlsMore.TProgressBar.$create("Create$1",[pas.Unit1.Form1]);
-    $with1.ProgressBar1.BeginUpdate();
-    $with1.ProgressBar1.SetParent(pas.Unit1.Form1);
-    $with1.ProgressBar1.BorderWidth = 2;
-    $with1.ProgressBar1.SetLeft(320);
-    $with1.ProgressBar1.SetHeight(16);
-    $with1.ProgressBar1.SetTop(516);
-    $with1.ProgressBar1.SetWidth(81);
-    $with1.ProgressBar1.EndUpdate();
-    $with1.StaticText2 = pas.WebCtrlsMore.TStaticText.$create("Create$1",[pas.Unit1.Form1]);
-    $with1.StaticText2.BeginUpdate();
-    $with1.StaticText2.SetParent(pas.Unit1.Form1);
-    $with1.StaticText2.SetLeft(184);
-    $with1.StaticText2.SetHeight(17);
-    $with1.StaticText2.SetTop(184);
-    $with1.StaticText2.SetWidth(217);
-    $with1.StaticText2.SetAlignment(pas.Classes.TAlignment.taCenter);
-    $with1.StaticText2.SetText("(Reserved for dynamic control)");
-    $with1.StaticText2.SetVisible(false);
-    $with1.StaticText2.EndUpdate();
-    $with1.Timer1 = pas.WebCtrls.TTimer.$create("Create$1",[pas.Unit1.Form1]);
-    $with1.Timer1.SetOnTimer(rtl.createCallback($with1,"Timer1Timer"));
-    $with1.MainMenu1 = pas.WebCtrlsMore.TMainMenu.$create("Create$1",[pas.Unit1.Form1]);
-    $with1.MainMenu1.BeginUpdate();
-    $with1.MainMenu1.SetParent(pas.Unit1.Form1);
-    $with1.MainMenu1.SetTop(600);
-    $with1.MainMenu1.SetLeft(336);
-    $with1.MenuItem1 = pas.WebCtrlsMore.TMenuItem.$create("Create$1",[$with1.MainMenu1]);
-    $with1.MenuItem1.BeginUpdate();
-    $with1.MenuItem1.SetParent($with1.MainMenu1);
-    $with1.MenuItem1.SetText("Menu1");
-    $with1.MenuItem3 = pas.WebCtrlsMore.TMenuItem.$create("Create$1",[$with1.MenuItem1]);
-    $with1.MenuItem3.BeginUpdate();
-    $with1.MenuItem3.SetParent($with1.MenuItem1);
-    $with1.MenuItem3.AutoCheck = true;
-    $with1.MenuItem3.SetText("Menu11");
-    $with1.MenuItem3.Checked = true;
-    $with1.MenuItem3.EndUpdate();
-    $with1.MenuItem4 = pas.WebCtrlsMore.TMenuItem.$create("Create$1",[$with1.MenuItem1]);
-    $with1.MenuItem4.BeginUpdate();
-    $with1.MenuItem4.SetParent($with1.MenuItem1);
-    $with1.MenuItem4.SetText("Menu12");
-    $with1.MenuItem4.SetEnabled(false);
-    $with1.MenuItem4.EndUpdate();
-    $with1.MenuItem13 = pas.WebCtrlsMore.TMenuItem.$create("Create$1",[$with1.MenuItem1]);
-    $with1.MenuItem13.BeginUpdate();
-    $with1.MenuItem13.SetParent($with1.MenuItem1);
-    $with1.MenuItem13.SetText("-");
-    $with1.MenuItem13.EndUpdate();
-    $with1.MenuItem11 = pas.WebCtrlsMore.TMenuItem.$create("Create$1",[$with1.MenuItem1]);
-    $with1.MenuItem11.BeginUpdate();
-    $with1.MenuItem11.SetParent($with1.MenuItem1);
-    $with1.MenuItem11.SetText("Open File...");
-    $with1.MenuItem11.FOnClick = rtl.createCallback($with1,"MenuItem11Click");
-    $with1.MenuItem11.EndUpdate();
-    $with1.MenuItem12 = pas.WebCtrlsMore.TMenuItem.$create("Create$1",[$with1.MenuItem1]);
-    $with1.MenuItem12.BeginUpdate();
-    $with1.MenuItem12.SetParent($with1.MenuItem1);
-    $with1.MenuItem12.SetText("Save File...");
-    $with1.MenuItem12.FOnClick = rtl.createCallback($with1,"MenuItem12Click");
-    $with1.MenuItem12.EndUpdate();
-    $with1.MenuItem5 = pas.WebCtrlsMore.TMenuItem.$create("Create$1",[$with1.MenuItem1]);
-    $with1.MenuItem5.BeginUpdate();
-    $with1.MenuItem5.SetParent($with1.MenuItem1);
-    $with1.MenuItem5.SetText("-");
-    $with1.MenuItem5.EndUpdate();
-    $with1.MenuItem6 = pas.WebCtrlsMore.TMenuItem.$create("Create$1",[$with1.MenuItem1]);
-    $with1.MenuItem6.BeginUpdate();
-    $with1.MenuItem6.SetParent($with1.MenuItem1);
-    $with1.MenuItem6.SetText("Quit");
-    $with1.MenuItem6.FOnClick = rtl.createCallback($with1,"MenuItem6Click");
-    $with1.MenuItem6.EndUpdate();
-    $with1.MenuItem1.EndUpdate();
-    $with1.MenuItem2 = pas.WebCtrlsMore.TMenuItem.$create("Create$1",[$with1.MainMenu1]);
-    $with1.MenuItem2.BeginUpdate();
-    $with1.MenuItem2.SetParent($with1.MainMenu1);
-    $with1.MenuItem2.SetText("Menu2");
-    $with1.MenuItem7 = pas.WebCtrlsMore.TMenuItem.$create("Create$1",[$with1.MenuItem2]);
-    $with1.MenuItem7.BeginUpdate();
-    $with1.MenuItem7.SetParent($with1.MenuItem2);
-    $with1.MenuItem7.SetText("Menu21");
-    $with1.MenuItem7.FOnClick = rtl.createCallback($with1,"MenuItem7Click");
-    $with1.MenuItem7.EndUpdate();
-    $with1.MenuItem8 = pas.WebCtrlsMore.TMenuItem.$create("Create$1",[$with1.MenuItem2]);
-    $with1.MenuItem8.BeginUpdate();
-    $with1.MenuItem8.SetParent($with1.MenuItem2);
-    $with1.MenuItem8.SetText("Menu22");
-    $with1.MenuItem8.FOnClick = rtl.createCallback($with1,"MenuItem8Click");
-    $with1.MenuItem8.EndUpdate();
-    $with1.MenuItem2.EndUpdate();
-    $with1.MainMenu1.EndUpdate();
-    $with1.PopupMenu1 = pas.WebCtrlsMore.TPopupMenu.$create("Create$1",[pas.Unit1.Form1]);
-    $with1.PopupMenu1.BeginUpdate();
-    $with1.PopupMenu1.SetParent(pas.Unit1.Form1);
-    $with1.PopupMenu1.SetLeft(304);
-    $with1.MenuItem9 = pas.WebCtrlsMore.TMenuItem.$create("Create$1",[$with1.PopupMenu1]);
-    $with1.MenuItem9.BeginUpdate();
-    $with1.MenuItem9.SetParent($with1.PopupMenu1);
-    $with1.MenuItem9.SetText("Popup1");
-    $with1.MenuItem9.FOnClick = rtl.createCallback($with1,"MenuItem9Click");
-    $with1.MenuItem9.EndUpdate();
-    $with1.MenuItem10 = pas.WebCtrlsMore.TMenuItem.$create("Create$1",[$with1.PopupMenu1]);
-    $with1.MenuItem10.BeginUpdate();
-    $with1.MenuItem10.SetParent($with1.PopupMenu1);
-    $with1.MenuItem10.SetText("Popup2");
-    $with1.MenuItem10.FOnClick = rtl.createCallback($with1,"MenuItem10Click");
-    $with1.MenuItem10.EndUpdate();
-    $with1.PopupMenu1.EndUpdate();
-    $with1.OpenDialog1 = pas.WebCtrlsMore.TOpenDialog.$create("Create$1",[pas.Unit1.Form1]);
-    $with1.OpenDialog1.BeginUpdate();
-    $with1.OpenDialog1.SetParent(pas.Unit1.Form1);
-    $with1.OpenDialog1.SetLeft(240);
-    $with1.OpenDialog1.EndUpdate();
-    $with1.SaveDialog1 = pas.WebCtrlsMore.TSaveDialog.$create("Create$1",[pas.Unit1.Form1]);
-    $with1.SaveDialog1.BeginUpdate();
-    $with1.SaveDialog1.SetParent(pas.Unit1.Form1);
-    $with1.SaveDialog1.SetLeft(272);
-    $with1.SaveDialog1.EndUpdate();
+    pas.Unit1.Form1.FOnCreate = rtl.createCallback($with,"FormCreate");
+    pas.Unit1.Form1.FOnKeyDown = rtl.createCallback($with,"FormKeyDown");
+    pas.Unit1.Form1.FOnKeyPress = rtl.createCallback($with,"FormKeyPress");
+    pas.Unit1.Form1.FOnKeyUp = rtl.createCallback($with,"FormKeyUp");
+    pas.Unit1.Form1.FOnMouseDown = rtl.createCallback($with,"FormMouseDown");
+    pas.Unit1.Form1.FOnMouseUp = rtl.createCallback($with,"FormMouseUp");
+    $with.GroupBox1 = pas.WebCtrlsMore.TGroupBox.$create("Create$1",[pas.Unit1.Form1]);
+    $with.GroupBox1.BeginUpdate();
+    $with.GroupBox1.SetParent(pas.Unit1.Form1);
+    $with.GroupBox1.SetLeft(8);
+    $with.GroupBox1.SetHeight(65);
+    $with.GroupBox1.SetTop(140);
+    $with.GroupBox1.SetWidth(129);
+    $with.GroupBox1.SetText("GroupBox1");
+    $with.GroupBox1.SetClientHeight(110);
+    $with.GroupBox1.SetClientWidth(125);
+    $with.GroupBox1.FFont.SetColor(0);
+    $with.GroupBox1.FFont.SetName("Tahoma");
+    $with.GroupBox1.SetParentFont(false);
+    $with.RadioButton1 = pas.WebCtrlsMore.TRadioButton.$create("Create$1",[$with.GroupBox1]);
+    $with.RadioButton1.BeginUpdate();
+    $with.RadioButton1.SetParent($with.GroupBox1);
+    $with.RadioButton1.SetLeft(18);
+    $with.RadioButton1.SetHeight(21);
+    $with.RadioButton1.SetTop(13);
+    $with.RadioButton1.SetWidth(87);
+    $with.RadioButton1.SetText("RadioButton1");
+    $with.RadioButton1.FFont.SetColor(0);
+    $with.RadioButton1.FFont.SetName("Tahoma");
+    $with.RadioButton1.FFont.SetStyle(rtl.createSet(pas.Graphics.TFontStyle.fsItalic));
+    $with.RadioButton1.SetParentFont(false);
+    $with.RadioButton1.EndUpdate();
+    $with.RadioButton2 = pas.WebCtrlsMore.TRadioButton.$create("Create$1",[$with.GroupBox1]);
+    $with.RadioButton2.BeginUpdate();
+    $with.RadioButton2.SetParent($with.GroupBox1);
+    $with.RadioButton2.SetLeft(18);
+    $with.RadioButton2.SetHeight(21);
+    $with.RadioButton2.SetTop(32);
+    $with.RadioButton2.SetWidth(87);
+    $with.RadioButton2.SetText("RadioButton2");
+    $with.RadioButton2.Checked = true;
+    $with.RadioButton2.FFont.SetColor(0);
+    $with.RadioButton2.FFont.SetName("Tahoma");
+    $with.RadioButton2.SetParentFont(false);
+    $with.RadioButton2.EndUpdate();
+    $with.GroupBox1.EndUpdate();
+    $with.ComboBox1 = pas.WebCtrls.TComboBox.$create("Create$1",[pas.Unit1.Form1]);
+    $with.ComboBox1.BeginUpdate();
+    $with.ComboBox1.SetParent(pas.Unit1.Form1);
+    $with.ComboBox1.SetLeft(8);
+    $with.ComboBox1.SetHeight(21);
+    $with.ComboBox1.SetTop(12);
+    $with.ComboBox1.SetWidth(133);
+    $with.ComboBox1.FFont.SetColor(0);
+    $with.ComboBox1.FFont.SetName("Tahoma");
+    $with.ComboBox1.FFont.SetStyle(rtl.createSet(pas.Graphics.TFontStyle.fsBold));
+    $with.ComboBox1.SetItemHeight(13);
+    $with.ComboBox1.FItems.SetCommaText("11,22,44,33");
+    $with.ComboBox1.SetItemIndex(0);
+    $with.ComboBox1.FOnChange = rtl.createCallback($with,"ComboBox1Change");
+    $with.ComboBox1.SetParentFont(false);
+    $with.ComboBox1.SetText("sample text");
+    $with.ComboBox1.EndUpdate();
+    $with.Edit1 = pas.WebCtrls.TEdit.$create("Create$1",[pas.Unit1.Form1]);
+    $with.Edit1.BeginUpdate();
+    $with.Edit1.SetParent(pas.Unit1.Form1);
+    $with.Edit1.SetLeft(276);
+    $with.Edit1.SetHeight(25);
+    $with.Edit1.SetTop(12);
+    $with.Edit1.SetWidth(125);
+    $with.Edit1.FOnChange = rtl.createCallback($with,"Edit1Change");
+    $with.Edit1.FOnDblClick = rtl.createCallback($with,"Edit1DblClick");
+    $with.Edit1.SetText("New item name");
+    $with.Edit1.EndUpdate();
+    $with.Button1 = pas.WebCtrls.TButton.$create("Create$1",[pas.Unit1.Form1]);
+    $with.Button1.BeginUpdate();
+    $with.Button1.SetParent(pas.Unit1.Form1);
+    $with.Button1.SetLeft(184);
+    $with.Button1.SetHeight(25);
+    $with.Button1.SetTop(12);
+    $with.Button1.SetWidth(75);
+    $with.Button1.SetText("Add");
+    $with.Button1.FFont.SetColor(0);
+    $with.Button1.FFont.SetHeight(-10);
+    $with.Button1.FFont.SetName("Tahoma");
+    $with.Button1.FFont.SetStyle(rtl.createSet(pas.Graphics.TFontStyle.fsBold));
+    $with.Button1.FOnClick = rtl.createCallback($with,"Button1Click");
+    $with.Button1.SetParentFont(false);
+    $with.Button1.EndUpdate();
+    $with.Button3 = pas.WebCtrls.TButton.$create("Create$1",[pas.Unit1.Form1]);
+    $with.Button3.BeginUpdate();
+    $with.Button3.SetParent(pas.Unit1.Form1);
+    $with.Button3.SetLeft(184);
+    $with.Button3.SetHeight(25);
+    $with.Button3.SetTop(44);
+    $with.Button3.SetWidth(75);
+    $with.Button3.SetText("Clear");
+    $with.Button3.FOnClick = rtl.createCallback($with,"Button3Click");
+    $with.Button3.EndUpdate();
+    $with.ListBox1 = pas.WebCtrls.TListBox.$create("Create$1",[pas.Unit1.Form1]);
+    $with.ListBox1.BeginUpdate();
+    $with.ListBox1.SetParent(pas.Unit1.Form1);
+    $with.ListBox1.SetLeft(184);
+    $with.ListBox1.SetHeight(100);
+    $with.ListBox1.SetTop(76);
+    $with.ListBox1.SetWidth(217);
+    $with.ListBox1.FFont.SetColor(0);
+    $with.ListBox1.FFont.SetHeight(-10);
+    $with.ListBox1.FFont.SetName("Tahoma");
+    $with.ListBox1.FFont.SetStyle(rtl.createSet(pas.Graphics.TFontStyle.fsBold));
+    $with.ListBox1.FItems.SetCommaText("444,111,333,222");
+    $with.ListBox1.SetItemHeight(13);
+    $with.ListBox1.FOnDblClick = rtl.createCallback($with,"ListBox1DblClick");
+    $with.ListBox1.SetParentFont(false);
+    $with.ListBox1.EndUpdate();
+    $with.Memo1 = pas.WebCtrls.TMemo.$create("Create$1",[pas.Unit1.Form1]);
+    $with.Memo1.BeginUpdate();
+    $with.Memo1.SetParent(pas.Unit1.Form1);
+    $with.Memo1.SetLeft(8);
+    $with.Memo1.SetHeight(285);
+    $with.Memo1.SetTop(216);
+    $with.Memo1.SetWidth(393);
+    $with.Memo1.FLines.SetCommaText("asd,zxc");
+    $with.Memo1.EndUpdate();
+    $with.Button2 = pas.WebCtrls.TButton.$create("Create$1",[pas.Unit1.Form1]);
+    $with.Button2.BeginUpdate();
+    $with.Button2.SetParent(pas.Unit1.Form1);
+    $with.Button2.SetLeft(276);
+    $with.Button2.SetHeight(25);
+    $with.Button2.SetTop(44);
+    $with.Button2.SetWidth(53);
+    $with.Button2.SetText("GetText");
+    $with.Button2.FOnClick = rtl.createCallback($with,"Button2Click");
+    $with.Button2.EndUpdate();
+    $with.Button4 = pas.WebCtrls.TButton.$create("Create$1",[pas.Unit1.Form1]);
+    $with.Button4.BeginUpdate();
+    $with.Button4.SetParent(pas.Unit1.Form1);
+    $with.Button4.SetLeft(348);
+    $with.Button4.SetHeight(25);
+    $with.Button4.SetTop(44);
+    $with.Button4.SetWidth(53);
+    $with.Button4.SetText("SetText");
+    $with.Button4.FOnClick = rtl.createCallback($with,"Button4Click");
+    $with.Button4.EndUpdate();
+    $with.CheckBox1 = pas.WebCtrls.TCheckbox.$create("Create$1",[pas.Unit1.Form1]);
+    $with.CheckBox1.BeginUpdate();
+    $with.CheckBox1.SetParent(pas.Unit1.Form1);
+    $with.CheckBox1.SetLeft(8);
+    $with.CheckBox1.SetHeight(21);
+    $with.CheckBox1.SetTop(76);
+    $with.CheckBox1.SetWidth(100);
+    $with.CheckBox1.SetText("CheckBox1");
+    $with.CheckBox1.SetState(pas.StdCtrls.TCheckBoxState.cbGrayed);
+    $with.CheckBox1.EndUpdate();
+    $with.Button6 = pas.WebCtrls.TButton.$create("Create$1",[pas.Unit1.Form1]);
+    $with.Button6.BeginUpdate();
+    $with.Button6.SetParent(pas.Unit1.Form1);
+    $with.Button6.SetLeft(88);
+    $with.Button6.SetHeight(25);
+    $with.Button6.SetTop(92);
+    $with.Button6.SetWidth(53);
+    $with.Button6.SetText("Grayed");
+    $with.Button6.FOnClick = rtl.createCallback($with,"Button6Click");
+    $with.Button6.EndUpdate();
+    $with.Button7 = pas.WebCtrls.TButton.$create("Create$1",[pas.Unit1.Form1]);
+    $with.Button7.BeginUpdate();
+    $with.Button7.SetParent(pas.Unit1.Form1);
+    $with.Button7.SetLeft(148);
+    $with.Button7.SetHeight(25);
+    $with.Button7.SetTop(12);
+    $with.Button7.SetWidth(29);
+    $with.Button7.SetText("DD");
+    $with.Button7.FOnClick = rtl.createCallback($with,"Button7Click");
+    $with.Button7.EndUpdate();
+    $with.Button8 = pas.WebCtrls.TButton.$create("Create$1",[pas.Unit1.Form1]);
+    $with.Button8.BeginUpdate();
+    $with.Button8.SetParent(pas.Unit1.Form1);
+    $with.Button8.SetLeft(80);
+    $with.Button8.SetHeight(21);
+    $with.Button8.SetTop(44);
+    $with.Button8.SetWidth(61);
+    $with.Button8.SetText("Disabled");
+    $with.Button8.SetEnabled(false);
+    $with.Button8.FOnClick = rtl.createCallback($with,"Button8Click");
+    $with.Button8.EndUpdate();
+    $with.Button9 = pas.WebCtrls.TButton.$create("Create$1",[pas.Unit1.Form1]);
+    $with.Button9.BeginUpdate();
+    $with.Button9.SetParent(pas.Unit1.Form1);
+    $with.Button9.SetLeft(144);
+    $with.Button9.SetHeight(25);
+    $with.Button9.SetTop(180);
+    $with.Button9.SetWidth(33);
+    $with.Button9.SetText("Sh\/H");
+    $with.Button9.FOnClick = rtl.createCallback($with,"Button9Click");
+    $with.Button9.EndUpdate();
+    $with.Button10 = pas.WebCtrls.TButton.$create("Create$1",[pas.Unit1.Form1]);
+    $with.Button10.BeginUpdate();
+    $with.Button10.SetParent(pas.Unit1.Form1);
+    $with.Button10.SetLeft(8);
+    $with.Button10.SetHeight(21);
+    $with.Button10.SetTop(44);
+    $with.Button10.SetWidth(69);
+    $with.Button10.SetText("Invisible!!!");
+    $with.Button10.FOnClick = rtl.createCallback($with,"Button10Click");
+    $with.Button10.SetVisible(false);
+    $with.Button10.EndUpdate();
+    $with.CheckBox2 = pas.WebCtrls.TCheckbox.$create("Create$1",[pas.Unit1.Form1]);
+    $with.CheckBox2.BeginUpdate();
+    $with.CheckBox2.SetParent(pas.Unit1.Form1);
+    $with.CheckBox2.SetLeft(8);
+    $with.CheckBox2.SetHeight(21);
+    $with.CheckBox2.SetTop(96);
+    $with.CheckBox2.SetWidth(100);
+    $with.CheckBox2.SetText("CheckBox2");
+    $with.CheckBox2.SetChecked(true);
+    $with.CheckBox2.SetState(pas.StdCtrls.TCheckBoxState.cbChecked);
+    $with.CheckBox2.EndUpdate();
+    $with.CheckBox3 = pas.WebCtrls.TCheckbox.$create("Create$1",[pas.Unit1.Form1]);
+    $with.CheckBox3.BeginUpdate();
+    $with.CheckBox3.SetParent(pas.Unit1.Form1);
+    $with.CheckBox3.SetLeft(8);
+    $with.CheckBox3.SetHeight(21);
+    $with.CheckBox3.SetTop(116);
+    $with.CheckBox3.SetWidth(100);
+    $with.CheckBox3.SetText("CheckBox3");
+    $with.CheckBox3.EndUpdate();
+    $with.ComboBox2 = pas.WebCtrls.TComboBox.$create("Create$1",[pas.Unit1.Form1]);
+    $with.ComboBox2.BeginUpdate();
+    $with.ComboBox2.SetParent(pas.Unit1.Form1);
+    $with.ComboBox2.SetLeft(148);
+    $with.ComboBox2.SetHeight(129);
+    $with.ComboBox2.SetTop(44);
+    $with.ComboBox2.SetWidth(25);
+    $with.ComboBox2.SetItemHeight(17);
+    $with.ComboBox2.FItems.SetCommaText("5,4,3,2,1");
+    $with.ComboBox2.fStyle = pas.StdCtrls.TComboBoxStyle.csSimple;
+    $with.ComboBox2.SetText("10");
+    $with.ComboBox2.EndUpdate();
+    $with.StaticText1 = pas.WebCtrlsMore.TStaticText.$create("Create$1",[pas.Unit1.Form1]);
+    $with.StaticText1.BeginUpdate();
+    $with.StaticText1.SetParent(pas.Unit1.Form1);
+    $with.StaticText1.SetLeft(44);
+    $with.StaticText1.SetHeight(30);
+    $with.StaticText1.SetTop(512);
+    $with.StaticText1.SetWidth(70);
+    $with.StaticText1.SetAlignment(pas.Classes.TAlignment.taCenter);
+    $with.StaticText1.BorderStyle = pas.WebCtrlsMore.TStaticBorderStyle.sbsSunken;
+    $with.StaticText1.SetText("StaticText");
+    $with.StaticText1.EndUpdate();
+    $with.Label1 = pas.WebCtrls.TLabel.$create("Create$1",[pas.Unit1.Form1]);
+    $with.Label1.BeginUpdate();
+    $with.Label1.SetParent(pas.Unit1.Form1);
+    $with.Label1.SetLeft(8);
+    $with.Label1.SetHeight(17);
+    $with.Label1.SetTop(512);
+    $with.Label1.SetWidth(31);
+    $with.Label1.SetText("Label");
+    $with.Label1.SetParentColor(false);
+    $with.Label1.EndUpdate();
+    $with.Button5 = pas.WebCtrls.TButton.$create("Create$1",[pas.Unit1.Form1]);
+    $with.Button5.BeginUpdate();
+    $with.Button5.SetParent(pas.Unit1.Form1);
+    $with.Button5.SetLeft(120);
+    $with.Button5.SetHeight(25);
+    $with.Button5.SetTop(512);
+    $with.Button5.SetWidth(94);
+    $with.Button5.SetCancel(true);
+    $with.Button5.SetText("Cancel Button");
+    $with.Button5.FOnClick = rtl.createCallback($with,"Button5Click");
+    $with.Button5.EndUpdate();
+    $with.Button11 = pas.WebCtrls.TButton.$create("Create$1",[pas.Unit1.Form1]);
+    $with.Button11.BeginUpdate();
+    $with.Button11.SetParent(pas.Unit1.Form1);
+    $with.Button11.SetLeft(216);
+    $with.Button11.SetHeight(25);
+    $with.Button11.SetTop(512);
+    $with.Button11.SetWidth(94);
+    $with.Button11.SetText("Default Button");
+    $with.Button11.SetDefault(true);
+    $with.Button11.FOnClick = rtl.createCallback($with,"Button11Click");
+    $with.Button11.EndUpdate();
+    $with.ProgressBar1 = pas.WebCtrlsMore.TProgressBar.$create("Create$1",[pas.Unit1.Form1]);
+    $with.ProgressBar1.BeginUpdate();
+    $with.ProgressBar1.SetParent(pas.Unit1.Form1);
+    $with.ProgressBar1.BorderWidth = 2;
+    $with.ProgressBar1.SetLeft(320);
+    $with.ProgressBar1.SetHeight(16);
+    $with.ProgressBar1.SetTop(516);
+    $with.ProgressBar1.SetWidth(81);
+    $with.ProgressBar1.EndUpdate();
+    $with.StaticText2 = pas.WebCtrlsMore.TStaticText.$create("Create$1",[pas.Unit1.Form1]);
+    $with.StaticText2.BeginUpdate();
+    $with.StaticText2.SetParent(pas.Unit1.Form1);
+    $with.StaticText2.SetLeft(184);
+    $with.StaticText2.SetHeight(17);
+    $with.StaticText2.SetTop(184);
+    $with.StaticText2.SetWidth(217);
+    $with.StaticText2.SetAlignment(pas.Classes.TAlignment.taCenter);
+    $with.StaticText2.SetText("(Reserved for dynamic control)");
+    $with.StaticText2.SetVisible(false);
+    $with.StaticText2.EndUpdate();
+    $with.Timer1 = pas.WebCtrls.TTimer.$create("Create$1",[pas.Unit1.Form1]);
+    $with.Timer1.SetOnTimer(rtl.createCallback($with,"Timer1Timer"));
+    $with.MainMenu1 = pas.WebCtrlsMore.TMainMenu.$create("Create$1",[pas.Unit1.Form1]);
+    $with.MainMenu1.BeginUpdate();
+    $with.MainMenu1.SetParent(pas.Unit1.Form1);
+    $with.MainMenu1.SetTop(600);
+    $with.MainMenu1.SetLeft(336);
+    $with.MenuItem1 = pas.WebCtrlsMore.TMenuItem.$create("Create$1",[$with.MainMenu1]);
+    $with.MenuItem1.BeginUpdate();
+    $with.MenuItem1.SetParent($with.MainMenu1);
+    $with.MenuItem1.SetText("Menu1");
+    $with.MenuItem3 = pas.WebCtrlsMore.TMenuItem.$create("Create$1",[$with.MenuItem1]);
+    $with.MenuItem3.BeginUpdate();
+    $with.MenuItem3.SetParent($with.MenuItem1);
+    $with.MenuItem3.AutoCheck = true;
+    $with.MenuItem3.SetText("Menu11");
+    $with.MenuItem3.Checked = true;
+    $with.MenuItem3.EndUpdate();
+    $with.MenuItem4 = pas.WebCtrlsMore.TMenuItem.$create("Create$1",[$with.MenuItem1]);
+    $with.MenuItem4.BeginUpdate();
+    $with.MenuItem4.SetParent($with.MenuItem1);
+    $with.MenuItem4.SetText("Menu12");
+    $with.MenuItem4.SetEnabled(false);
+    $with.MenuItem4.EndUpdate();
+    $with.MenuItem13 = pas.WebCtrlsMore.TMenuItem.$create("Create$1",[$with.MenuItem1]);
+    $with.MenuItem13.BeginUpdate();
+    $with.MenuItem13.SetParent($with.MenuItem1);
+    $with.MenuItem13.SetText("-");
+    $with.MenuItem13.EndUpdate();
+    $with.MenuItem11 = pas.WebCtrlsMore.TMenuItem.$create("Create$1",[$with.MenuItem1]);
+    $with.MenuItem11.BeginUpdate();
+    $with.MenuItem11.SetParent($with.MenuItem1);
+    $with.MenuItem11.SetText("Open File...");
+    $with.MenuItem11.FOnClick = rtl.createCallback($with,"MenuItem11Click");
+    $with.MenuItem11.EndUpdate();
+    $with.MenuItem12 = pas.WebCtrlsMore.TMenuItem.$create("Create$1",[$with.MenuItem1]);
+    $with.MenuItem12.BeginUpdate();
+    $with.MenuItem12.SetParent($with.MenuItem1);
+    $with.MenuItem12.SetText("Save File...");
+    $with.MenuItem12.FOnClick = rtl.createCallback($with,"MenuItem12Click");
+    $with.MenuItem12.EndUpdate();
+    $with.MenuItem5 = pas.WebCtrlsMore.TMenuItem.$create("Create$1",[$with.MenuItem1]);
+    $with.MenuItem5.BeginUpdate();
+    $with.MenuItem5.SetParent($with.MenuItem1);
+    $with.MenuItem5.SetText("-");
+    $with.MenuItem5.EndUpdate();
+    $with.MenuItem6 = pas.WebCtrlsMore.TMenuItem.$create("Create$1",[$with.MenuItem1]);
+    $with.MenuItem6.BeginUpdate();
+    $with.MenuItem6.SetParent($with.MenuItem1);
+    $with.MenuItem6.SetText("Quit");
+    $with.MenuItem6.FOnClick = rtl.createCallback($with,"MenuItem6Click");
+    $with.MenuItem6.EndUpdate();
+    $with.MenuItem1.EndUpdate();
+    $with.MenuItem2 = pas.WebCtrlsMore.TMenuItem.$create("Create$1",[$with.MainMenu1]);
+    $with.MenuItem2.BeginUpdate();
+    $with.MenuItem2.SetParent($with.MainMenu1);
+    $with.MenuItem2.SetText("Menu2");
+    $with.MenuItem7 = pas.WebCtrlsMore.TMenuItem.$create("Create$1",[$with.MenuItem2]);
+    $with.MenuItem7.BeginUpdate();
+    $with.MenuItem7.SetParent($with.MenuItem2);
+    $with.MenuItem7.SetText("Menu21");
+    $with.MenuItem7.FOnClick = rtl.createCallback($with,"MenuItem7Click");
+    $with.MenuItem7.EndUpdate();
+    $with.MenuItem8 = pas.WebCtrlsMore.TMenuItem.$create("Create$1",[$with.MenuItem2]);
+    $with.MenuItem8.BeginUpdate();
+    $with.MenuItem8.SetParent($with.MenuItem2);
+    $with.MenuItem8.SetText("Menu22");
+    $with.MenuItem8.FOnClick = rtl.createCallback($with,"MenuItem8Click");
+    $with.MenuItem8.EndUpdate();
+    $with.MenuItem2.EndUpdate();
+    $with.MainMenu1.EndUpdate();
+    $with.PopupMenu1 = pas.WebCtrlsMore.TPopupMenu.$create("Create$1",[pas.Unit1.Form1]);
+    $with.PopupMenu1.BeginUpdate();
+    $with.PopupMenu1.SetParent(pas.Unit1.Form1);
+    $with.PopupMenu1.SetLeft(304);
+    $with.MenuItem9 = pas.WebCtrlsMore.TMenuItem.$create("Create$1",[$with.PopupMenu1]);
+    $with.MenuItem9.BeginUpdate();
+    $with.MenuItem9.SetParent($with.PopupMenu1);
+    $with.MenuItem9.SetText("Popup1");
+    $with.MenuItem9.FOnClick = rtl.createCallback($with,"MenuItem9Click");
+    $with.MenuItem9.EndUpdate();
+    $with.MenuItem10 = pas.WebCtrlsMore.TMenuItem.$create("Create$1",[$with.PopupMenu1]);
+    $with.MenuItem10.BeginUpdate();
+    $with.MenuItem10.SetParent($with.PopupMenu1);
+    $with.MenuItem10.SetText("Popup2");
+    $with.MenuItem10.FOnClick = rtl.createCallback($with,"MenuItem10Click");
+    $with.MenuItem10.EndUpdate();
+    $with.PopupMenu1.EndUpdate();
+    $with.OpenDialog1 = pas.WebCtrlsMore.TOpenDialog.$create("Create$1",[pas.Unit1.Form1]);
+    $with.OpenDialog1.BeginUpdate();
+    $with.OpenDialog1.SetParent(pas.Unit1.Form1);
+    $with.OpenDialog1.SetLeft(240);
+    $with.OpenDialog1.EndUpdate();
+    $with.SaveDialog1 = pas.WebCtrlsMore.TSaveDialog.$create("Create$1",[pas.Unit1.Form1]);
+    $with.SaveDialog1.BeginUpdate();
+    $with.SaveDialog1.SetParent(pas.Unit1.Form1);
+    $with.SaveDialog1.SetLeft(272);
+    $with.SaveDialog1.EndUpdate();
     pas.Unit1.Form1.EndUpdate();
     pas.Unit1.Form1.FormCreate(null);
   };
