@@ -6177,7 +6177,6 @@ rtl.module("ExtCtrls",["System","Classes","SysUtils","Types","Web","Graphics","C
             VBottomColor = this.FBevelColor;
           };
           $with.style.setProperty("border-width",pas.SysUtils.IntToStr(this.FBevelWidth) + "px");
-          $with.style.setProperty("border-style","solid");
           $with.style.setProperty("border-left-color",pas.Graphics.JSColor(VTopColor));
           $with.style.setProperty("border-top-color",pas.Graphics.JSColor(VTopColor));
           $with.style.setProperty("border-right-color",pas.Graphics.JSColor(VBottomColor));
@@ -7772,8 +7771,8 @@ rtl.module("unit1frm",["System","SysUtils","Classes","Dialogs","Controls","StdCt
     $with.MainMenu1 = pas.WebCtrlsMore.TMainMenu.$create("Create$1",[pas.Unit1.Form1]);
     $with.MainMenu1.BeginUpdate();
     $with.MainMenu1.SetParent(pas.Unit1.Form1);
-    $with.MainMenu1.SetTop(600);
-    $with.MainMenu1.SetLeft(336);
+    $with.MainMenu1.SetTop(0);
+    $with.MainMenu1.SetLeft(0);
     $with.MenuItem1 = pas.WebCtrlsMore.TMenuItem.$create("Create$1",[$with.MainMenu1]);
     $with.MenuItem1.BeginUpdate();
     $with.MenuItem1.SetParent($with.MainMenu1);
