@@ -36,13 +36,13 @@ uses  SysUtils, Classes, Dialogs, Controls, StdCtrls, Forms,
 ```
 
 ### Now
-[LLCL](https://github.com/FChrisF/LLCL)
-[PAS2JS](https://wiki.lazarus.freepascal.org/pas2js)
-[Layui](https://github.com/layui/layui)
+- [LLCL](https://github.com/FChrisF/LLCL)
+- FPC [PAS2JS](https://wiki.lazarus.freepascal.org/pas2js)
+- [Layui](https://github.com/layui/layui)
 
 ### Todo
- FPC [WASM](https://wiki.lazarus.freepascal.org/WebAssembly) Canvas
-[Qwik](https://github.com/BuilderIO/qwik)
+- FPC [WASM](https://wiki.lazarus.freepascal.org/WebAssembly) Canvas
+- [Qwik](https://github.com/BuilderIO/qwik)
 
  
 
