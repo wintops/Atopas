@@ -35,11 +35,21 @@ uses  SysUtils, Classes, Dialogs, Controls, StdCtrls, Forms,
   ;
 ```
 
-### Links
+### Now
+[LLCL](https://github.com/FChrisF/LLCL)
+[PAS2JS](https://wiki.lazarus.freepascal.org/pas2js)
+[Layui](https://github.com/layui/layui)
 
-https://github.com/FChrisF/LLCL
+### Todo
+ FPC [WASM](https://wiki.lazarus.freepascal.org/WebAssembly) Canvas
+[Qwik](https://github.com/BuilderIO/qwik)
 
-https://github.com/heliosroots/Pas2JS_Widget
+ 
+
+
+
+
+
 
 
 
