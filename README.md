@@ -41,6 +41,7 @@ uses  SysUtils, Classes, Dialogs, Controls, StdCtrls, Forms,
 - [Layui](https://github.com/layui/layui)
 
 ### Todo
+- [Skia4Delphi](https://github.com/skia4delphi/skia4delphi)
 - FPC [WASM](https://wiki.lazarus.freepascal.org/WebAssembly) Canvas
 - [Qwik](https://github.com/BuilderIO/qwik)
 
