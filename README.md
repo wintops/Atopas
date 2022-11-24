@@ -1,5 +1,5 @@
 # Atopas
-Go top to pascal / delphi AS  javascript  ( dart / futter / python...)
+Go top to pascal / delphi AS  javascript  ( dart / flutter / python...)
 
 ## LLCL for Pas2JS
 Delphi / FPC LLCL into Pas2JS Web / HTML
