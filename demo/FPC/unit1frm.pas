@@ -37,16 +37,18 @@ begin
     Form1.OnMouseDown := FormMouseDown;
     Form1.OnMouseUp := FormMouseUp;
 
+
     GroupBox1 := TGroupBox.Create(Form1);
+    GroupBox1.Name:='GroupBox1';
     GroupBox1.BeginUpdate;
     GroupBox1.Parent := Form1;
     GroupBox1.Left := 8;
     GroupBox1.Height := 65;
     GroupBox1.Top := 140;
     GroupBox1.Width := 129;
-    GroupBox1.Caption := 'GroupBox1';
-    GroupBox1.ClientHeight := 110;
-    GroupBox1.ClientWidth := 125;
+    GroupBox1.Caption := ' GroupBox1 ';
+    GroupBox1.Color:=Form1.Color;
+
     GroupBox1.Font.Color := clBlack;
     GroupBox1.Font.Name := 'Tahoma';
     GroupBox1.ParentFont := False;
@@ -54,10 +56,10 @@ begin
     RadioButton1 := TRadioButton.Create(GroupBox1);
     RadioButton1.BeginUpdate;
     RadioButton1.Parent := GroupBox1;
-    RadioButton1.Left := 18;
+    RadioButton1.Left := 10;
     RadioButton1.Height := 21;
     RadioButton1.Top := 13;
-    RadioButton1.Width := 87;
+    RadioButton1.Width := 110;
     RadioButton1.Caption := 'RadioButton1';
     RadioButton1.Font.Color := clBlack;
     RadioButton1.Font.Name := 'Tahoma';
@@ -68,10 +70,10 @@ begin
     RadioButton2 := TRadioButton.Create(GroupBox1);
     RadioButton2.BeginUpdate;
     RadioButton2.Parent := GroupBox1;
-    RadioButton2.Left := 18;
+    RadioButton2.Left := 10;
     RadioButton2.Height := 21;
     RadioButton2.Top := 32;
-    RadioButton2.Width := 87;
+    RadioButton2.Width := 110;
     RadioButton2.Caption := 'RadioButton2';
     RadioButton2.Checked := True;
     RadioButton2.Font.Color := clBlack;
@@ -97,13 +99,14 @@ begin
     ComboBox1.OnChange := ComboBox1Change;
     ComboBox1.ParentFont := False;
     ComboBox1.Text := 'sample text';
+   // ComboBox1.Style := csDropDownList;
     ComboBox1.EndUpdate;
 
     Edit1 := TEdit.Create(Form1);
     Edit1.BeginUpdate;
     Edit1.Parent := Form1;
     Edit1.Left := 276;
-    Edit1.Height := 25;
+    Edit1.Height := 12;
     Edit1.Top := 12;
     Edit1.Width := 125;
     Edit1.OnChange := Edit1Change;
@@ -195,7 +198,7 @@ begin
     CheckBox1.Height := 21;
     CheckBox1.Top := 76;
     CheckBox1.Width := 100;
-//    CheckBox1.AllowGrayed := True;
+    CheckBox1.AllowGrayed := True;
     CheckBox1.Caption := 'CheckBox1';
     CheckBox1.State := cbGrayed;
     CheckBox1.EndUpdate;
@@ -203,7 +206,7 @@ begin
     Button6 := TButton.Create(Form1);
     Button6.BeginUpdate;
     Button6.Parent := Form1;
-    Button6.Left := 88;
+    Button6.Left := 92;
     Button6.Height := 25;
     Button6.Top := 92;
     Button6.Width := 53;
@@ -300,7 +303,7 @@ begin
     StaticText1.BeginUpdate;
     StaticText1.Parent := Form1;
     StaticText1.Left := 44;
-    StaticText1.Height := 30;
+    StaticText1.Height := 18;
     StaticText1.Top := 512;
     StaticText1.Width := 70;
     StaticText1.Alignment := taCenter;
@@ -346,7 +349,7 @@ begin
     ProgressBar1 := TProgressBar.Create(Form1);
     ProgressBar1.BeginUpdate;
     ProgressBar1.Parent := Form1;
-    ProgressBar1.BorderWidth:=2;
+    ProgressBar1.Position:=30;
     ProgressBar1.Left := 320;
     ProgressBar1.Height := 16;
     ProgressBar1.Top := 516;
@@ -368,14 +371,14 @@ begin
 
 
     Timer1 := TTimer.Create(Form1);
+    Timer1.Interval:=1000;
     Timer1.OnTimer := Timer1Timer;
 
 
   MainMenu1 := TMainMenu.Create(Form1);
   MainMenu1.BeginUpdate;
   MainMenu1.Parent := Form1;
-  MainMenu1.Top := 600;
-  MainMenu1.Left := 336;
+
   MenuItem1 := TMenuItem.Create(MainMenu1);
   MenuItem1.BeginUpdate;
   MenuItem1.Parent := MainMenu1;

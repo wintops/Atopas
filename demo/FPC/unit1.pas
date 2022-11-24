@@ -19,7 +19,7 @@ interface
 
 uses SysUtils, Classes, Dialogs, Controls, StdCtrls, Forms,
 {$IFDEF PASJS}
-  WebCtrls, WebCtrlsMore
+ Web, WebCtrls, WebCtrlsMore
 {$ELSE}
 {$IFDEF FPC}LazUTF8, LCLType, {$ELSE} Variants, XPMan, {$ENDIF}
   Graphics, ExtCtrls,
@@ -144,10 +144,10 @@ implementation
 // And add it to Memo1
 //
 procedure MemoAddLineFmt(MemoCtrl: TMemo; const s: string;
-  const Args: array of const);
+  const Args: array of const=[]);
 begin
 {$IFDEF PASJS}
-  MemoCtrl.Append(s);
+  MemoCtrl.Append(Format(s, Args));
 
 {$ELSE}
   MemoCtrl.Lines.Add(Format(s, Args));
@@ -190,6 +190,15 @@ begin
     Visible:=True;
     TabOrder := ListBox1.TabOrder + 1;
   end;
+
+  {$IFDEF PASJS}
+  //TForm1.CreateParams
+    Form1.CheckBox1.Alignment := taLeftJustify;
+  // Note: TCheckBox has an alignment
+  Form1.CheckBox3.Alignment := taLeftJustify; // property since Lazarus 1.4
+  Form1.RadioButton2.Alignment := taLeftJustify;
+  {$ENDIF}
+
 end;
 
 procedure TForm1.Button10Click(Sender: TObject);
@@ -328,7 +337,20 @@ begin
   MemoAddLineFmt(Memo1, 'FormMouseUp at %d %d', [X, Y]);
   // If right button (i.e. right click), shows a popup menu
   if Button = mbRight then
-    PopupMenu1.Popup(Mouse.CursorPos.X, Mouse.CursorPos.Y);
+  begin
+    {$IFDEF PASJS}
+  Document.oncontextmenu := PopupMenu1.OnContextMenu;
+  PopupMenu1.Popup(X, Y);
+  //Document.oncontextmenu :=nil;
+    {$ELSE}
+      PopupMenu1.Popup(Mouse.CursorPos.X, Mouse.CursorPos.Y);
+  {$ENDIF}
+  end
+  {$IFDEF PASJS}
+  else
+Document.oncontextmenu := PopupMenu1.OnContextMenu;
+{$ENDIF}
+
 end;
 
 procedure TForm1.FormKeyDown(Sender: TObject; var Key:
@@ -363,13 +385,14 @@ begin
   // Increments ProgressBar1 with one 'stepit' value (1/10 by default - SetStep to modify it)
   // (ProgressBar1 automatically resets to 0 when maximum reached)
   ProgressBar1.StepIt;
-  Memo1.Lines.Add('Timer Tick: ProgressBar=' + IntToStr(ProgressBar1.Position));
+ MemoAddLineFmt(Memo1,'Timer Tick: ProgressBar=' + IntToStr(ProgressBar1.Position));
+
 end;
 
 procedure TForm1.TrackBar1Change(Sender: TObject);
 begin
   // TrackBar position modified
-  Memo1.Lines.Add('TrackBar: New value=' + IntToStr(TTrackBar(Sender).Position)
+ MemoAddLineFmt(Memo1,'TrackBar: New value=' + IntToStr(TTrackBar(Sender).Position)
     + '/' + IntToStr(TTrackBar(Sender).Max));
 end;
 
@@ -420,13 +443,13 @@ end;
 procedure TForm1.MenuItem9Click(Sender: TObject);
 begin
   // Popup menu selection
-  Memo1.Lines.Add('Popup1');
+  MemoAddLineFmt(Memo1,'Popup1');
 end;
 
 procedure TForm1.MenuItem10Click(Sender: TObject);
 begin
   // Popup menu selection
-  Memo1.Lines.Add('Popup2');
+  MemoAddLineFmt(Memo1,'Popup2');
 end;
 
 end.

@@ -1,7 +1,7 @@
 object Form1: TForm1
-  Left = 324
+  Left = 541
   Height = 561
-  Top = 239
+  Top = 283
   Width = 430
   Caption = 'LLCL - Just testing...'
   ClientHeight = 541
@@ -14,7 +14,7 @@ object Form1: TForm1
   OnKeyUp = FormKeyUp
   OnMouseDown = FormMouseDown
   OnMouseUp = FormMouseUp
-  LCLVersion = '2.0.10.0'
+  LCLVersion = '2.3.0.0'
   object GroupBox1: TGroupBox
     Left = 8
     Height = 65
@@ -31,9 +31,9 @@ object Form1: TForm1
     TabOrder = 9
     object RadioButton1: TRadioButton
       Left = 18
-      Height = 21
+      Height = 17
       Top = 3
-      Width = 87
+      Width = 83
       Caption = 'RadioButton1'
       Font.Color = clBlack
       Font.Height = -11
@@ -44,9 +44,9 @@ object Form1: TForm1
     end
     object RadioButton2: TRadioButton
       Left = 18
-      Height = 21
+      Height = 17
       Top = 22
-      Width = 87
+      Width = 83
       Caption = 'RadioButton2'
       Checked = True
       Font.Color = clBlack
@@ -165,7 +165,7 @@ object Form1: TForm1
     Left = 8
     Height = 21
     Top = 76
-    Width = 86
+    Width = 82
     AllowGrayed = True
     Caption = 'CheckBox1'
     State = cbGrayed
@@ -222,7 +222,7 @@ object Form1: TForm1
     Left = 8
     Height = 21
     Top = 96
-    Width = 86
+    Width = 82
     Caption = 'CheckBox2'
     Checked = True
     State = cbChecked
@@ -232,7 +232,7 @@ object Form1: TForm1
     Left = 8
     Height = 21
     Top = 116
-    Width = 86
+    Width = 82
     Caption = 'CheckBox3'
     TabOrder = 6
   end
@@ -269,6 +269,7 @@ object Form1: TForm1
     Top = 512
     Width = 31
     Caption = 'Label'
+    Color = clDefault
     ParentColor = False
   end
   object Button5: TButton

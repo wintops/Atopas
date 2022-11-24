@@ -412,6 +412,10 @@ rtl.module("SysUtils",["System","RTLConsts","JS"],function () {
   });
   rtl.createClass(this,"EConvertError",this.Exception,function () {
   });
+  rtl.createClass(this,"EHeapMemoryError",this.Exception,function () {
+  });
+  rtl.createClass(this,"EOutOfMemory",this.EHeapMemoryError,function () {
+  });
   this.TrimLeft = function (S) {
     return S.replace(/^[\s\uFEFF\xA0\x00-\x1f]+/,'');
   };
@@ -700,6 +704,23 @@ rtl.module("SysUtils",["System","RTLConsts","JS"],function () {
   this.IntToStr = function (Value) {
     var Result = "";
     Result = "" + Value;
+    return Result;
+  };
+  this.TryStrToInt$1 = function (S, res) {
+    var Result = false;
+    Result = $impl.IntTryStrToInt(S,res,$mod.FormatSettings.DecimalSeparator);
+    return Result;
+  };
+  this.StrToIntDef = function (S, aDef) {
+    var Result = 0;
+    var R = 0;
+    if ($mod.TryStrToInt$1(S,{get: function () {
+        return R;
+      }, set: function (v) {
+        R = v;
+      }})) {
+      Result = R}
+     else Result = aDef;
     return Result;
   };
   this.IntToHex = function (Value, Digits) {
@@ -1115,6 +1136,30 @@ rtl.module("SysUtils",["System","RTLConsts","JS"],function () {
       return Result;
     };
     $impl.RESpecials = "([\\$\\+\\[\\]\\(\\)\\\\\\.\\*\\^\\?\\|])";
+    $impl.IntTryStrToInt = function (S, res, aSep) {
+      var Result = false;
+      var Radix = 10;
+      var N = "";
+      var J = undefined;
+      N = S;
+      if ((pas.System.Pos(aSep,N) !== 0) || (pas.System.Pos(".",N) !== 0)) return false;
+      var $tmp = pas.System.Copy(N,1,1);
+      if ($tmp === "$") {
+        Radix = 16}
+       else if ($tmp === "&") {
+        Radix = 8}
+       else if ($tmp === "%") Radix = 2;
+      if ((Radix !== 16) && (pas.System.Pos("e",$mod.LowerCase(N)) !== 0)) return false;
+      if (Radix !== 10) pas.System.Delete({get: function () {
+          return N;
+        }, set: function (v) {
+          N = v;
+        }},1,1);
+      J = parseInt(N,Radix);
+      Result = !isNaN(J);
+      if (Result) res.set(rtl.trunc(J));
+      return Result;
+    };
     $mod.$resourcestrings = {SApplicationException: {org: "Application raised an exception: "}, SErrUnknownExceptionType: {org: "Caught unknown exception type : "}};
   };
   $mod.$init = function () {
@@ -1149,6 +1194,8 @@ rtl.module("Classes",["System","RTLConsts","Types","SysUtils","JS"],function () 
   rtl.createClass(this,"EStringListError",this.EListError,function () {
   });
   rtl.createClass(this,"EComponentError",pas.SysUtils.Exception,function () {
+  });
+  rtl.createClass(this,"EOutOfResources",pas.SysUtils.EOutOfMemory,function () {
   });
   this.TAlignment = {"0": "taLeftJustify", taLeftJustify: 0, "1": "taRightJustify", taRightJustify: 1, "2": "taCenter", taCenter: 2};
   this.$rtti.$Enum("TAlignment",{minvalue: 0, maxvalue: 2, ordtype: 1, enumtype: this.TAlignment});
@@ -1795,6 +1842,27 @@ rtl.module("Classes",["System","RTLConsts","Types","SysUtils","JS"],function () 
       this.FComponentStyle = undefined;
       $mod.TPersistent.$final.call(this);
     };
+    this.GetComponent = function (AIndex) {
+      var Result = null;
+      if (!(this.FComponents != null)) {
+        Result = null}
+       else Result = rtl.getObject(this.FComponents.Get(AIndex));
+      return Result;
+    };
+    this.GetComponentCount = function () {
+      var Result = 0;
+      if (!(this.FComponents != null)) {
+        Result = 0}
+       else Result = this.FComponents.FCount;
+      return Result;
+    };
+    this.GetComponentIndex = function () {
+      var Result = 0;
+      if ((this.FOwner != null) && (this.FOwner.FComponents != null)) {
+        Result = this.FOwner.FComponents.IndexOf(this)}
+       else Result = -1;
+      return Result;
+    };
     this.Insert = function (AComponent) {
       if (!(this.FComponents != null)) this.FComponents = $mod.TFPList.$create("Create");
       this.FComponents.Add(AComponent);
@@ -1979,6 +2047,7 @@ rtl.module("Classes",["System","RTLConsts","Types","SysUtils","JS"],function () 
 rtl.module("Web",["System","Types","JS"],function () {
   "use strict";
   var $mod = this;
+  this.$rtti.$ExtClass("TJSHTMLInputElement",{ancestor: this.$rtti["TJSHTMLElement"], jsclass: "HTMLInputElement"});
 });
 rtl.module("Graphics",["System","Classes","SysUtils","Types","Web"],function () {
   "use strict";
@@ -1987,8 +2056,8 @@ rtl.module("Graphics",["System","Classes","SysUtils","Types","Web"],function () 
   this.TFontStyle = {"0": "fsBold", fsBold: 0, "1": "fsItalic", fsItalic: 1, "2": "fsUnderline", fsUnderline: 2, "3": "fsStrikeOut", fsStrikeOut: 3};
   this.$rtti.$Enum("TFontStyle",{minvalue: 0, maxvalue: 3, ordtype: 1, enumtype: this.TFontStyle});
   this.$rtti.$Set("TFontStyles",{comptype: this.$rtti["TFontStyle"]});
-  this.TTextLayout = {"0": "tlTop", tlTop: 0, "1": "tlCenter", tlCenter: 1, "2": "tlBottom", tlBottom: 2};
-  this.$rtti.$Enum("TTextLayout",{minvalue: 0, maxvalue: 2, ordtype: 1, enumtype: this.TTextLayout});
+  this.TTextLayout = {"0": "tlTop", tlTop: 0, "1": "tlCenter", tlCenter: 1, "2": "tlBottom", tlBottom: 2, "3": "tlTitle", tlTitle: 3};
+  this.$rtti.$Enum("TTextLayout",{minvalue: 0, maxvalue: 3, ordtype: 1, enumtype: this.TTextLayout});
   this.TPenStyle = {"0": "psSolid", psSolid: 0, "1": "psDash", psDash: 1, "2": "psDot", psDot: 2, "3": "psDashDot", psDashDot: 3, "4": "psDashDotDot", psDashDotDot: 4, "5": "psInsideFrame", psInsideFrame: 5, "6": "psPattern", psPattern: 6, "7": "psClear", psClear: 7};
   this.$rtti.$Enum("TPenStyle",{minvalue: 0, maxvalue: 7, ordtype: 1, enumtype: this.TPenStyle});
   this.TBrushStyle = {"0": "bsSolid", bsSolid: 0, "1": "bsClear", bsClear: 1, "2": "bsHorizontal", bsHorizontal: 2, "3": "bsVertical", bsVertical: 3, "4": "bsFDiagonal", bsFDiagonal: 4, "5": "bsBDiagonal", bsBDiagonal: 5, "6": "bsCross", bsCross: 6, "7": "bsDiagCross", bsDiagCross: 7, "8": "bsImage", bsImage: 8, "9": "bsPattern", bsPattern: 9};
@@ -2153,6 +2222,14 @@ rtl.module("Graphics",["System","Classes","SysUtils","Types","Web"],function () 
         this.FOnChange(this);
       };
     };
+    this.Create$1 = function () {
+      pas.System.TObject.Create.call(this);
+      this.FColor = 0;
+      this.FStyle = $mod.TPenStyle.psSolid;
+      this.FWidth = 1;
+      this.FUpdateCount = 0;
+      return this;
+    };
     this.Assign = function (Source) {
       var VPen = null;
       if ((Source != null) && $mod.TPen.isPrototypeOf(Source)) {
@@ -2214,6 +2291,13 @@ rtl.module("Graphics",["System","Classes","SysUtils","Types","Web"],function () 
       if ((this.FUpdateCount === 0) && (this.FOnChange != null)) {
         this.FOnChange(this);
       };
+    };
+    this.Create$1 = function () {
+      pas.System.TObject.Create.call(this);
+      this.FColor = 16777215;
+      this.FStyle = $mod.TBrushStyle.bsSolid;
+      this.FUpdateCount = 0;
+      return this;
     };
     this.Assign = function (Source) {
       var VBrush = null;
@@ -2309,14 +2393,42 @@ rtl.module("Graphics",["System","Classes","SysUtils","Types","Web"],function () 
       this.FBrush = null;
       this.FFont = null;
       this.FPen = null;
+      this.FUpdateCount = 0;
       this.FOnChange = null;
+      this.FCanvasElement = null;
+      this.FContextElement = null;
     };
     this.$final = function () {
       this.FBrush = undefined;
       this.FFont = undefined;
       this.FPen = undefined;
       this.FOnChange = undefined;
+      this.FCanvasElement = undefined;
+      this.FContextElement = undefined;
       pas.Classes.TPersistent.$final.call(this);
+    };
+    this.PrepareStyle = function () {
+      this.FContextElement.fillStyle = $mod.JSColor(this.FBrush.FColor);
+      this.FContextElement.lineWidth = this.FPen.FWidth;
+      this.FContextElement.strokeStyle = $mod.JSColor(this.FPen.FColor);
+      var $tmp = this.FPen.FStyle;
+      if ($tmp === $mod.TPenStyle.psDash) {
+        this.FContextElement.setLineDash([8,2])}
+       else if ($tmp === $mod.TPenStyle.psDot) {
+        this.FContextElement.setLineDash([1,2])}
+       else {
+        this.FContextElement.setLineDash([]);
+      };
+    };
+    this.Create$1 = function () {
+      pas.System.TObject.Create.call(this);
+      this.FCanvasElement = document.createElement("canvas");
+      this.FContextElement = this.FCanvasElement.getContext("2d");
+      this.FBrush = $mod.TBrush.$create("Create$1");
+      this.FFont = $mod.TFont.$create("Create$1");
+      this.FPen = $mod.TPen.$create("Create$1");
+      this.FUpdateCount = 0;
+      return this;
     };
     this.Destroy = function () {
       this.FBrush.$destroy("Destroy");
@@ -2327,6 +2439,34 @@ rtl.module("Graphics",["System","Classes","SysUtils","Types","Web"],function () 
       this.FPen = null;
       pas.System.TObject.Destroy.call(this);
     };
+    this.FillRect$1 = function (ALeft, ATop, AWidth, AHeight) {
+      this.PrepareStyle();
+      if (this.FBrush.FStyle !== $mod.TBrushStyle.bsClear) {
+        this.FContextElement.fillRect(ALeft,ATop,AWidth,AHeight);
+      };
+    };
+    this.LineTo = function (X, Y) {
+      this.PrepareStyle();
+      this.FContextElement.lineTo(X,Y);
+      if (this.FPen.FStyle !== $mod.TPenStyle.psClear) {
+        this.FContextElement.stroke();
+      };
+    };
+    this.MoveTo = function (X, Y) {
+      this.FContextElement.beginPath();
+      this.FContextElement.moveTo(X,Y);
+    };
+    this.Rectangle$1 = function (ALeft, ATop, AWidth, AHeight) {
+      this.FContextElement.beginPath();
+      this.PrepareStyle();
+      this.FContextElement.rect(ALeft,ATop,AWidth,AHeight);
+      if (this.FBrush.FStyle !== $mod.TBrushStyle.bsClear) {
+        this.FContextElement.fill();
+      };
+      if (this.FPen.FStyle !== $mod.TPenStyle.psClear) {
+        this.FContextElement.stroke();
+      };
+    };
     var $r = this.$rtti;
     $r.addProperty("Brush",0,$mod.$rtti["TBrush"],"FBrush","FBrush");
     $r.addProperty("Font",0,$mod.$rtti["TFont"],"FFont","FFont");
@@ -2334,7 +2474,10 @@ rtl.module("Graphics",["System","Classes","SysUtils","Types","Web"],function () 
     $r.addProperty("OnChange",0,pas.Classes.$rtti["TNotifyEvent"],"FOnChange","FOnChange");
   });
   this.clBlack = 0x0;
+  this.clGreen = 0x8000;
   this.clGray = 0x808080;
+  this.clSilver = 0xC0C0C0;
+  this.clBlue = 0xFF0000;
   this.clWhite = 0xFFFFFF;
   this.clNone = 0x1FFFFFFF;
   this.clDefault = 0x20000000;
@@ -2458,7 +2601,7 @@ rtl.module("Graphics",["System","Classes","SysUtils","Types","Web"],function () 
 rtl.module("LCLStrConsts",["System"],function () {
   "use strict";
   var $mod = this;
-  $mod.$resourcestrings = {rsErrUncaughtException: {org: "Uncaught exception of type %s: \n\n%s"}, rsErrUncaughtObject: {org: "Uncaught exception of type %s."}};
+  $mod.$resourcestrings = {rsErrUncaughtException: {org: "Uncaught exception of type %s: \n\n%s"}, rsErrUncaughtObject: {org: "Uncaught exception of type %s."}, rsNoTimers: {org: "No more timers available."}};
 });
 rtl.module("p2jsres",["System","Types"],function () {
   "use strict";
@@ -2769,13 +2912,15 @@ rtl.module("Forms",["System","Classes","SysUtils","Types","JS","Web","Graphics",
       if ($tmp === $mod.TFormType.ftModalForm) {
         VWidth = this.FWidth;
         VHeight = this.FHeight;
+        VWindowWidth = this.FOwner.FWidth;
+        VWindowHeight = this.FOwner.FHeight;
         VLeft = rtl.trunc((VWindowWidth - VWidth) / 2);
         VTop = rtl.trunc((VWindowHeight - VHeight) / 2);
         this.SetBounds(VLeft,VTop,VWidth,VHeight);
       } else if ($tmp === $mod.TFormType.ftWindow) {
         this.SetBounds(0,0,VWindowWidth,VWindowHeight);
       } else if ($tmp === $mod.TFormType.ftTop) {
-        this.SetBounds(0,0,this.FWidth,this.FHeight);
+        this.SetBounds(0,this.FTop,this.FWidth,this.FHeight);
       };
       this.DoResize();
     };
@@ -3163,6 +3308,41 @@ rtl.module("Controls",["System","Classes","SysUtils","Types","JS","Web","Graphic
   this.$rtti.$inherited("TCaption",rtl.string,{});
   this.$rtti.$Int("TCursor",{minvalue: -32768, maxvalue: 32767, ordtype: 2});
   rtl.createClass(this,"TControlCanvas",pas.Graphics.TCanvas,function () {
+    this.$init = function () {
+      pas.Graphics.TCanvas.$init.call(this);
+      this.FControl = null;
+      this.FHeight = 0;
+      this.FWidth = 0;
+    };
+    this.$final = function () {
+      this.FControl = undefined;
+      pas.Graphics.TCanvas.$final.call(this);
+    };
+    this.SetHeight = function (AValue) {
+      if (this.FHeight !== AValue) {
+        this.FHeight = AValue;
+        this.FCanvasElement.height = this.FHeight;
+      };
+    };
+    this.SetWidth = function (AValue) {
+      if (this.FWidth !== AValue) {
+        this.FWidth = AValue;
+        this.FCanvasElement.width = this.FWidth;
+      };
+    };
+    this.Create$2 = function (AControl) {
+      pas.Graphics.TCanvas.Create$1.call(this);
+      if (AControl != null) {
+        this.SetHeight(AControl.FHeight);
+        this.SetWidth(AControl.FWidth);
+        this.FFont.Assign(AControl.FFont);
+        this.FBrush.SetColor(AControl.FColor);
+        this.FPen.SetColor(AControl.FFont.FColor);
+        this.FControl = AControl;
+        this.FControl.FHandleElement.insertBefore(this.FCanvasElement,AControl.FHandleElement.firstChild);
+      };
+      return this;
+    };
   });
   this.TShiftStateEnum = {"0": "ssShift", ssShift: 0, "1": "ssAlt", ssAlt: 1, "2": "ssCtrl", ssCtrl: 2, "3": "ssLeft", ssLeft: 3, "4": "ssRight", ssRight: 4, "5": "ssMIDdle", ssMIDdle: 5, "6": "ssDouble", ssDouble: 6};
   this.$rtti.$Enum("TShiftStateEnum",{minvalue: 0, maxvalue: 6, ordtype: 1, enumtype: this.TShiftStateEnum});
@@ -3701,8 +3881,6 @@ rtl.module("Controls",["System","Classes","SysUtils","Types","JS","Web","Graphic
           $with.removeAttribute("class");
         };
         if ((this.FHandleClass === "") && (this.FHandleId === "")) {
-          $with.style.setProperty("color",pas.Graphics.JSColor(this.FFont.FColor));
-          $mod.UpdateHtmlElementFont(this.FHandleElement,this.FFont,false);
           if (this.FColor in rtl.createSet(536870912,536870911)) {
             $with.style.removeProperty("background-color");
           } else {
@@ -3722,10 +3900,8 @@ rtl.module("Controls",["System","Classes","SysUtils","Types","JS","Web","Graphic
           $with.style.setProperty("opacity","0.5");
         };
         if (this.FVisible) {
-          $with.style.setProperty("visibility","visible");
           $with.style.setProperty("display","block");
         } else {
-          $with.style.setProperty("visibility","hidden");
           $with.style.setProperty("display","none");
         };
         if ((this.FHint !== "") && this.FShowHint) {
@@ -3738,12 +3914,8 @@ rtl.module("Controls",["System","Classes","SysUtils","Types","JS","Web","Graphic
         } else {
           $with.style.removeProperty("border-style");
         };
-        $with.setAttribute("tabindex",$mod.IfThen$3(this.FTabStop,"1","-1"));
         $with.style.setProperty("position","absolute");
         $with.style.setProperty("overflow","hidden");
-        $with.style.setProperty("-webkit-box-sizing","border-box");
-        $with.style.setProperty("-moz-box-sizing","border-box");
-        $with.style.setProperty("box-sizing","border-box");
       };
     };
     this.CreateHandleElement = function () {
@@ -4444,6 +4616,14 @@ rtl.module("Controls",["System","Classes","SysUtils","Types","JS","Web","Graphic
       this.FOnPaint = undefined;
       $mod.TWinControl.$final.call(this);
     };
+    this.GetCanvas = function () {
+      var Result = null;
+      if (!(this.FCanvas != null)) {
+        this.FCanvas = $mod.TControlCanvas.$create("Create$2",[this]);
+      };
+      Result = this.FCanvas;
+      return Result;
+    };
     this.ColorChanged = function (Sender) {
       if (this.FCanvas != null) {
         this.FCanvas.FBrush.SetColor(this.FColor);
@@ -4491,37 +4671,6 @@ rtl.module("Controls",["System","Classes","SysUtils","Types","JS","Web","Graphic
       Result.Top = pas.System.Trunc($with.top + window.screenY);
     };
     return Result;
-  };
-  this.UpdateHtmlElementFont = function (AElement, AFont, AClear) {
-    var s = "";
-    var $with = AElement.style;
-    if (AClear) {
-      $with.removeProperty("font-family");
-      $with.removeProperty("font-size");
-      $with.removeProperty("font-weight");
-      $with.removeProperty("font-style");
-      $with.removeProperty("text-decoration");
-    } else {
-      $with.setProperty("font-family",AFont.FName);
-      $with.setProperty("font-size",pas.SysUtils.IntToStr(AFont.FSize) + "pt");
-      if (pas.Graphics.TFontStyle.fsBold in AFont.FStyle) {
-        $with.setProperty("font-weight","bold")}
-       else $with.setProperty("font-weight","");
-      $with.setProperty("font-style","normal");
-      s = "";
-      if (pas.Graphics.TFontStyle.fsItalic in AFont.FStyle) s = "italic";
-      if (pas.Graphics.TFontStyle.fsUnderline in AFont.FStyle) {
-        if (s !== "") s = s + " ";
-        s = s + "underline";
-      };
-      if (pas.Graphics.TFontStyle.fsStrikeOut in AFont.FStyle) {
-        if (s !== "") s = s + " ";
-        s = s + "line-through";
-      };
-      if (s !== "") {
-        $with.setProperty("text-decoration",s)}
-       else $with.removeProperty("text-decoration");
-    };
   };
   this.ExtractKeyCode = function (AEvent) {
     var Result = 0;
@@ -4874,7 +5023,8 @@ rtl.module("StdCtrls",["System","Classes","SysUtils","Types","Web","WebExtra","G
     this.$init = function () {
       pas.Controls.TWinControl.$init.call(this);
       this.fStyle = 0;
-      this.EidtElement = null;
+      this.EditElement = null;
+      this.SelectElement = null;
       this.FDropDownCount = 0;
       this.FItemHeight = 0;
       this.FItemIndex = 0;
@@ -4883,7 +5033,8 @@ rtl.module("StdCtrls",["System","Classes","SysUtils","Types","Web","WebExtra","G
       this.FSorted = false;
     };
     this.$final = function () {
-      this.EidtElement = undefined;
+      this.EditElement = undefined;
+      this.SelectElement = undefined;
       this.FItems = undefined;
       this.FOnChange = undefined;
       pas.Controls.TWinControl.$final.call(this);
@@ -4926,9 +5077,20 @@ rtl.module("StdCtrls",["System","Classes","SysUtils","Types","Web","WebExtra","G
       var VValue = "";
       pas.Controls.TControl.Changed.call(this);
       if (!this.IsUpdating() && !(pas.Classes.TComponentStateItem.csLoading in this.FComponentState)) {
-        for (var $l = this.FHandleElement.length - 1; $l >= 0; $l--) {
+        for (var $l = this.SelectElement.length - 1; $l >= 0; $l--) {
           VIndex = $l;
-          this.FHandleElement.remove(VIndex);
+          this.SelectElement.remove(VIndex);
+        };
+        if (this.fStyle === $mod.TComboBoxStyle.csSimple) {
+          this.SelectElement.size = 2;
+          if (this.EditElement === null) {
+            this.EditElement = document.createElement("input");
+            this.EditElement.style.setProperty("width",pas.SysUtils.IntToStr(pas.SysUtils.StrToIntDef(pas.SysUtils.StringReplace(this.FHandleElement.style.getPropertyValue("width"),"px","",{}),0) - 8) + "px");
+            this.SelectElement.style.setProperty("height",pas.SysUtils.IntToStr(pas.SysUtils.StrToIntDef(pas.SysUtils.StringReplace(this.FHandleElement.style.getPropertyValue("height"),"px","",{}),0) - 22) + "px");
+            this.FHandleElement.removeChild(this.SelectElement);
+            this.FHandleElement.appendChild(this.EditElement);
+            this.FHandleElement.appendChild(this.SelectElement);
+          };
         };
         for (var $l1 = 0, $end = this.FItems.GetCount() - 1; $l1 <= $end; $l1++) {
           VIndex = $l1;
@@ -4937,7 +5099,7 @@ rtl.module("StdCtrls",["System","Classes","SysUtils","Types","Web","WebExtra","G
           VOptionElement.value = VValue;
           VOptionElement.text = VValue;
           VOptionElement.selected = VIndex === this.FItemIndex;
-          this.FHandleElement.add(VOptionElement);
+          this.SelectElement.add(VOptionElement);
         };
         if (this.FItemIndex < 0) {
           VOptionElement = document.createElement("option");
@@ -4946,18 +5108,17 @@ rtl.module("StdCtrls",["System","Classes","SysUtils","Types","Web","WebExtra","G
           VOptionElement.selected = true;
           VOptionElement.disabled = true;
           VOptionElement.style.setProperty("display","none");
-          this.FHandleElement.add(VOptionElement);
+          this.SelectElement.add(VOptionElement);
         };
+        this.SelectElement.style.setProperty("width","100%");
+        this.SelectElement.style.setProperty("overflow","hidden");
       };
     };
     this.CreateHandleElement = function () {
       var Result = null;
-      if (this.fStyle === $mod.TComboBoxStyle.csSimple) {
-        this.EidtElement = document.createElement("input");
-        Result = document.createElement("span");
-        Result.appendChild(this.EidtElement);
-        Result.appendChild(document.createElement("select"));
-      } else Result = document.createElement("select");
+      Result = document.createElement("div");
+      this.SelectElement = document.createElement("select");
+      Result.appendChild(this.SelectElement);
       return Result;
     };
     this.RegisterHandleEvents = function () {
@@ -5710,6 +5871,7 @@ rtl.module("StdCtrls",["System","Classes","SysUtils","Types","Web","WebExtra","G
       this.FMarkElement = null;
       this.FState = 0;
       this.FOnChange = null;
+      this.FAllowGrayed = false;
     };
     this.$final = function () {
       this.FLabelElement = undefined;
@@ -5730,6 +5892,7 @@ rtl.module("StdCtrls",["System","Classes","SysUtils","Types","Web","WebExtra","G
     this.SetAlignment = function (AValue) {
       if (this.FAlignment !== AValue) {
         this.FAlignment = AValue;
+        this.Changed();
       };
     };
     this.SetChecked = function (AValue) {
@@ -5760,6 +5923,12 @@ rtl.module("StdCtrls",["System","Classes","SysUtils","Types","Web","WebExtra","G
     this.Changed = function () {
       pas.Controls.TControl.Changed.call(this);
       if (!this.IsUpdating() && !(pas.Classes.TComponentStateItem.csLoading in this.FComponentState)) {
+        if (this.FAlignment === pas.Classes.TAlignment.taLeftJustify) {
+          this.FHandleElement.removeChild(this.FMarkElement);
+          this.FHandleElement.removeChild(this.FLabelElement);
+          this.FLabelElement = this.CreateLabelElement();
+          this.FMarkElement = this.CreateMarkElement();
+        };
         var $with = this.FHandleElement;
         $with.style.setProperty("user-select","none");
         $with.style.setProperty("-moz-user-select","none");
@@ -5770,8 +5939,11 @@ rtl.module("StdCtrls",["System","Classes","SysUtils","Types","Web","WebExtra","G
         $with.style.setProperty("align-items","center");
         var $with1 = this.FMarkElement;
         $with1.checked = this.FState === $mod.TCheckBoxState.cbChecked;
+        $with1.indeterminate = this.FState === $mod.TCheckBoxState.cbGrayed;
         $with1.type = "checkbox";
         var $with2 = this.FLabelElement;
+        if (pas.Graphics.TFontStyle.fsItalic in this.FFont.FStyle) $with2.style.setProperty("font-style","italic");
+        if (pas.Graphics.TFontStyle.fsBold in this.FFont.FStyle) $with2.style.setProperty("font-weight","bold");
         $with2.innerHTML = this.GetText();
       };
     };
@@ -6137,6 +6309,12 @@ rtl.module("ExtCtrls",["System","Classes","SysUtils","Types","Web","Graphics","C
         this.Changed();
       };
     };
+    this.SetLayout = function (AValue) {
+      if (this.FLayout !== AValue) {
+        this.FLayout = AValue;
+        this.Changed();
+      };
+    };
     this.SetWordWrap = function (AValue) {
       if (this.FWordWrap !== AValue) {
         this.FWordWrap = AValue;
@@ -6177,6 +6355,7 @@ rtl.module("ExtCtrls",["System","Classes","SysUtils","Types","Web","Graphics","C
             VBottomColor = this.FBevelColor;
           };
           $with.style.setProperty("border-width",pas.SysUtils.IntToStr(this.FBevelWidth) + "px");
+          $with.style.setProperty("border-style","solid");
           $with.style.setProperty("border-left-color",pas.Graphics.JSColor(VTopColor));
           $with.style.setProperty("border-top-color",pas.Graphics.JSColor(VTopColor));
           $with.style.setProperty("border-right-color",pas.Graphics.JSColor(VBottomColor));
@@ -6202,7 +6381,17 @@ rtl.module("ExtCtrls",["System","Classes","SysUtils","Types","Web","Graphics","C
             $with1.style.setProperty("vertical-align","bottom")}
            else if ($tmp2 === pas.Graphics.TTextLayout.tlCenter) {
             $with1.style.setProperty("vertical-align","middle")}
-           else if ($tmp2 === pas.Graphics.TTextLayout.tlTop) $with1.style.setProperty("vertical-align","top");
+           else if ($tmp2 === pas.Graphics.TTextLayout.tlTop) {
+            $with1.style.setProperty("vertical-align","top")}
+           else if ($tmp2 === pas.Graphics.TTextLayout.tlTitle) {
+            $with1.style.setProperty("position","absolute");
+            $with1.style.setProperty("top","-8px");
+            $with1.style.setProperty("left","5px");
+            $with1.style.setProperty("padding-left","5px");
+            $with1.style.setProperty("padding-right","5px");
+            $with1.style.setProperty("background-color",pas.Graphics.JSColor(this.FColor));
+            $with1.style.setProperty("font-weight","bold");
+          };
           if (this.FWordWrap) {
             $with1.style.setProperty("word-wrap","break-word");
           } else {
@@ -6278,7 +6467,15 @@ rtl.module("ExtCtrls",["System","Classes","SysUtils","Types","Web","Graphics","C
       this.UpdateTimer();
     };
     this.UpdateTimer = function () {
+      var $Self = this;
       this.KillTimer();
+      if (this.FEnabled && (this.FInterval > 0) && rtl.eqSet(rtl.intersectSet(rtl.createSet(pas.Classes.TComponentStateItem.csLoading,pas.Classes.TComponentStateItem.csDestroying),this.FComponentState),{}) && (this.FOnTimer != null)) {
+        this.FTimerHandle = window.setInterval(function () {
+          $Self.FOnTimer($Self);
+        },this.FInterval);
+        if (this.FTimerHandle === 0) throw pas.Classes.EOutOfResources.$create("Create$1",[rtl.getResStr(pas.LCLStrConsts,"rsNoTimers")]);
+        if (this.FOnStartTimer != null) this.FOnStartTimer($Self);
+      };
     };
     this.KillTimer = function () {
       if (this.FTimerHandle !== 0) {
@@ -6510,6 +6707,7 @@ rtl.module("WebCtrls",["System","Classes","SysUtils","Types","Graphics","Control
     var $r = this.$rtti;
     $r.addProperty("Align",2,pas.Controls.$rtti["TAlign"],"FAlign","SetAlign");
     $r.addProperty("Alignment",2,pas.StdCtrls.$rtti["TLeftRight"],"FAlignment","SetAlignment",{Default: pas.Classes.TAlignment.taRightJustify});
+    $r.addProperty("AllowGrayed",0,rtl.boolean,"FAllowGrayed","FAllowGrayed",{Default: true});
     $r.addProperty("Anchors",2,pas.Controls.$rtti["TAnchors"],"FAnchors","SetAnchors");
     $r.addProperty("AutoSize",2,rtl.boolean,"FAutoSize","SetAutoSize",{Default: false});
     $r.addProperty("BorderSpacing",2,pas.Controls.$rtti["TControlBorderSpacing"],"FBorderSpacing","SetBorderSpacing");
@@ -6952,10 +7150,18 @@ rtl.module("browserapp",["System","Classes","SysUtils","Types","JS","Web"],funct
     pas.SysUtils.OnGetEnvironmentString = $impl.MyGetEnvironmentString;
   };
 },[]);
-rtl.module("WebCtrlsMore",["System","Classes","SysUtils","Types","Graphics","Controls","StdCtrls","ExtCtrls","Forms","browserapp"],function () {
+rtl.module("WebCtrlsMore",["System","Classes","SysUtils","Types","Graphics","Controls","StdCtrls","ExtCtrls","WebCtrls","Forms","Web","browserapp"],function () {
   "use strict";
   var $mod = this;
   rtl.createClass(this,"TGroupBox",pas.ExtCtrls.TCustomPanel,function () {
+    this.Changed = function () {
+      this.SetBevelWidth(1);
+      this.SetBevelColor(12632256);
+      this.SetBevelOuter(pas.Controls.TBevelCut.bvSpace);
+      this.SetLayout(pas.Graphics.TTextLayout.tlTitle);
+      pas.ExtCtrls.TCustomPanel.Changed.call(this);
+      this.FHandleElement.style.removeProperty("overflow");
+    };
   });
   this.TOpenOption = {"0": "ofReadOnly", ofReadOnly: 0, "1": "ofOverwritePrompt", ofOverwritePrompt: 1, "2": "ofHideReadOnly", ofHideReadOnly: 2, "3": "ofNoChangeDir", ofNoChangeDir: 3, "4": "ofShowHelp", ofShowHelp: 4, "5": "ofNoValidate", ofNoValidate: 5, "6": "ofAllowMultiSelect", ofAllowMultiSelect: 6, "7": "ofExtensionDifferent", ofExtensionDifferent: 7, "8": "ofPathMustExist", ofPathMustExist: 8, "9": "ofFileMustExist", ofFileMustExist: 9, "10": "ofCreatePrompt", ofCreatePrompt: 10, "11": "ofShareAware", ofShareAware: 11, "12": "ofNoReadOnlyReturn", ofNoReadOnlyReturn: 12, "13": "ofNoTestFileCreate", ofNoTestFileCreate: 13, "14": "ofNoNetworkButton", ofNoNetworkButton: 14, "15": "ofNoLongNames", ofNoLongNames: 15, "16": "ofOldStyleDialog", ofOldStyleDialog: 16, "17": "ofNoDereferenceLinks", ofNoDereferenceLinks: 17, "18": "ofEnableIncludeNotify", ofEnableIncludeNotify: 18, "19": "ofEnableSizing", ofEnableSizing: 19, "20": "ofDontAddToRecent", ofDontAddToRecent: 20, "21": "ofForceShowHidden", ofForceShowHidden: 21, "22": "ofViewDetail", ofViewDetail: 22, "23": "ofAutoPreview", ofAutoPreview: 23};
   this.$rtti.$Enum("TOpenOption",{minvalue: 0, maxvalue: 23, ordtype: 1, enumtype: this.TOpenOption});
@@ -6963,6 +7169,7 @@ rtl.module("WebCtrlsMore",["System","Classes","SysUtils","Types","Graphics","Con
   rtl.createClass(this,"TOpenDialog",pas.ExtCtrls.TCustomPanel,function () {
     this.$init = function () {
       pas.ExtCtrls.TCustomPanel.$init.call(this);
+      this.FInputElement = null;
       this.FileName = "";
       this.Filter = "";
       this.FilterIndex = 0;
@@ -6971,25 +7178,36 @@ rtl.module("WebCtrlsMore",["System","Classes","SysUtils","Types","Graphics","Con
       this.Title = "";
     };
     this.$final = function () {
+      this.FInputElement = undefined;
       this.Options = undefined;
       pas.ExtCtrls.TCustomPanel.$final.call(this);
     };
+    this.Create$1 = function (AOwner) {
+      pas.ExtCtrls.TCustomPanel.Create$1.call(this,AOwner);
+      this.FInputElement = document.createElement("input");
+      this.FInputElement.type = "file";
+      return this;
+    };
     this.Execute = function () {
       var Result = false;
+      this.FInputElement.click();
+      Result = this.FInputElement.files.length > 0;
+      if (Result) this.FileName = this.FInputElement.files.item(0).name;
       return Result;
     };
     var $r = this.$rtti;
+    $r.addField("FInputElement",pas.Web.$rtti["TJSHTMLInputElement"]);
     $r.addField("FileName",rtl.string);
     $r.addField("Filter",rtl.string);
     $r.addField("FilterIndex",rtl.longint);
     $r.addField("InitialDir",rtl.string);
     $r.addField("Options",$mod.$rtti["TOpenOptions"]);
     $r.addField("Title",rtl.string);
-    $r.addMethod("Execute",1,[],rtl.boolean);
   });
   rtl.createClass(this,"TSaveDialog",pas.ExtCtrls.TCustomPanel,function () {
     this.$init = function () {
       pas.ExtCtrls.TCustomPanel.$init.call(this);
+      this.FInputElement = null;
       this.FileName = "";
       this.Filter = "";
       this.FilterIndex = 0;
@@ -6998,29 +7216,39 @@ rtl.module("WebCtrlsMore",["System","Classes","SysUtils","Types","Graphics","Con
       this.Title = "";
     };
     this.$final = function () {
+      this.FInputElement = undefined;
       this.Options = undefined;
       pas.ExtCtrls.TCustomPanel.$final.call(this);
     };
+    this.Create$1 = function (AOwner) {
+      pas.ExtCtrls.TCustomPanel.Create$1.call(this,AOwner);
+      this.FInputElement = document.createElement("input");
+      this.FInputElement.type = "file";
+      return this;
+    };
     this.Execute = function () {
       var Result = false;
+      this.FInputElement.click();
+      Result = this.FInputElement.files.length > 0;
+      if (Result) this.FileName = this.FInputElement.files.item(0).name;
       return Result;
     };
     var $r = this.$rtti;
+    $r.addField("FInputElement",pas.Web.$rtti["TJSHTMLInputElement"]);
     $r.addField("FileName",rtl.string);
     $r.addField("Filter",rtl.string);
     $r.addField("FilterIndex",rtl.longint);
     $r.addField("InitialDir",rtl.string);
     $r.addField("Options",$mod.$rtti["TOpenOptions"]);
     $r.addField("Title",rtl.string);
-    $r.addMethod("Execute",1,[],rtl.boolean);
   });
-  rtl.createClass(this,"TRadioButton",pas.ExtCtrls.TCustomPanel,function () {
-    this.$init = function () {
-      pas.ExtCtrls.TCustomPanel.$init.call(this);
-      this.Checked = false;
+  rtl.createClass(this,"TRadioButton",pas.WebCtrls.TCheckbox,function () {
+    this.Changed = function () {
+      pas.StdCtrls.TCustomCheckbox.Changed.call(this);
+      var $with = this.FMarkElement;
+      $with.type = "radio";
+      this.FMarkElement.setAttribute("name",this.FOwner.FName);
     };
-    var $r = this.$rtti;
-    $r.addField("Checked",rtl.boolean);
   });
   this.TStaticBorderStyle = {"0": "sbsNone", sbsNone: 0, "1": "sbsSingle", sbsSingle: 1, "2": "sbsSunken", sbsSunken: 2};
   this.$rtti.$Enum("TStaticBorderStyle",{minvalue: 0, maxvalue: 2, ordtype: 1, enumtype: this.TStaticBorderStyle});
@@ -7032,7 +7260,7 @@ rtl.module("WebCtrlsMore",["System","Classes","SysUtils","Types","Graphics","Con
     this.Changed = function () {
       var $tmp = this.BorderStyle;
       if ($tmp === $mod.TStaticBorderStyle.sbsNone) {
-        this.SetBevelWidth(1);
+        this.SetBevelWidth(0);
         this.SetBevelOuter(pas.Controls.TBevelCut.bvNone);
       } else if ($tmp === $mod.TStaticBorderStyle.sbsSingle) {
         this.SetBevelWidth(1);
@@ -7050,66 +7278,302 @@ rtl.module("WebCtrlsMore",["System","Classes","SysUtils","Types","Graphics","Con
   rtl.createClass(this,"TProgressBar",pas.ExtCtrls.TCustomPanel,function () {
     this.$init = function () {
       pas.ExtCtrls.TCustomPanel.$init.call(this);
-      this.Position = 0;
-      this.BorderWidth = 0;
+      this.fMin = 0;
+      this.fMax = 0;
+      this.fPosition = 0;
+      this.fStep = 0;
+    };
+    this.SetMin = function (Value) {
+      this.SetRange(Value,this.fMax);
+    };
+    this.SetMax = function (Value) {
+      this.SetRange(this.fMin,Value);
+    };
+    this.SetRange = function (ValueMin, ValueMax) {
+      this.fMin = ValueMin;
+      this.fMax = ValueMax;
+      this.Invalidate();
+    };
+    this.GetPosition = function () {
+      var Result = 0;
+      Result = this.fPosition;
+      return Result;
+    };
+    this.SetPosition = function (Value) {
+      this.fPosition = Value;
+      this.Invalidate();
+    };
+    this.SetStep = function (Value) {
+      this.fStep = Value;
     };
     this.Changed = function () {
-      var $tmp = this.BorderWidth;
-      if ($tmp === 0) {
-        this.SetBevelWidth(1);
-        this.SetBevelOuter(pas.Controls.TBevelCut.bvNone);
-      } else {
-        this.SetBevelWidth(this.BorderWidth);
-        this.SetBevelColor(0);
-        this.SetBevelOuter(pas.Controls.TBevelCut.bvSpace);
-      };
+      this.GetCanvas().SetWidth(this.FWidth);
+      this.GetCanvas().SetHeight(this.FHeight);
       pas.ExtCtrls.TCustomPanel.Changed.call(this);
     };
+    this.Paint = function () {
+      this.GetCanvas().FBrush.SetColor(12632256);
+      this.GetCanvas().FBrush.SetStyle(pas.Graphics.TBrushStyle.bsSolid);
+      this.GetCanvas().FPen.SetColor(8421504);
+      this.GetCanvas().FPen.SetStyle(pas.Graphics.TPenStyle.psSolid);
+      this.GetCanvas().Rectangle$1(0,0,this.FWidth,this.FHeight);
+      this.GetCanvas().FBrush.SetColor(32768);
+      this.GetCanvas().FillRect$1(0,0,Math.round((this.FWidth * this.fPosition) / (this.fMax - this.fMin)),this.FHeight);
+    };
+    this.Create$1 = function (AOwner) {
+      pas.ExtCtrls.TCustomPanel.Create$1.call(this,AOwner);
+      this.fMax = 100;
+      this.fMin = 0;
+      this.fStep = 10;
+      return this;
+    };
     this.StepIt = function () {
+      this.fPosition = this.fPosition + this.fStep;
+      this.Invalidate();
     };
     var $r = this.$rtti;
-    $r.addField("Position",rtl.longint);
-    $r.addField("BorderWidth",rtl.longint);
+    $r.addField("fMin",rtl.longint);
+    $r.addField("fMax",rtl.longint);
+    $r.addField("fPosition",rtl.longint);
+    $r.addField("fStep",rtl.longint);
+    $r.addMethod("SetMin",0,[["Value",rtl.longint]]);
+    $r.addMethod("SetMax",0,[["Value",rtl.longint]]);
+    $r.addMethod("SetRange",0,[["ValueMin",rtl.longint],["ValueMax",rtl.longint]]);
+    $r.addMethod("GetPosition",1,[],rtl.longint);
+    $r.addMethod("SetPosition",0,[["Value",rtl.longint]]);
+    $r.addMethod("SetStep",0,[["Value",rtl.longint]]);
   });
   rtl.createClass(this,"TMainMenu",pas.ExtCtrls.TCustomPanel,function () {
+    this.$init = function () {
+      pas.ExtCtrls.TCustomPanel.$init.call(this);
+      this.FItems = null;
+      this.FMenuForm = null;
+    };
+    this.$final = function () {
+      this.FItems = undefined;
+      this.FMenuForm = undefined;
+      pas.ExtCtrls.TCustomPanel.$final.call(this);
+    };
+    this.Changed = function () {
+      var i = 0;
+      var m = null;
+      pas.ExtCtrls.TCustomPanel.Changed.call(this);
+      this.FOwner.SetTop(this.FHeight);
+      for (var $l = 0, $end = this.GetComponentCount() - 1; $l <= $end; $l++) {
+        i = $l;
+        m = this.GetComponent(i);
+        m.SetHandleId("MenuItem" + pas.SysUtils.IntToStr(i));
+        m.FHandleElement.style.setProperty("z-index","99");
+        this.FMenuForm.appendChild(m.FHandleElement);
+      };
+    };
+    this.Create$1 = function (AOwner) {
+      pas.ExtCtrls.TCustomPanel.Create$1.call(this,AOwner);
+      this.SetLeft(0);
+      this.SetTop(0);
+      this.SetHeight($mod.MenuItemHeight + 5);
+      this.SetWidth(100);
+      this.SetVisible(false);
+      this.SetHandleId("MainMenu");
+      this.FItems = pas.Classes.TStringList.$create("Create$1");
+      this.FMenuForm = document.createElement("div");
+      this.FMenuForm.style.setProperty("width","100%");
+      this.FMenuForm.id = this.FOwner.FHandleId;
+      this.FOwner.SetHandleId(this.FOwner.FHandleId + "FORM");
+      this.FMenuForm.appendChild(this.FOwner.FHandleElement);
+      document.body.appendChild(this.FMenuForm);
+      return this;
+    };
+    this.Destroy = function () {
+      var i = 0;
+      var m = null;
+      this.FMenuForm.removeChild(this.FHandleElement);
+      for (var $l = 0, $end = this.GetComponentCount() - 1; $l <= $end; $l++) {
+        i = $l;
+        m = this.GetComponent(i);
+        this.FMenuForm.removeChild(m.FHandleElement);
+      };
+      document.body.removeChild(this.FMenuForm);
+      this.FItems.$destroy("Destroy");
+      this.FItems = null;
+      pas.Controls.TCustomControl.Destroy.call(this);
+    };
   });
   rtl.createClass(this,"TMenuItem",pas.ExtCtrls.TCustomPanel,function () {
     this.$init = function () {
       pas.ExtCtrls.TCustomPanel.$init.call(this);
       this.AutoCheck = false;
       this.Checked = false;
+      this.Findex = 0;
+      this.FUpIndex = 0;
+    };
+    this.Create$1 = function (AOwner) {
+      pas.ExtCtrls.TCustomPanel.Create$1.call(this,AOwner);
+      this.SetLeft(5);
+      this.SetTop(0);
+      this.SetHeight($mod.MenuItemHeight);
+      this.SetWidth(100);
+      this.SetBevelOuter(pas.Controls.TBevelCut.bvNone);
+      if ($mod.TMainMenu.isPrototypeOf(AOwner)) {
+        this.FUpIndex = 1;
+        this.FHandleElement.style.setProperty("margin","5px");
+      } else this.FUpIndex = 0;
+      this.SetVisible(true);
+      this.SetColor(16777215);
+      return this;
+    };
+    this.Changed = function () {
+      var i = 0;
+      var m = null;
+      pas.ExtCtrls.TCustomPanel.Changed.call(this);
+      if (this.FUpIndex === 1) {
+        this.SetLeft(10 + (this.GetComponentIndex() * 110));
+        for (var $l = 0, $end = this.GetComponentCount() - 1; $l <= $end; $l++) {
+          i = $l;
+          m = this.GetComponent(i);
+          m.SetLeft(0);
+          m.SetTop((i + 1) * $mod.MenuItemHeight);
+          m.FHandleElement.style.setProperty("padding-left","5px");
+        };
+      };
+      if (this.GetText() === "-") {
+        this.SetText("_______________");
+      };
+    };
+    this.Click = function () {
+      if ($mod.TPopupMenu.isPrototypeOf(this.FOwner)) {
+        this.FOwner.SetVisible(false)}
+       else this.FOwner.SetHeight($mod.MenuItemHeight);
+      pas.Controls.TControl.Click.call(this);
+    };
+    this.MouseEnter = function () {
+      if (this.FUpIndex === 1) {
+        if (this.FHeight === $mod.MenuItemHeight) {
+          this.SetHeight((this.GetComponentCount() + 1) * $mod.MenuItemHeight);
+          this.SetBevelWidth(1);
+          this.SetBevelColor(8421504);
+          this.SetBevelOuter(pas.Controls.TBevelCut.bvSpace);
+        };
+      } else {
+        this.SetColor(-2147483635);
+      };
+      pas.Controls.TControl.MouseEnter.call(this);
+    };
+    this.MouseLeave = function () {
+      if (this.FUpIndex === 1) {
+        this.SetHeight($mod.MenuItemHeight);
+        this.SetBevelOuter(pas.Controls.TBevelCut.bvNone);
+      } else {
+        this.SetColor(-2147483633);
+      };
+      pas.Controls.TControl.MouseLeave.call(this);
     };
     var $r = this.$rtti;
     $r.addField("AutoCheck",rtl.boolean);
     $r.addField("Checked",rtl.boolean);
+    $r.addField("Findex",rtl.longint);
+    $r.addField("FUpIndex",rtl.longint);
   });
   rtl.createClass(this,"TPopupMenu",pas.ExtCtrls.TCustomPanel,function () {
-    this.Popup = function (X, Y) {
+    this.Changed = function () {
+      var i = 0;
+      var m = null;
+      this.SetBevelWidth(1);
+      this.SetBevelColor(8421504);
+      this.SetBevelOuter(pas.Controls.TBevelCut.bvSpace);
+      this.SetWidth(100);
+      this.SetHeight(this.GetComponentCount() * $mod.MenuItemHeight);
+      this.FHandleElement.style.setProperty("z-index","99");
+      for (var $l = 0, $end = this.GetComponentCount() - 1; $l <= $end; $l++) {
+        i = $l;
+        m = this.GetComponent(i);
+        m.SetLeft(0);
+        m.SetTop(i * $mod.MenuItemHeight);
+        m.FHandleElement.style.setProperty("padding-left","5px");
+      };
+      pas.ExtCtrls.TCustomPanel.Changed.call(this);
     };
-    var $r = this.$rtti;
-    $r.addMethod("Popup",0,[["X",rtl.longint],["Y",rtl.longint]]);
+    this.Create$1 = function (AOwner) {
+      pas.ExtCtrls.TCustomPanel.Create$1.call(this,AOwner);
+      this.SetVisible(false);
+      return this;
+    };
+    this.Popup = function (X, Y) {
+      this.SetLeft(X);
+      this.SetTop(Y);
+      this.SetVisible(true);
+    };
+    this.OnContextMenu = function (Event) {
+      var Result = false;
+      this.Popup(Math.round(rtl.asExt(Event,MouseEvent).clientX) - this.FOwner.FLeft,Math.round(rtl.asExt(Event,MouseEvent).clientY) - this.FOwner.FTop);
+      Result = false;
+      return Result;
+    };
   });
+  this.TTickStyle = {"0": "tsAuto", tsAuto: 0, "1": "tsManual", tsManual: 1, "2": "tsNone", tsNone: 2};
   rtl.createClass(this,"TTrackBar",pas.ExtCtrls.TCustomPanel,function () {
     this.$init = function () {
       pas.ExtCtrls.TCustomPanel.$init.call(this);
-      this.Position = 0;
-      this.Max = 0;
+      this.fMin = 0;
+      this.fMax = 0;
+      this.fPosition = 0;
+      this.fFrequency = 0;
+      this.fLineSize = 0;
+      this.fPageSize = 0;
+      this.fTickStyle = 0;
       this.FOnChange = null;
     };
     this.$final = function () {
       this.FOnChange = undefined;
       pas.ExtCtrls.TCustomPanel.$final.call(this);
     };
+    this.GetPosition = function () {
+      var Result = 0;
+      Result = this.fPosition;
+      return Result;
+    };
     this.Changed = function () {
-      this.SetBevelWidth(1);
-      this.SetBevelColor(0);
-      this.SetBevelOuter(pas.Controls.TBevelCut.bvSpace);
+      this.GetCanvas().SetWidth(this.FWidth);
+      this.GetCanvas().SetHeight(this.FHeight);
       pas.ExtCtrls.TCustomPanel.Changed.call(this);
     };
-    var $r = this.$rtti;
-    $r.addField("Position",rtl.longint);
-    $r.addField("Max",rtl.longint);
-    $r.addProperty("OnChange",0,pas.Classes.$rtti["TNotifyEvent"],"FOnChange","FOnChange");
+    this.Paint = function () {
+      var i = 0;
+      var x = 0;
+      this.GetCanvas().FBrush.SetColor(this.FOwner.FColor);
+      this.GetCanvas().FBrush.SetStyle(pas.Graphics.TBrushStyle.bsSolid);
+      this.GetCanvas().FPen.SetStyle(pas.Graphics.TPenStyle.psClear);
+      this.GetCanvas().Rectangle$1(0,0,this.FWidth,this.FHeight);
+      this.GetCanvas().FBrush.SetColor(12632256);
+      this.GetCanvas().FPen.SetColor(8421504);
+      this.GetCanvas().FPen.SetStyle(pas.Graphics.TPenStyle.psSolid);
+      this.GetCanvas().FPen.SetWidth(this.fLineSize);
+      this.GetCanvas().Rectangle$1(0,Math.round((this.FHeight / 2) - 4),this.FWidth,8);
+      for (var $l = this.fMin, $end = this.fMax; $l <= $end; $l++) {
+        i = $l;
+        x = Math.round(((i - this.fMin) / (this.fMax - this.fMin)) * this.FWidth);
+        this.GetCanvas().MoveTo(x,Math.round((this.FHeight / 2) + 6));
+        this.GetCanvas().LineTo(x,this.FHeight - 2);
+      };
+      this.GetCanvas().FBrush.SetColor(16711680);
+      x = Math.round(((this.fPosition - this.fMin) / (this.fMax - this.fMin)) * this.FWidth);
+      this.GetCanvas().FillRect$1(x - 4,4,8,16);
+    };
+    this.MouseUp = function (Button, Shift, X, Y) {
+      this.fPosition = this.fMin + Math.round((X / this.FWidth) * (this.fMax - this.fMin));
+      this.Invalidate();
+      pas.Controls.TControl.MouseUp.call(this,Button,rtl.refSet(Shift),X,Y);
+      if (this.FOnChange != null) this.FOnChange(this);
+    };
+    this.Create$1 = function (AOwner) {
+      pas.ExtCtrls.TCustomPanel.Create$1.call(this,AOwner);
+      this.fMax = 10;
+      this.fFrequency = 1;
+      this.fLineSize = 1;
+      this.fPageSize = 2;
+      this.fTickStyle = $mod.TTickStyle.tsAuto;
+      return this;
+    };
   });
   rtl.createClass(this,"TXPManifest",pas.ExtCtrls.TCustomPanel,function () {
   });
@@ -7126,11 +7590,12 @@ rtl.module("WebCtrlsMore",["System","Classes","SysUtils","Types","Graphics","Con
     $r.addField("CursorPos",pas.Types.$rtti["TPoint"]);
   });
   this.Mouse = null;
+  this.MenuItemHeight = 30;
   $mod.$init = function () {
     $mod.Mouse = $mod.TMouse.$create("Create");
   };
 });
-rtl.module("Unit1",["System","SysUtils","Classes","Dialogs","Controls","StdCtrls","Forms","WebCtrls","WebCtrlsMore"],function () {
+rtl.module("Unit1",["System","SysUtils","Classes","Dialogs","Controls","StdCtrls","Forms","Web","WebCtrls","WebCtrlsMore"],function () {
   "use strict";
   var $mod = this;
   var $impl = $mod.$impl;
@@ -7252,6 +7717,9 @@ rtl.module("Unit1",["System","SysUtils","Classes","Dialogs","Controls","StdCtrls
       $with.SetParent(this);
       $with.SetVisible(true);
       $with.SetTabOrder(this.ListBox1.FTabOrder + 1);
+      $mod.Form1.CheckBox1.SetAlignment(pas.Classes.TAlignment.taLeftJustify);
+      $mod.Form1.CheckBox3.SetAlignment(pas.Classes.TAlignment.taLeftJustify);
+      $mod.Form1.RadioButton2.SetAlignment(pas.Classes.TAlignment.taLeftJustify);
     };
     this.Button1Click = function (Sender) {
       this.ComboBox1.FItems.Add(this.Edit1.GetText());
@@ -7273,7 +7741,7 @@ rtl.module("Unit1",["System","SysUtils","Classes","Dialogs","Controls","StdCtrls
       this.Memo1.FLines.Add("Escape\/Cancel");
       if (this.Timer1.FEnabled) {
         this.Timer1.SetEnabled(false);
-        this.ProgressBar1.Position = 0;
+        this.ProgressBar1.SetPosition(0);
         pas.Dialogs.ShowMessage$1("Timer is now stopped.");
       };
     };
@@ -7317,7 +7785,10 @@ rtl.module("Unit1",["System","SysUtils","Classes","Dialogs","Controls","StdCtrls
     };
     this.FormMouseUp = function (Sender, Button, Shift, X, Y) {
       $impl.MemoAddLineFmt(this.Memo1,"FormMouseUp at %d %d",pas.System.VarRecs(19,X,19,Y));
-      if (Button === pas.Controls.TMouseButton.mbRight) this.PopupMenu1.Popup(pas.WebCtrlsMore.Mouse.CursorPos.x,pas.WebCtrlsMore.Mouse.CursorPos.y);
+      if (Button === pas.Controls.TMouseButton.mbRight) {
+        document.oncontextmenu = rtl.createSafeCallback(this.PopupMenu1,"OnContextMenu");
+        this.PopupMenu1.Popup(X,Y);
+      } else document.oncontextmenu = rtl.createSafeCallback(this.PopupMenu1,"OnContextMenu");
     };
     this.FormKeyDown = function (Sender, Key, Shift) {
       $impl.MemoAddLineFmt(this.Memo1,"FormKeyDown %d",pas.System.VarRecs(19,Key.get()));
@@ -7330,10 +7801,10 @@ rtl.module("Unit1",["System","SysUtils","Classes","Dialogs","Controls","StdCtrls
     };
     this.Timer1Timer = function (Sender) {
       this.ProgressBar1.StepIt();
-      this.Memo1.FLines.Add("Timer Tick: ProgressBar=" + pas.SysUtils.IntToStr(this.ProgressBar1.Position));
+      $impl.MemoAddLineFmt(this.Memo1,"Timer Tick: ProgressBar=" + pas.SysUtils.IntToStr(this.ProgressBar1.GetPosition()),{});
     };
     this.TrackBar1Change = function (Sender) {
-      this.Memo1.FLines.Add("TrackBar: New value=" + pas.SysUtils.IntToStr(Sender.Position) + "\/" + pas.SysUtils.IntToStr(Sender.Max));
+      $impl.MemoAddLineFmt(this.Memo1,"TrackBar: New value=" + pas.SysUtils.IntToStr(Sender.GetPosition()) + "\/" + pas.SysUtils.IntToStr(Sender.fMax),{});
     };
     this.MenuItem6Click = function (Sender) {
       pas.Forms.Application().Terminate();
@@ -7345,10 +7816,10 @@ rtl.module("Unit1",["System","SysUtils","Classes","Dialogs","Controls","StdCtrls
       this.Memo1.FLines.Add("Menu22");
     };
     this.MenuItem9Click = function (Sender) {
-      this.Memo1.FLines.Add("Popup1");
+      $impl.MemoAddLineFmt(this.Memo1,"Popup1",{});
     };
     this.MenuItem10Click = function (Sender) {
-      this.Memo1.FLines.Add("Popup2");
+      $impl.MemoAddLineFmt(this.Memo1,"Popup2",{});
     };
     this.MenuItem11Click = function (Sender) {
       this.OpenDialog1.Options = rtl.unionSet(this.OpenDialog1.Options,rtl.createSet(pas.WebCtrlsMore.TOpenOption.ofPathMustExist,pas.WebCtrlsMore.TOpenOption.ofFileMustExist));
@@ -7444,7 +7915,7 @@ rtl.module("Unit1",["System","SysUtils","Classes","Dialogs","Controls","StdCtrls
   this.Form1 = null;
   $mod.$implcode = function () {
     $impl.MemoAddLineFmt = function (MemoCtrl, s, Args) {
-      MemoCtrl.Append(s);
+      MemoCtrl.Append(pas.SysUtils.Format(s,Args));
     };
   };
 },[]);
@@ -7472,25 +7943,25 @@ rtl.module("unit1frm",["System","SysUtils","Classes","Dialogs","Controls","StdCt
     pas.Unit1.Form1.FOnMouseDown = rtl.createCallback($with,"FormMouseDown");
     pas.Unit1.Form1.FOnMouseUp = rtl.createCallback($with,"FormMouseUp");
     $with.GroupBox1 = pas.WebCtrlsMore.TGroupBox.$create("Create$1",[pas.Unit1.Form1]);
+    $with.GroupBox1.SetName("GroupBox1");
     $with.GroupBox1.BeginUpdate();
     $with.GroupBox1.SetParent(pas.Unit1.Form1);
     $with.GroupBox1.SetLeft(8);
     $with.GroupBox1.SetHeight(65);
     $with.GroupBox1.SetTop(140);
     $with.GroupBox1.SetWidth(129);
-    $with.GroupBox1.SetText("GroupBox1");
-    $with.GroupBox1.SetClientHeight(110);
-    $with.GroupBox1.SetClientWidth(125);
+    $with.GroupBox1.SetText(" GroupBox1 ");
+    $with.GroupBox1.SetColor(pas.Unit1.Form1.FColor);
     $with.GroupBox1.FFont.SetColor(0);
     $with.GroupBox1.FFont.SetName("Tahoma");
     $with.GroupBox1.SetParentFont(false);
     $with.RadioButton1 = pas.WebCtrlsMore.TRadioButton.$create("Create$1",[$with.GroupBox1]);
     $with.RadioButton1.BeginUpdate();
     $with.RadioButton1.SetParent($with.GroupBox1);
-    $with.RadioButton1.SetLeft(18);
+    $with.RadioButton1.SetLeft(10);
     $with.RadioButton1.SetHeight(21);
     $with.RadioButton1.SetTop(13);
-    $with.RadioButton1.SetWidth(87);
+    $with.RadioButton1.SetWidth(110);
     $with.RadioButton1.SetText("RadioButton1");
     $with.RadioButton1.FFont.SetColor(0);
     $with.RadioButton1.FFont.SetName("Tahoma");
@@ -7500,12 +7971,12 @@ rtl.module("unit1frm",["System","SysUtils","Classes","Dialogs","Controls","StdCt
     $with.RadioButton2 = pas.WebCtrlsMore.TRadioButton.$create("Create$1",[$with.GroupBox1]);
     $with.RadioButton2.BeginUpdate();
     $with.RadioButton2.SetParent($with.GroupBox1);
-    $with.RadioButton2.SetLeft(18);
+    $with.RadioButton2.SetLeft(10);
     $with.RadioButton2.SetHeight(21);
     $with.RadioButton2.SetTop(32);
-    $with.RadioButton2.SetWidth(87);
+    $with.RadioButton2.SetWidth(110);
     $with.RadioButton2.SetText("RadioButton2");
-    $with.RadioButton2.Checked = true;
+    $with.RadioButton2.SetChecked(true);
     $with.RadioButton2.FFont.SetColor(0);
     $with.RadioButton2.FFont.SetName("Tahoma");
     $with.RadioButton2.SetParentFont(false);
@@ -7532,7 +8003,7 @@ rtl.module("unit1frm",["System","SysUtils","Classes","Dialogs","Controls","StdCt
     $with.Edit1.BeginUpdate();
     $with.Edit1.SetParent(pas.Unit1.Form1);
     $with.Edit1.SetLeft(276);
-    $with.Edit1.SetHeight(25);
+    $with.Edit1.SetHeight(12);
     $with.Edit1.SetTop(12);
     $with.Edit1.SetWidth(125);
     $with.Edit1.FOnChange = rtl.createCallback($with,"Edit1Change");
@@ -7616,13 +8087,14 @@ rtl.module("unit1frm",["System","SysUtils","Classes","Dialogs","Controls","StdCt
     $with.CheckBox1.SetHeight(21);
     $with.CheckBox1.SetTop(76);
     $with.CheckBox1.SetWidth(100);
+    $with.CheckBox1.FAllowGrayed = true;
     $with.CheckBox1.SetText("CheckBox1");
     $with.CheckBox1.SetState(pas.StdCtrls.TCheckBoxState.cbGrayed);
     $with.CheckBox1.EndUpdate();
     $with.Button6 = pas.WebCtrls.TButton.$create("Create$1",[pas.Unit1.Form1]);
     $with.Button6.BeginUpdate();
     $with.Button6.SetParent(pas.Unit1.Form1);
-    $with.Button6.SetLeft(88);
+    $with.Button6.SetLeft(92);
     $with.Button6.SetHeight(25);
     $with.Button6.SetTop(92);
     $with.Button6.SetWidth(53);
@@ -7707,7 +8179,7 @@ rtl.module("unit1frm",["System","SysUtils","Classes","Dialogs","Controls","StdCt
     $with.StaticText1.BeginUpdate();
     $with.StaticText1.SetParent(pas.Unit1.Form1);
     $with.StaticText1.SetLeft(44);
-    $with.StaticText1.SetHeight(30);
+    $with.StaticText1.SetHeight(18);
     $with.StaticText1.SetTop(512);
     $with.StaticText1.SetWidth(70);
     $with.StaticText1.SetAlignment(pas.Classes.TAlignment.taCenter);
@@ -7749,7 +8221,7 @@ rtl.module("unit1frm",["System","SysUtils","Classes","Dialogs","Controls","StdCt
     $with.ProgressBar1 = pas.WebCtrlsMore.TProgressBar.$create("Create$1",[pas.Unit1.Form1]);
     $with.ProgressBar1.BeginUpdate();
     $with.ProgressBar1.SetParent(pas.Unit1.Form1);
-    $with.ProgressBar1.BorderWidth = 2;
+    $with.ProgressBar1.SetPosition(30);
     $with.ProgressBar1.SetLeft(320);
     $with.ProgressBar1.SetHeight(16);
     $with.ProgressBar1.SetTop(516);
@@ -7767,12 +8239,11 @@ rtl.module("unit1frm",["System","SysUtils","Classes","Dialogs","Controls","StdCt
     $with.StaticText2.SetVisible(false);
     $with.StaticText2.EndUpdate();
     $with.Timer1 = pas.WebCtrls.TTimer.$create("Create$1",[pas.Unit1.Form1]);
+    $with.Timer1.SetInterval(1000);
     $with.Timer1.SetOnTimer(rtl.createCallback($with,"Timer1Timer"));
     $with.MainMenu1 = pas.WebCtrlsMore.TMainMenu.$create("Create$1",[pas.Unit1.Form1]);
     $with.MainMenu1.BeginUpdate();
     $with.MainMenu1.SetParent(pas.Unit1.Form1);
-    $with.MainMenu1.SetTop(0);
-    $with.MainMenu1.SetLeft(0);
     $with.MenuItem1 = pas.WebCtrlsMore.TMenuItem.$create("Create$1",[$with.MainMenu1]);
     $with.MenuItem1.BeginUpdate();
     $with.MenuItem1.SetParent($with.MainMenu1);
@@ -7868,7 +8339,7 @@ rtl.module("unit1frm",["System","SysUtils","Classes","Dialogs","Controls","StdCt
     pas.Unit1.Form1.FormCreate(null);
   };
 },["Unit1"]);
-rtl.module("program",["System","Unit1","unit1frm","WebCtrls","Forms","WebCtrlsMore"],function () {
+rtl.module("program",["System","Unit1","unit1frm","Forms"],function () {
   "use strict";
   var $mod = this;
   $mod.$main = function () {

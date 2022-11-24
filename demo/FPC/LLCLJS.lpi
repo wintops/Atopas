@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CONFIG>
   <ProjectOptions>
-    <Version Value="11"/>
+    <Version Value="12"/>
     <PathDelim Value="\"/>
     <General>
       <Flags>
@@ -9,17 +9,18 @@
         <MainUnitHasTitleStatement Value="False"/>
         <MainUnitHasScaledStatement Value="False"/>
         <Runnable Value="False"/>
+        <CompatibilityMode Value="True"/>
       </Flags>
       <SessionStorage Value="InProjectDir"/>
-      <MainUnit Value="0"/>
       <Title Value="LLCLJS"/>
       <UseAppBundle Value="False"/>
       <ResourceType Value="res"/>
     </General>
-    <CustomData Count="3">
+    <CustomData Count="4">
       <Item0 Name="MaintainHTML" Value="1"/>
-      <Item1 Name="PasJSWebBrowserProject" Value="1"/>
-      <Item2 Name="RunAtReady" Value="1"/>
+      <Item1 Name="Pas2JSProject" Value="1"/>
+      <Item2 Name="PasJSWebBrowserProject" Value="1"/>
+      <Item3 Name="RunAtReady" Value="1"/>
     </CustomData>
     <BuildModes Count="1">
       <Item1 Name="Default" Default="True"/>
@@ -30,9 +31,8 @@
     </PublishOptions>
     <RunParams>
       <FormatVersion Value="2"/>
-      <Modes Count="0"/>
     </RunParams>
-    <Units Count="9">
+    <Units Count="8">
       <Unit0>
         <Filename Value="LLCLJS.pas"/>
         <IsPartOfProject Value="True"/>
@@ -45,40 +45,36 @@
         </CustomData>
       </Unit1>
       <Unit2>
-        <Filename Value="llcljs.js"/>
-        <IsPartOfProject Value="True"/>
-      </Unit2>
-      <Unit3>
         <Filename Value="unit1.pas"/>
         <IsPartOfProject Value="True"/>
         <ComponentName Value="Form1"/>
         <HasResources Value="True"/>
         <ResourceBaseClass Value="Form"/>
         <UnitName Value="Unit1"/>
+      </Unit2>
+      <Unit3>
+        <Filename Value="unit1frm.pas"/>
+        <IsPartOfProject Value="True"/>
       </Unit3>
       <Unit4>
-        <Filename Value="unit1frm.pas"/>
+        <Filename Value="..\..\pasjs_llcl\p2jsres.pas"/>
         <IsPartOfProject Value="True"/>
       </Unit4>
       <Unit5>
-        <Filename Value="..\..\pasjs_llcl\p2jsres.pas"/>
-        <IsPartOfProject Value="True"/>
-      </Unit5>
-      <Unit6>
         <Filename Value="..\..\pasjs_llcl\web.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="Web"/>
-      </Unit6>
-      <Unit7>
+      </Unit5>
+      <Unit6>
         <Filename Value="..\..\pasjs_llcl\classesmore.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="ClassesMore"/>
-      </Unit7>
-      <Unit8>
+      </Unit6>
+      <Unit7>
         <Filename Value="..\..\pasjs_llcl\webctrlsmore.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="WebCtrlsMore"/>
-      </Unit8>
+      </Unit7>
     </Units>
   </ProjectOptions>
   <CompilerOptions>

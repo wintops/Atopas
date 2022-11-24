@@ -8,8 +8,8 @@ program LLCLJS;
 uses
   unit1,
   unit1frm,
-  WebCtrls,
-  Forms, WebCtrlsMore;
+
+  Forms;
 
 begin
 
