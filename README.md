@@ -17,9 +17,9 @@ https://wintops.github.io/llcljs/llcljs.html
 
 https://wintops.github.io/llcljs/MiniCalcJS.html
 
-![image](https:///wintops.github.io/llcljs/image_llcl.png)
+[![LLCL screenshot ](https:///wintops.github.io/llcljs/image_llcl.png)](https:///wintops.github.io/llcljs/image_llcl.png)
 
-![image](https:///wintops.github.io/llcljs/image_web.png)
+[![LLCL Web screenshot ](https:///wintops.github.io/llcljs/image_web.png)](https:///wintops.github.io/llcljs/image_web.png)
 
 
 
