@@ -7,7 +7,7 @@ program MiniCalcJS;
 
 uses unit1, u1,
   WebCtrls,
-  Forms, WebCtrlsMore;
+  Forms;
 
 begin
 

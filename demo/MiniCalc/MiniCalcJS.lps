@@ -2,15 +2,15 @@
 <CONFIG>
   <ProjectSession>
     <PathDelim Value="\"/>
-    <Version Value="11"/>
+    <Version Value="12"/>
     <BuildModes Active="Default"/>
     <Units Count="62">
       <Unit0>
         <Filename Value="MiniCalcJS.pas"/>
         <IsPartOfProject Value="True"/>
-        <EditorIndex Value="-1"/>
-        <CursorPos X="13" Y="10"/>
+        <CursorPos X="14" Y="3"/>
         <UsageCount Value="412"/>
+        <Loaded Value="True"/>
         <DefaultSyntaxHighlighter Value="Delphi"/>
       </Unit0>
       <Unit1>
@@ -38,9 +38,12 @@
       <Unit3>
         <Filename Value="u1.pas"/>
         <IsPartOfProject Value="True"/>
-        <EditorIndex Value="-1"/>
-        <CursorPos X="6" Y="7"/>
+        <IsVisibleTab Value="True"/>
+        <EditorIndex Value="1"/>
+        <TopLine Value="4"/>
+        <CursorPos X="19" Y="25"/>
         <UsageCount Value="24"/>
+        <Loaded Value="True"/>
         <DefaultSyntaxHighlighter Value="Delphi"/>
       </Unit3>
       <Unit4>
@@ -476,8 +479,8 @@
       <Unit56>
         <Filename Value="..\..\..\PASJS\pas2js\packages\rtl\rtti.pas"/>
         <UnitName Value="RTTI"/>
-        <IsVisibleTab Value="True"/>
         <EditorIndex Value="-1"/>
+        <WindowIndex Value="-1"/>
         <TopLine Value="239"/>
         <CursorPos X="14" Y="257"/>
         <UsageCount Value="10"/>
@@ -495,10 +498,10 @@
       <Unit58>
         <Filename Value="..\..\pasjs_llcl\webctrlsmore.pas"/>
         <UnitName Value="WebCtrlsMore"/>
-        <EditorIndex Value="-1"/>
-        <TopLine Value="83"/>
-        <CursorPos X="28" Y="105"/>
+        <EditorIndex Value="2"/>
+        <TopLine Value="109"/>
         <UsageCount Value="10"/>
+        <Loaded Value="True"/>
         <DefaultSyntaxHighlighter Value="Delphi"/>
       </Unit58>
       <Unit59>
@@ -524,10 +527,12 @@
       <Define0 Value="PASJS"/>
       <Define1 Value="IS_FPC_OBJFPC_MODE"/>
     </OtherDefines>
-    <General>
-      <ActiveWindowIndexAtStart Value="-1"/>
-    </General>
-    <JumpHistory HistoryIndex="-1"/>
+    <JumpHistory Count="1">
+      <Position1>
+        <Filename Value="MiniCalcJS.pas"/>
+        <Caret Line="10" Column="13"/>
+      </Position1>
+    </JumpHistory>
     <RunParams>
       <FormatVersion Value="2"/>
       <Modes Count="1" ActiveMode="Default">

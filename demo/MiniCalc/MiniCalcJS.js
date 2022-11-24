@@ -1,8 +1,8 @@
-﻿var pas = {};
+﻿var pas = { $libimports: {}};
 
 var rtl = {
 
-  version: 20000,
+  version: 20200,
 
   quiet: false,
   debug_load_units: false,
@@ -136,9 +136,9 @@ var rtl = {
       if (!module) rtl.error('rtl.run module "'+module_name+'" missing');
       rtl.loadintf(module);
       rtl.loadimpl(module);
-      if (module_name=='program'){
+      if ((module_name=='program') || (module_name=='library')){
         if (rtl.debug_load_units) rtl.debug('running $main');
-        var r = pas.program.$main();
+        var r = pas[module_name].$main();
         if (rtl.isNumber(r)) rtl.exitcode = r;
       }
     } catch(re) {
@@ -229,7 +229,10 @@ var rtl = {
   createCallback: function(scope, fn){
     var cb;
     if (typeof(fn)==='string'){
-      cb = function(){
+      if (!scope.hasOwnProperty('$events')) scope.$events = {};
+      cb = scope.$events[fn];
+      if (cb) return cb;
+      scope.$events[fn] = cb = function(){
         return scope[fn].apply(scope,arguments);
       };
     } else {
@@ -243,32 +246,38 @@ var rtl = {
   },
 
   createSafeCallback: function(scope, fn){
-    var cb = function(){
-      try{
-        if (typeof(fn)==='string'){
+    var cb;
+    if (typeof(fn)==='string'){
+      if (!scope.hasOwnProperty('$events')) scope.$events = {};
+      cb = scope.$events[fn];
+      if (cb) return cb;
+      scope.$events[fn] = cb = function(){
+        try{
           return scope[fn].apply(scope,arguments);
-        } else {
+        } catch (err) {
+          if (!rtl.handleUncaughtException(err)) throw err;
+        }
+      };
+    } else {
+      cb = function(){
+        try{
           return fn.apply(scope,arguments);
-        };
-      } catch (err) {
-        if (!rtl.handleUncaughtException(err)) throw err;
-      }
+        } catch (err) {
+          if (!rtl.handleUncaughtException(err)) throw err;
+        }
+      };
     };
     cb.scope = scope;
     cb.fn = fn;
     return cb;
   },
 
-  cloneCallback: function(cb){
-    return rtl.createCallback(cb.scope,cb.fn);
-  },
-
   eqCallback: function(a,b){
     // can be a function or a function wrapper
-    if (a==b){
+    if (a===b){
       return true;
     } else {
-      return (a!=null) && (b!=null) && (a.fn) && (a.scope===b.scope) && (a.fn==b.fn);
+      return (a!=null) && (b!=null) && (a.fn) && (a.scope===b.scope) && (a.fn===b.fn);
     }
   },
 
@@ -707,10 +716,9 @@ var rtl = {
   },
 
   intfAsIntfT: function (intf,intftype){
-    if (intf){
-      var i = rtl.getIntfG(intf.$o,intftype.$guid);
-      if (i!==null) return i;
-    }
+    if (!intf) return null;
+    var i = rtl.getIntfG(intf.$o,intftype.$guid);
+    if (i) return i;
     rtl.raiseEInvalidCast();
   },
 
@@ -739,15 +747,20 @@ var rtl = {
         delete this[id];
         old._Release(); // may fail
       }
-      this[id]=intf;
+      if(intf) {
+        this[id]=intf;
+      }
       return intf;
     },
     free: function(){
       //console.log('rtl.intfRefs.free...');
       for (var id in this){
         if (this.hasOwnProperty(id)){
-          //console.log('rtl.intfRefs.free: id='+id+' '+this[id].$name+' $o='+this[id].$o.$classname);
-          this[id]._Release();
+          var intf = this[id];
+          if (intf){
+            //console.log('rtl.intfRefs.free: id='+id+' '+intf.$name+' $o='+intf.$o.$classname);
+            intf._Release();
+          }
         }
       }
     }
@@ -1036,6 +1049,15 @@ var rtl = {
     }
   },
 
+  arrayInsert: function(item, arr, index){
+    if (arr){
+      arr.splice(index,0,item);
+      return arr;
+    } else {
+      return [item];
+    }
+  },
+
   setCharAt: function(s,index,c){
     return s.substr(0,index)+c+s.substr(index+1);
   },
@@ -1167,13 +1189,13 @@ var rtl = {
 	  // exponent width
 	  var pad = "";
 	  var ad = Math.abs(d);
-	  if (ad<1.0e+10) {
+	  if (((ad>1) && (ad<1.0e+10)) ||  ((ad>1.e-10) && (ad<1))) {
 		pad='00';
-	  } else if (ad<1.0e+100) {
+	  } else if ((ad>1) && (ad<1.0e+100) || (ad<1.e-10)) {
 		pad='0';
       }  	
 	  if (arguments.length<2) {
-	    w=9;		
+	    w=24;		
       } else if (w<9) {
 		w=9;
       }		  
@@ -1246,7 +1268,7 @@ var rtl = {
     if (rtl.debug_rtti) rtl.debug('initRTTI');
 
     // base types
-    rtl.tTypeInfo = { name: "tTypeInfo" };
+    rtl.tTypeInfo = { name: "tTypeInfo", kind: 0, $module: null, attr: null };
     function newBaseTI(name,kind,ancestor){
       if (!ancestor) ancestor = rtl.tTypeInfo;
       if (rtl.debug_rtti) rtl.debug('initRTTI.newBaseTI "'+name+'" '+kind+' ("'+ancestor.name+'")');
@@ -1289,7 +1311,7 @@ var rtl = {
     newBaseTI("tTypeInfoRefToProcVar",17 /* tkRefToProcVar */,rtl.tTypeInfoProcVar);
 
     // member kinds
-    rtl.tTypeMember = {};
+    rtl.tTypeMember = { attr: null };
     function newMember(name,kind){
       var m = Object.create(rtl.tTypeMember);
       m.name = name;
@@ -1341,11 +1363,10 @@ var rtl = {
         };
       };
     };
-    tis.addMethod = function(name,methodkind,params,result,options){
+    tis.addMethod = function(name,methodkind,params,result,flags,options){
       var t = this.$addMember(name,rtl.tTypeMemberMethod,options);
       t.methodkind = methodkind;
-      t.procsig = rtl.newTIProcSig(params);
-      t.procsig.resulttype = result?result:null;
+      t.procsig = rtl.newTIProcSig(params,result,flags);
       this.methods.push(name);
       return t;
     };
@@ -1356,7 +1377,7 @@ var rtl = {
       t.getter = getter;
       t.setter = setter;
       // Note: in options: params, stored, defaultvalue
-      if (rtl.isArray(t.params)) t.params = rtl.newTIParams(t.params);
+      t.params = rtl.isArray(t.params) ? rtl.newTIParams(t.params) : null;
       this.properties.push(name);
       if (!rtl.isString(t.stored)) t.stored = "";
       return t;
@@ -1453,8 +1474,8 @@ var rtl = {
   newTIProcSig: function(params,result,flags){
     var s = {
       params: rtl.newTIParams(params),
-      resulttype: result,
-      flags: flags
+      resulttype: result?result:null,
+      flags: flags?flags:0
     };
     return s;
   },
@@ -1504,16 +1525,13 @@ rtl.module("System",[],function () {
       var Result = null;
       Result = null;
       if (aName === "") return Result;
-      var aClass = null;
-      var i = 0;
+      var aClass = this.$class;
       var ClassTI = null;
       var myName = aName.toLowerCase();
       var MemberTI = null;
-      aClass = this.$class;
       while (aClass !== null) {
         ClassTI = aClass.$rtti;
-        for (var $l1 = 0, $end2 = ClassTI.fields.length - 1; $l1 <= $end2; $l1++) {
-          i = $l1;
+        for (var i = 0, $end2 = ClassTI.fields.length - 1; i <= $end2; i++) {
           MemberTI = ClassTI.getField(i);
           if (MemberTI.name.toLowerCase() === myName) {
              return MemberTI;
@@ -1528,6 +1546,48 @@ rtl.module("System",[],function () {
     this.BeforeDestruction = function () {
     };
   });
+  this.vtInteger = 0;
+  this.vtExtended = 3;
+  this.vtWideChar = 9;
+  this.vtCurrency = 12;
+  this.vtUnicodeString = 18;
+  this.vtNativeInt = 19;
+  rtl.recNewT(this,"TVarRec",function () {
+    this.VType = 0;
+    this.VJSValue = undefined;
+    this.$eq = function (b) {
+      return (this.VType === b.VType) && (this.VJSValue === b.VJSValue) && (this.VJSValue === b.VJSValue) && (this.VJSValue === b.VJSValue) && (this.VJSValue === b.VJSValue) && (this.VJSValue === b.VJSValue) && (this.VJSValue === b.VJSValue) && (this.VJSValue === b.VJSValue);
+    };
+    this.$assign = function (s) {
+      this.VType = s.VType;
+      this.VJSValue = s.VJSValue;
+      this.VJSValue = s.VJSValue;
+      this.VJSValue = s.VJSValue;
+      this.VJSValue = s.VJSValue;
+      this.VJSValue = s.VJSValue;
+      this.VJSValue = s.VJSValue;
+      this.VJSValue = s.VJSValue;
+      return this;
+    };
+  });
+  this.VarRecs = function () {
+    var Result = [];
+    var i = 0;
+    var v = null;
+    Result = [];
+    while (i < arguments.length) {
+      v = $mod.TVarRec.$new();
+      v.VType = rtl.trunc(arguments[i]);
+      i += 1;
+      v.VJSValue = arguments[i];
+      i += 1;
+      Result.push($mod.TVarRec.$clone(v));
+    };
+    return Result;
+  };
+  this.IsConsole = false;
+  this.OnParamCount = null;
+  this.OnParamStr = null;
   this.Trunc = function (A) {
     if (!Math.trunc) {
       Math.trunc = function(v) {
@@ -1617,6 +1677,10 @@ rtl.module("System",[],function () {
     $impl.valint = function (S, MinVal, MaxVal, Code) {
       var Result = 0;
       var x = 0.0;
+      if (S === "") {
+        Code.set(1);
+        return Result;
+      };
       x = Number(S);
       if (isNaN(x)) {
         var $tmp = $mod.Copy(S,1,1);
@@ -1724,34 +1788,6 @@ rtl.module("JS",["System","Types"],function () {
   this.isClassInstance = function (v) {
     return (typeof(v)=="object") && (v!=null) && (v.$class == Object.getPrototypeOf(v));
   };
-  this.isInteger = function (v) {
-    return Math.floor(v)===v;
-  };
-  this.isNull = function (v) {
-    return v === null;
-  };
-  this.TJSValueType = {"0": "jvtNull", jvtNull: 0, "1": "jvtBoolean", jvtBoolean: 1, "2": "jvtInteger", jvtInteger: 2, "3": "jvtFloat", jvtFloat: 3, "4": "jvtString", jvtString: 4, "5": "jvtObject", jvtObject: 5, "6": "jvtArray", jvtArray: 6};
-  this.GetValueType = function (JS) {
-    var Result = 0;
-    var t = "";
-    if ($mod.isNull(JS)) {
-      Result = 0}
-     else {
-      t = typeof(JS);
-      if (t === "string") {
-        Result = 4}
-       else if (t === "boolean") {
-        Result = 1}
-       else if (t === "object") {
-        if (rtl.isArray(JS)) {
-          Result = 6}
-         else Result = 5;
-      } else if (t === "number") if ($mod.isInteger(JS)) {
-        Result = 2}
-       else Result = 3;
-    };
-    return Result;
-  };
 });
 rtl.module("SysUtils",["System","RTLConsts","JS"],function () {
   "use strict";
@@ -1764,6 +1800,93 @@ rtl.module("SysUtils",["System","RTLConsts","JS"],function () {
     Obj.set(null);
     o.$destroy("Destroy");
   };
+  rtl.recNewT(this,"TFormatSettings",function () {
+    this.CurrencyDecimals = 0;
+    this.CurrencyFormat = 0;
+    this.CurrencyString = "";
+    this.DateSeparator = "";
+    this.DecimalSeparator = "";
+    this.LongDateFormat = "";
+    this.LongTimeFormat = "";
+    this.NegCurrFormat = 0;
+    this.ShortDateFormat = "";
+    this.ShortTimeFormat = "";
+    this.ThousandSeparator = "";
+    this.TimeAMString = "";
+    this.TimePMString = "";
+    this.TimeSeparator = "";
+    this.TwoDigitYearCenturyWindow = 0;
+    this.InitLocaleHandler = null;
+    this.$new = function () {
+      var r = Object.create(this);
+      r.DateTimeToStrFormat = rtl.arraySetLength(null,"",2);
+      r.LongDayNames = rtl.arraySetLength(null,"",7);
+      r.LongMonthNames = rtl.arraySetLength(null,"",12);
+      r.ShortDayNames = rtl.arraySetLength(null,"",7);
+      r.ShortMonthNames = rtl.arraySetLength(null,"",12);
+      return r;
+    };
+    this.$eq = function (b) {
+      return (this.CurrencyDecimals === b.CurrencyDecimals) && (this.CurrencyFormat === b.CurrencyFormat) && (this.CurrencyString === b.CurrencyString) && (this.DateSeparator === b.DateSeparator) && rtl.arrayEq(this.DateTimeToStrFormat,b.DateTimeToStrFormat) && (this.DecimalSeparator === b.DecimalSeparator) && (this.LongDateFormat === b.LongDateFormat) && rtl.arrayEq(this.LongDayNames,b.LongDayNames) && rtl.arrayEq(this.LongMonthNames,b.LongMonthNames) && (this.LongTimeFormat === b.LongTimeFormat) && (this.NegCurrFormat === b.NegCurrFormat) && (this.ShortDateFormat === b.ShortDateFormat) && rtl.arrayEq(this.ShortDayNames,b.ShortDayNames) && rtl.arrayEq(this.ShortMonthNames,b.ShortMonthNames) && (this.ShortTimeFormat === b.ShortTimeFormat) && (this.ThousandSeparator === b.ThousandSeparator) && (this.TimeAMString === b.TimeAMString) && (this.TimePMString === b.TimePMString) && (this.TimeSeparator === b.TimeSeparator) && (this.TwoDigitYearCenturyWindow === b.TwoDigitYearCenturyWindow);
+    };
+    this.$assign = function (s) {
+      this.CurrencyDecimals = s.CurrencyDecimals;
+      this.CurrencyFormat = s.CurrencyFormat;
+      this.CurrencyString = s.CurrencyString;
+      this.DateSeparator = s.DateSeparator;
+      this.DateTimeToStrFormat = s.DateTimeToStrFormat.slice(0);
+      this.DecimalSeparator = s.DecimalSeparator;
+      this.LongDateFormat = s.LongDateFormat;
+      this.LongDayNames = s.LongDayNames.slice(0);
+      this.LongMonthNames = s.LongMonthNames.slice(0);
+      this.LongTimeFormat = s.LongTimeFormat;
+      this.NegCurrFormat = s.NegCurrFormat;
+      this.ShortDateFormat = s.ShortDateFormat;
+      this.ShortDayNames = s.ShortDayNames.slice(0);
+      this.ShortMonthNames = s.ShortMonthNames.slice(0);
+      this.ShortTimeFormat = s.ShortTimeFormat;
+      this.ThousandSeparator = s.ThousandSeparator;
+      this.TimeAMString = s.TimeAMString;
+      this.TimePMString = s.TimePMString;
+      this.TimeSeparator = s.TimeSeparator;
+      this.TwoDigitYearCenturyWindow = s.TwoDigitYearCenturyWindow;
+      return this;
+    };
+    this.GetJSLocale = function () {
+      return Intl.DateTimeFormat().resolvedOptions().locale;
+    };
+    this.Create = function () {
+      var Result = $mod.TFormatSettings.$new();
+      Result.$assign($mod.TFormatSettings.Create$1($mod.TFormatSettings.GetJSLocale()));
+      return Result;
+    };
+    this.Create$1 = function (ALocale) {
+      var Result = $mod.TFormatSettings.$new();
+      Result.LongDayNames = $impl.DefaultLongDayNames.slice(0);
+      Result.ShortDayNames = $impl.DefaultShortDayNames.slice(0);
+      Result.ShortMonthNames = $impl.DefaultShortMonthNames.slice(0);
+      Result.LongMonthNames = $impl.DefaultLongMonthNames.slice(0);
+      Result.DateTimeToStrFormat[0] = "c";
+      Result.DateTimeToStrFormat[1] = "f";
+      Result.DateSeparator = "-";
+      Result.TimeSeparator = ":";
+      Result.ShortDateFormat = "yyyy-mm-dd";
+      Result.LongDateFormat = "ddd, yyyy-mm-dd";
+      Result.ShortTimeFormat = "hh:nn";
+      Result.LongTimeFormat = "hh:nn:ss";
+      Result.DecimalSeparator = ".";
+      Result.ThousandSeparator = ",";
+      Result.TimeAMString = "AM";
+      Result.TimePMString = "PM";
+      Result.TwoDigitYearCenturyWindow = 50;
+      Result.CurrencyFormat = 0;
+      Result.NegCurrFormat = 0;
+      Result.CurrencyDecimals = 2;
+      Result.CurrencyString = "$";
+      if ($mod.TFormatSettings.InitLocaleHandler != null) $mod.TFormatSettings.InitLocaleHandler($mod.UpperCase(ALocale),$mod.TFormatSettings.$clone(Result));
+      return Result;
+    };
+  },true);
   rtl.createClass(this,"Exception",pas.System.TObject,function () {
     this.LogMessageOnCreate = false;
     this.$init = function () {
@@ -1800,6 +1923,11 @@ rtl.module("SysUtils",["System","RTLConsts","JS"],function () {
   };
   this.Format = function (Fmt, Args) {
     var Result = "";
+    Result = $mod.Format$1(Fmt,Args,$mod.FormatSettings);
+    return Result;
+  };
+  this.Format$1 = function (Fmt, Args, aSettings) {
+    var Result = "";
     var ChPos = 0;
     var OldPos = 0;
     var ArgPos = 0;
@@ -1832,9 +1960,14 @@ rtl.module("SysUtils",["System","RTLConsts","JS"],function () {
           };
           if ((ChPos > OldPos) || (ArgN > (rtl.length(Args) - 1))) $impl.DoFormatError(1,Fmt);
           ArgPos = ArgN + 1;
-          if (rtl.isNumber(Args[ArgN]) && pas.JS.isInteger(Args[ArgN])) {
-            Value = rtl.trunc(Args[ArgN])}
-           else $impl.DoFormatError(1,Fmt);
+          var $tmp = Args[ArgN].VType;
+          if ($tmp === 0) {
+            Value = Args[ArgN].VJSValue}
+           else if ($tmp === 19) {
+            Value = Args[ArgN].VJSValue}
+           else {
+            $impl.DoFormatError(1,Fmt);
+          };
           ChPos += 1;
         } else {
           if (OldPos < ChPos) {
@@ -1906,7 +2039,7 @@ rtl.module("SysUtils",["System","RTLConsts","JS"],function () {
         DoArg = ArgPos}
        else DoArg = Index;
       ArgPos = DoArg + 1;
-      if ((DoArg > (rtl.length(Args) - 1)) || (pas.JS.GetValueType(Args[DoArg]) !== AT)) {
+      if ((DoArg > (rtl.length(Args) - 1)) || (Args[DoArg].VType !== AT)) {
         if (err) $impl.DoFormatError(3,Fmt);
         ArgPos -= 1;
         return Result;
@@ -1926,8 +2059,9 @@ rtl.module("SysUtils",["System","RTLConsts","JS"],function () {
         Fchar = ReadFormat();
         var $tmp = Fchar;
         if ($tmp === "D") {
-          Checkarg(2,true);
-          ToAdd = $mod.IntToStr(rtl.trunc(Args[DoArg]));
+          if (Checkarg(0,false)) {
+            ToAdd = $mod.IntToStr(Args[DoArg].VJSValue)}
+           else if (Checkarg(19,true)) ToAdd = $mod.IntToStr(Args[DoArg].VJSValue);
           Width = Math.abs(Width);
           Index = Prec - ToAdd.length;
           if (ToAdd.charAt(0) !== "-") {
@@ -1938,35 +2072,51 @@ rtl.module("SysUtils",["System","RTLConsts","JS"],function () {
               ToAdd = v;
             }},2);
         } else if ($tmp === "U") {
-          Checkarg(2,true);
-          if (rtl.trunc(Args[DoArg]) < 0) $impl.DoFormatError(3,Fmt);
-          ToAdd = $mod.IntToStr(rtl.trunc(Args[DoArg]));
+          if (Checkarg(0,false)) {
+            ToAdd = $mod.IntToStr(Args[DoArg].VJSValue >>> 0)}
+           else if (Checkarg(19,true)) ToAdd = $mod.IntToStr(Args[DoArg].VJSValue);
           Width = Math.abs(Width);
           Index = Prec - ToAdd.length;
           ToAdd = pas.System.StringOfChar("0",Index) + ToAdd;
         } else if ($tmp === "E") {
-          if (Checkarg(3,false) || Checkarg(2,true)) ToAdd = $mod.FloatToStrF(rtl.getNumber(Args[DoArg]),0,9999,Prec);
+          if (Checkarg(12,false)) {
+            ToAdd = $mod.FloatToStrF$1(Args[DoArg].VJSValue / 10000,2,3,Prec,aSettings)}
+           else if (Checkarg(3,true)) ToAdd = $mod.FloatToStrF$1(Args[DoArg].VJSValue,2,3,Prec,aSettings);
         } else if ($tmp === "F") {
-          if (Checkarg(3,false) || Checkarg(2,true)) ToAdd = $mod.FloatToStrF(rtl.getNumber(Args[DoArg]),0,9999,Prec);
+          if (Checkarg(12,false)) {
+            ToAdd = $mod.FloatToStrF$1(Args[DoArg].VJSValue / 10000,0,9999,Prec,aSettings)}
+           else if (Checkarg(3,true)) ToAdd = $mod.FloatToStrF$1(Args[DoArg].VJSValue,0,9999,Prec,aSettings);
         } else if ($tmp === "G") {
-          if (Checkarg(3,false) || Checkarg(2,true)) ToAdd = $mod.FloatToStrF(rtl.getNumber(Args[DoArg]),1,Prec,3);
+          if (Checkarg(12,false)) {
+            ToAdd = $mod.FloatToStrF$1(Args[DoArg].VJSValue / 10000,1,Prec,3,aSettings)}
+           else if (Checkarg(3,true)) ToAdd = $mod.FloatToStrF$1(Args[DoArg].VJSValue,1,Prec,3,aSettings);
         } else if ($tmp === "N") {
-          if (Checkarg(3,false) || Checkarg(2,true)) ToAdd = $mod.FloatToStrF(rtl.getNumber(Args[DoArg]),3,9999,Prec);
+          if (Checkarg(12,false)) {
+            ToAdd = $mod.FloatToStrF$1(Args[DoArg].VJSValue / 10000,3,9999,Prec,aSettings)}
+           else if (Checkarg(3,true)) ToAdd = $mod.FloatToStrF$1(Args[DoArg].VJSValue,3,9999,Prec,aSettings);
         } else if ($tmp === "M") {
-          if (Checkarg(3,false) || Checkarg(2,true)) ToAdd = $mod.FloatToStrF(rtl.getNumber(Args[DoArg]),4,9999,Prec);
+          if (Checkarg(12,false)) {
+            ToAdd = $mod.FloatToStrF$1(Args[DoArg].VJSValue / 10000,4,9999,Prec,aSettings)}
+           else if (Checkarg(3,true)) ToAdd = $mod.FloatToStrF$1(Args[DoArg].VJSValue,4,9999,Prec,aSettings);
         } else if ($tmp === "S") {
-          Checkarg(4,true);
-          Hs = "" + Args[DoArg];
+          if (Checkarg(18,false)) {
+            Hs = Args[DoArg].VJSValue}
+           else if (Checkarg(9,true)) Hs = Args[DoArg].VJSValue;
           Index = Hs.length;
           if ((Prec !== -1) && (Index > Prec)) Index = Prec;
           ToAdd = pas.System.Copy(Hs,1,Index);
         } else if ($tmp === "P") {
-          Checkarg(2,true);
-          ToAdd = $mod.IntToHex(rtl.trunc(Args[DoArg]),31);
+          if (Checkarg(0,false)) {
+            ToAdd = $mod.IntToHex(Args[DoArg].VJSValue,8)}
+           else if (Checkarg(0,true)) ToAdd = $mod.IntToHex(Args[DoArg].VJSValue,16);
         } else if ($tmp === "X") {
-          Checkarg(2,true);
-          vq = rtl.trunc(Args[DoArg]);
-          Index = 31;
+          if (Checkarg(0,false)) {
+            vq = Args[DoArg].VJSValue;
+            Index = 16;
+          } else if (Checkarg(19,true)) {
+            vq = Args[DoArg].VJSValue;
+            Index = 31;
+          };
           if (Prec > Index) {
             ToAdd = $mod.IntToHex(vq,Index)}
            else {
@@ -2031,13 +2181,20 @@ rtl.module("SysUtils",["System","RTLConsts","JS"],function () {
   this.TFloatFormat = {"0": "ffFixed", ffFixed: 0, "1": "ffGeneral", ffGeneral: 1, "2": "ffExponent", ffExponent: 2, "3": "ffNumber", ffNumber: 3, "4": "ffCurrency", ffCurrency: 4};
   this.FloatToStr = function (Value) {
     var Result = "";
-    Result = $mod.FloatToStrF(Value,1,15,0);
+    Result = $mod.FloatToStr$1(Value,$mod.FormatSettings);
     return Result;
   };
-  this.FloatToStrF = function (Value, format, Precision, Digits) {
+  this.FloatToStr$1 = function (Value, aSettings) {
     var Result = "";
+    Result = $mod.FloatToStrF$1(Value,1,15,0,aSettings);
+    return Result;
+  };
+  this.FloatToStrF$1 = function (Value, format, Precision, Digits, aSettings) {
+    var Result = "";
+    var TS = "";
     var DS = "";
-    DS = $mod.DecimalSeparator;
+    DS = aSettings.DecimalSeparator;
+    TS = aSettings.ThousandSeparator;
     var $tmp = format;
     if ($tmp === 1) {
       Result = $impl.FormatGeneralFloat(Value,Precision,DS)}
@@ -2046,15 +2203,18 @@ rtl.module("SysUtils",["System","RTLConsts","JS"],function () {
      else if ($tmp === 0) {
       Result = $impl.FormatFixedFloat(Value,Digits,DS)}
      else if ($tmp === 3) {
-      Result = $impl.FormatNumberFloat(Value,Digits,DS,$mod.ThousandSeparator)}
-     else if ($tmp === 4) Result = $impl.FormatNumberCurrency(Value * 10000,Digits,DS,$mod.ThousandSeparator);
+      Result = $impl.FormatNumberFloat(Value,Digits,DS,TS)}
+     else if ($tmp === 4) Result = $impl.FormatNumberCurrency(Value * 10000,Digits,aSettings);
     if ((format !== 4) && (Result.length > 1) && (Result.charAt(0) === "-")) $impl.RemoveLeadingNegativeSign({get: function () {
         return Result;
       }, set: function (v) {
         Result = v;
-      }},DS);
+      }},DS,TS);
     return Result;
   };
+  this.OnGetEnvironmentVariable = null;
+  this.OnGetEnvironmentString = null;
+  this.OnGetEnvironmentVariableCount = null;
   this.OnShowException = null;
   this.SetOnUnCaughtExceptionHandler = function (aValue) {
     var Result = null;
@@ -2074,13 +2234,30 @@ rtl.module("SysUtils",["System","RTLConsts","JS"],function () {
     $impl.DoShowException(S);
     if (ExceptAddr === null) ;
   };
-  this.DecimalSeparator = ".";
+  this.TimeSeparator = "";
+  this.DateSeparator = "";
+  this.ShortDateFormat = "";
+  this.LongDateFormat = "";
+  this.ShortTimeFormat = "";
+  this.LongTimeFormat = "";
+  this.DecimalSeparator = "";
   this.ThousandSeparator = "";
+  this.TimeAMString = "";
+  this.TimePMString = "";
+  this.ShortMonthNames = rtl.arraySetLength(null,"",12);
+  this.LongMonthNames = rtl.arraySetLength(null,"",12);
+  this.ShortDayNames = rtl.arraySetLength(null,"",7);
+  this.LongDayNames = rtl.arraySetLength(null,"",7);
+  this.FormatSettings = this.TFormatSettings.$new();
   this.CurrencyFormat = 0;
   this.NegCurrFormat = 0;
-  this.CurrencyDecimals = 2;
-  this.CurrencyString = "$";
+  this.CurrencyDecimals = 0;
+  this.CurrencyString = "";
   $mod.$implcode = function () {
+    $impl.DefaultShortMonthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    $impl.DefaultLongMonthNames = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+    $impl.DefaultShortDayNames = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+    $impl.DefaultLongDayNames = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
     $impl.DoShowException = function (S) {
       if ($mod.OnShowException != null) {
         $mod.OnShowException(S)}
@@ -2098,11 +2275,11 @@ rtl.module("SysUtils",["System","RTLConsts","JS"],function () {
          else $mod.ShowException(rtl.getObject(aError),null);
       } else if (rtl.isObject(aError)) {
         if ($impl.OnJSException != null) {
-          $impl.OnJSException(rtl.getObject(aError))}
+          $impl.OnJSException(aError)}
          else {
-          if (rtl.getObject(aError).hasOwnProperty("message")) {
-            S = rtl.getResStr($mod,"SErrUnknownExceptionType") + ("" + rtl.getObject(aError)["message"])}
-           else S = rtl.getResStr($mod,"SErrUnknownExceptionType") + rtl.getObject(aError).toString();
+          if (aError.hasOwnProperty("message")) {
+            S = rtl.getResStr($mod,"SErrUnknownExceptionType") + ("" + aError["message"])}
+           else S = rtl.getResStr($mod,"SErrUnknownExceptionType") + aError.toString();
           $impl.DoShowException(S);
         };
       } else {
@@ -2116,10 +2293,10 @@ rtl.module("SysUtils",["System","RTLConsts","JS"],function () {
     $impl.DoFormatError = function (ErrCode, fmt) {
       var $tmp = ErrCode;
       if ($tmp === 1) {
-        throw $mod.EConvertError.$create("CreateFmt",[rtl.getResStr(pas.RTLConsts,"SInvalidFormat"),[fmt]])}
+        throw $mod.EConvertError.$create("CreateFmt",[rtl.getResStr(pas.RTLConsts,"SInvalidFormat"),pas.System.VarRecs(18,fmt)])}
        else if ($tmp === 2) {
-        throw $mod.EConvertError.$create("CreateFmt",[rtl.getResStr(pas.RTLConsts,"SArgumentMissing"),[fmt]])}
-       else if ($tmp === 3) throw $mod.EConvertError.$create("CreateFmt",[rtl.getResStr(pas.RTLConsts,"SInvalidArgIndex"),[fmt]]);
+        throw $mod.EConvertError.$create("CreateFmt",[rtl.getResStr(pas.RTLConsts,"SArgumentMissing"),pas.System.VarRecs(18,fmt)])}
+       else if ($tmp === 3) throw $mod.EConvertError.$create("CreateFmt",[rtl.getResStr(pas.RTLConsts,"SInvalidArgIndex"),pas.System.VarRecs(18,fmt)]);
     };
     $impl.maxdigits = 15;
     $impl.ReplaceDecimalSep = function (S, DS) {
@@ -2222,7 +2399,7 @@ rtl.module("SysUtils",["System","RTLConsts","JS"],function () {
     $impl.FormatExponentFloat = function (Value, Precision, Digits, DS) {
       var Result = "";
       var P = 0;
-      DS = $mod.DecimalSeparator;
+      DS = $mod.FormatSettings.DecimalSeparator;
       if ((Precision === -1) || (Precision > 15)) Precision = 15;
       Result = rtl.floatToStr(Value,Precision + 7);
       while (Result.charAt(0) === " ") pas.System.Delete({get: function () {
@@ -2303,14 +2480,14 @@ rtl.module("SysUtils",["System","RTLConsts","JS"],function () {
       };
       return Result;
     };
-    $impl.RemoveLeadingNegativeSign = function (AValue, DS) {
+    $impl.RemoveLeadingNegativeSign = function (AValue, DS, aThousandSeparator) {
       var Result = false;
       var i = 0;
       var TS = "";
       var StartPos = 0;
       Result = false;
       StartPos = 2;
-      TS = $mod.ThousandSeparator;
+      TS = aThousandSeparator;
       for (var $l = StartPos, $end = AValue.get().length; $l <= $end; $l++) {
         i = $l;
         Result = (AValue.get().charCodeAt(i - 1) in rtl.createSet(48,DS.charCodeAt(),69,43)) || (AValue.get().charAt(i - 1) === TS);
@@ -2319,12 +2496,18 @@ rtl.module("SysUtils",["System","RTLConsts","JS"],function () {
       if (Result && (AValue.get().charAt(0) === "-")) pas.System.Delete(AValue,1,1);
       return Result;
     };
-    $impl.FormatNumberCurrency = function (Value, Digits, DS, TS) {
+    $impl.FormatNumberCurrency = function (Value, Digits, aSettings) {
       var Result = "";
       var Negative = false;
       var P = 0;
+      var CS = "";
+      var DS = "";
+      var TS = "";
+      DS = aSettings.DecimalSeparator;
+      TS = aSettings.ThousandSeparator;
+      CS = aSettings.CurrencyString;
       if (Digits === -1) {
-        Digits = $mod.CurrencyDecimals}
+        Digits = aSettings.CurrencyDecimals}
        else if (Digits > 18) Digits = 18;
       Result = rtl.floatToStr(Value / 10000,0,Digits);
       Negative = Result.charAt(0) === "-";
@@ -2352,53 +2535,74 @@ rtl.module("SysUtils",["System","RTLConsts","JS"],function () {
           return Result;
         }, set: function (v) {
           Result = v;
-        }},DS);
+        }},DS,TS);
       if (!Negative) {
-        var $tmp = $mod.CurrencyFormat;
+        var $tmp = aSettings.CurrencyFormat;
         if ($tmp === 0) {
-          Result = $mod.CurrencyString + Result}
+          Result = CS + Result}
          else if ($tmp === 1) {
-          Result = Result + $mod.CurrencyString}
+          Result = Result + CS}
          else if ($tmp === 2) {
-          Result = $mod.CurrencyString + " " + Result}
-         else if ($tmp === 3) Result = Result + " " + $mod.CurrencyString;
+          Result = CS + " " + Result}
+         else if ($tmp === 3) Result = Result + " " + CS;
       } else {
-        var $tmp1 = $mod.NegCurrFormat;
+        var $tmp1 = aSettings.NegCurrFormat;
         if ($tmp1 === 0) {
-          Result = "(" + $mod.CurrencyString + Result + ")"}
+          Result = "(" + CS + Result + ")"}
          else if ($tmp1 === 1) {
-          Result = "-" + $mod.CurrencyString + Result}
+          Result = "-" + CS + Result}
          else if ($tmp1 === 2) {
-          Result = $mod.CurrencyString + "-" + Result}
+          Result = CS + "-" + Result}
          else if ($tmp1 === 3) {
-          Result = $mod.CurrencyString + Result + "-"}
+          Result = CS + Result + "-"}
          else if ($tmp1 === 4) {
-          Result = "(" + Result + $mod.CurrencyString + ")"}
+          Result = "(" + Result + CS + ")"}
          else if ($tmp1 === 5) {
-          Result = "-" + Result + $mod.CurrencyString}
+          Result = "-" + Result + CS}
          else if ($tmp1 === 6) {
-          Result = Result + "-" + $mod.CurrencyString}
+          Result = Result + "-" + CS}
          else if ($tmp1 === 7) {
-          Result = Result + $mod.CurrencyString + "-"}
+          Result = Result + CS + "-"}
          else if ($tmp1 === 8) {
-          Result = "-" + Result + " " + $mod.CurrencyString}
+          Result = "-" + Result + " " + CS}
          else if ($tmp1 === 9) {
-          Result = "-" + $mod.CurrencyString + " " + Result}
+          Result = "-" + CS + " " + Result}
          else if ($tmp1 === 10) {
-          Result = Result + " " + $mod.CurrencyString + "-"}
+          Result = Result + " " + CS + "-"}
          else if ($tmp1 === 11) {
-          Result = $mod.CurrencyString + " " + Result + "-"}
+          Result = CS + " " + Result + "-"}
          else if ($tmp1 === 12) {
-          Result = $mod.CurrencyString + " " + "-" + Result}
+          Result = CS + " " + "-" + Result}
          else if ($tmp1 === 13) {
-          Result = Result + "-" + " " + $mod.CurrencyString}
+          Result = Result + "-" + " " + CS}
          else if ($tmp1 === 14) {
-          Result = "(" + $mod.CurrencyString + " " + Result + ")"}
-         else if ($tmp1 === 15) Result = "(" + Result + " " + $mod.CurrencyString + ")";
+          Result = "(" + CS + " " + Result + ")"}
+         else if ($tmp1 === 15) Result = "(" + Result + " " + CS + ")";
       };
       return Result;
     };
     $mod.$resourcestrings = {SApplicationException: {org: "Application raised an exception: "}, SErrUnknownExceptionType: {org: "Caught unknown exception type : "}};
+  };
+  $mod.$init = function () {
+    $mod.ShortMonthNames = $impl.DefaultShortMonthNames.slice(0);
+    $mod.LongMonthNames = $impl.DefaultLongMonthNames.slice(0);
+    $mod.ShortDayNames = $impl.DefaultShortDayNames.slice(0);
+    $mod.LongDayNames = $impl.DefaultLongDayNames.slice(0);
+    $mod.FormatSettings.$assign($mod.TFormatSettings.Create());
+    $mod.TimeSeparator = $mod.FormatSettings.TimeSeparator;
+    $mod.DateSeparator = $mod.FormatSettings.DateSeparator;
+    $mod.ShortDateFormat = $mod.FormatSettings.ShortDateFormat;
+    $mod.LongDateFormat = $mod.FormatSettings.LongDateFormat;
+    $mod.ShortTimeFormat = $mod.FormatSettings.ShortTimeFormat;
+    $mod.LongTimeFormat = $mod.FormatSettings.LongTimeFormat;
+    $mod.DecimalSeparator = $mod.FormatSettings.DecimalSeparator;
+    $mod.ThousandSeparator = $mod.FormatSettings.ThousandSeparator;
+    $mod.TimeAMString = $mod.FormatSettings.TimeAMString;
+    $mod.TimePMString = $mod.FormatSettings.TimePMString;
+    $mod.CurrencyFormat = $mod.FormatSettings.CurrencyFormat;
+    $mod.NegCurrFormat = $mod.FormatSettings.NegCurrFormat;
+    $mod.CurrencyDecimals = $mod.FormatSettings.CurrencyDecimals;
+    $mod.CurrencyString = $mod.FormatSettings.CurrencyString;
   };
 },[]);
 rtl.module("Classes",["System","RTLConsts","Types","SysUtils","JS"],function () {
@@ -2470,7 +2674,7 @@ rtl.module("Classes",["System","RTLConsts","Types","SysUtils","JS"],function () 
       this.FCapacity -= 1;
     };
     this.Error = function (Msg, Data) {
-      throw $mod.EListError.$create("CreateFmt",[Msg,[Data]]);
+      throw $mod.EListError.$create("CreateFmt",[Msg,pas.System.VarRecs(18,Data)]);
     };
     this.Expand = function () {
       var Result = null;
@@ -2616,7 +2820,7 @@ rtl.module("Classes",["System","RTLConsts","Types","SysUtils","JS"],function () 
     };
     this.SetName = function (NewName) {
       if (this.FName === NewName) return;
-      if ((NewName !== "") && !pas.SysUtils.IsValidIdent(NewName,false,false)) throw $mod.EComponentError.$create("CreateFmt",[rtl.getResStr(pas.RTLConsts,"SInvalidName"),[NewName]]);
+      if ((NewName !== "") && !pas.SysUtils.IsValidIdent(NewName,false,false)) throw $mod.EComponentError.$create("CreateFmt",[rtl.getResStr(pas.RTLConsts,"SInvalidName"),pas.System.VarRecs(18,NewName)]);
       if (this.FOwner != null) {
         this.FOwner.ValidateRename(this,this.FName,NewName)}
        else this.ValidateRename(null,this.FName,NewName);
@@ -2625,7 +2829,7 @@ rtl.module("Classes",["System","RTLConsts","Types","SysUtils","JS"],function () 
       this.SetReference(true);
     };
     this.ValidateRename = function (AComponent, CurName, NewName) {
-      if ((AComponent !== null) && (pas.SysUtils.CompareText(CurName,NewName) !== 0) && (AComponent.FOwner === this) && (this.FindComponent(NewName) !== null)) throw $mod.EComponentError.$create("CreateFmt",[rtl.getResStr(pas.RTLConsts,"SDuplicateName"),[NewName]]);
+      if ((AComponent !== null) && (pas.SysUtils.CompareText(CurName,NewName) !== 0) && (AComponent.FOwner === this) && (this.FindComponent(NewName) !== null)) throw $mod.EComponentError.$create("CreateFmt",[rtl.getResStr(pas.RTLConsts,"SDuplicateName"),pas.System.VarRecs(18,NewName)]);
       if ((4 in this.FComponentState) && (this.FOwner !== null)) this.FOwner.ValidateRename(AComponent,CurName,NewName);
     };
     this.ValidateContainer = function (AComponent) {
@@ -2705,6 +2909,7 @@ rtl.module("Classes",["System","RTLConsts","Types","SysUtils","JS"],function () 
     this.InsertComponent = function (AComponent) {
       AComponent.ValidateContainer(this);
       this.ValidateRename(AComponent,"",AComponent.FName);
+      if (AComponent.FOwner !== null) AComponent.FOwner.RemoveComponent(AComponent);
       this.Insert(AComponent);
       if (4 in this.FComponentState) AComponent.SetDesigning(true,true);
       this.Notification(AComponent,0);
@@ -2737,7 +2942,7 @@ rtl.module("Graphics",["System","Classes","SysUtils","Types","Web"],function () 
   this.TFontStyle = {"0": "fsBold", fsBold: 0, "1": "fsItalic", fsItalic: 1, "2": "fsUnderline", fsUnderline: 2, "3": "fsStrikeOut", fsStrikeOut: 3};
   this.$rtti.$Enum("TFontStyle",{minvalue: 0, maxvalue: 3, ordtype: 1, enumtype: this.TFontStyle});
   this.$rtti.$Set("TFontStyles",{comptype: this.$rtti["TFontStyle"]});
-  this.TTextLayout = {"0": "tlTop", tlTop: 0, "1": "tlCenter", tlCenter: 1, "2": "tlBottom", tlBottom: 2};
+  this.TTextLayout = {"0": "tlTop", tlTop: 0, "1": "tlCenter", tlCenter: 1, "2": "tlBottom", tlBottom: 2, "3": "tlTitle", tlTitle: 3};
   this.TPenStyle = {"0": "psSolid", psSolid: 0, "1": "psDash", psDash: 1, "2": "psDot", psDot: 2, "3": "psDashDot", psDashDot: 3, "4": "psDashDotDot", psDashDotDot: 4, "5": "psInsideFrame", psInsideFrame: 5, "6": "psPattern", psPattern: 6, "7": "psClear", psClear: 7};
   this.$rtti.$Enum("TPenStyle",{minvalue: 0, maxvalue: 7, ordtype: 1, enumtype: this.TPenStyle});
   this.TBrushStyle = {"0": "bsSolid", bsSolid: 0, "1": "bsClear", bsClear: 1, "2": "bsHorizontal", bsHorizontal: 2, "3": "bsVertical", bsVertical: 3, "4": "bsFDiagonal", bsFDiagonal: 4, "5": "bsBDiagonal", bsBDiagonal: 5, "6": "bsCross", bsCross: 6, "7": "bsDiagCross", bsDiagCross: 7, "8": "bsImage", bsImage: 8, "9": "bsPattern", bsPattern: 9};
@@ -3462,13 +3667,15 @@ rtl.module("Forms",["System","Classes","SysUtils","Types","JS","Web","Graphics",
       if ($tmp === 0) {
         VWidth = this.FWidth;
         VHeight = this.FHeight;
+        VWindowWidth = this.FOwner.FWidth;
+        VWindowHeight = this.FOwner.FHeight;
         VLeft = rtl.trunc((VWindowWidth - VWidth) / 2);
         VTop = rtl.trunc((VWindowHeight - VHeight) / 2);
         this.SetBounds(VLeft,VTop,VWidth,VHeight);
       } else if ($tmp === 1) {
         this.SetBounds(0,0,VWindowWidth,VWindowHeight);
       } else if ($tmp === 2) {
-        this.SetBounds(0,0,this.FWidth,this.FHeight);
+        this.SetBounds(0,this.FTop,this.FWidth,this.FHeight);
       };
       this.DoResize();
     };
@@ -3561,7 +3768,7 @@ rtl.module("Forms",["System","Classes","SysUtils","Types","JS","Web","Graphics",
       if (AEvent.message.toLowerCase().indexOf("script error",0) > -1) {
         window.alert("Script Error: See Browser Console for Detail");
       } else {
-        window.alert(pas.SysUtils.Format(CError,[AEvent.message,AEvent.lineno,AEvent.colno]));
+        window.alert(pas.SysUtils.Format(CError,pas.System.VarRecs(18,AEvent.message,0,AEvent.lineno,0,AEvent.colno)));
       };
       if (this.FStopOnException) {
         this.Terminate();
@@ -3599,9 +3806,9 @@ rtl.module("Forms",["System","Classes","SysUtils","Types","JS","Web","Graphics",
     };
     this.HandleException = function (AException) {
       if (pas.SysUtils.Exception.isPrototypeOf(AException)) {
-        window.alert(pas.SysUtils.Format(rtl.getResStr(pas.LCLStrConsts,"rsErrUncaughtException"),[AException.$classname,AException.fMessage]));
+        window.alert(pas.SysUtils.Format(rtl.getResStr(pas.LCLStrConsts,"rsErrUncaughtException"),pas.System.VarRecs(18,AException.$classname,18,AException.fMessage)));
       } else {
-        window.alert(pas.SysUtils.Format(rtl.getResStr(pas.LCLStrConsts,"rsErrUncaughtObject"),[AException.$classname]));
+        window.alert(pas.SysUtils.Format(rtl.getResStr(pas.LCLStrConsts,"rsErrUncaughtObject"),pas.System.VarRecs(18,AException.$classname)));
       };
       if (this.FStopOnException) this.Terminate();
     };
@@ -4313,8 +4520,6 @@ rtl.module("Controls",["System","Classes","SysUtils","Types","JS","Web","Graphic
           $with.removeAttribute("class");
         };
         if ((this.FHandleClass === "") && (this.FHandleId === "")) {
-          $with.style.setProperty("color",pas.Graphics.JSColor(this.FFont.FColor));
-          $mod.UpdateHtmlElementFont(this.FHandleElement,this.FFont,false);
           if (this.FColor in rtl.createSet(536870912,536870911)) {
             $with.style.removeProperty("background-color");
           } else {
@@ -4334,10 +4539,8 @@ rtl.module("Controls",["System","Classes","SysUtils","Types","JS","Web","Graphic
           $with.style.setProperty("opacity","0.5");
         };
         if (this.FVisible) {
-          $with.style.setProperty("visibility","visible");
           $with.style.setProperty("display","block");
         } else {
-          $with.style.setProperty("visibility","hidden");
           $with.style.setProperty("display","none");
         };
         if ((this.FHint !== "") && this.FShowHint) {
@@ -4350,17 +4553,13 @@ rtl.module("Controls",["System","Classes","SysUtils","Types","JS","Web","Graphic
         } else {
           $with.style.removeProperty("border-style");
         };
-        $with.setAttribute("tabindex",$mod.IfThen$3(this.FTabStop,"1","-1"));
         $with.style.setProperty("position","absolute");
         $with.style.setProperty("overflow","hidden");
-        $with.style.setProperty("-webkit-box-sizing","border-box");
-        $with.style.setProperty("-moz-box-sizing","border-box");
-        $with.style.setProperty("box-sizing","border-box");
       };
     };
     this.CreateHandleElement = function () {
       var Result = null;
-      throw new Error(pas.SysUtils.Format("%s.CreateHandleElement=nil",[this.$classname]));
+      throw new Error(pas.SysUtils.Format("%s.CreateHandleElement=nil",pas.System.VarRecs(18,this.$classname)));
       return Result;
     };
     this.RegisterHandleEvents = function () {
@@ -4391,7 +4590,7 @@ rtl.module("Controls",["System","Classes","SysUtils","Types","JS","Web","Graphic
     };
     this.CheckNewParent = function (AParent) {
       if ((AParent != null) && !AParent.CheckChildClassAllowed(this.$class.ClassType())) {
-        throw new Error(pas.SysUtils.Format("Control of class '%s' can't have control of class '%s' as a child",[AParent.$class.ClassType(),this.$classname]));
+        throw new Error(pas.SysUtils.Format("Control of class '%s' can't have control of class '%s' as a child",pas.System.VarRecs(8,AParent.$class.ClassType(),18,this.$classname)));
       };
       if (pas.Forms.TCustomForm.isPrototypeOf(this) && pas.Forms.TCustomForm.isPrototypeOf(AParent)) {
         throw new Error('A "Form" can\'t have another "Form" as parent');
@@ -5104,37 +5303,6 @@ rtl.module("Controls",["System","Classes","SysUtils","Types","JS","Web","Graphic
     };
     return Result;
   };
-  this.UpdateHtmlElementFont = function (AElement, AFont, AClear) {
-    var s = "";
-    var $with = AElement.style;
-    if (AClear) {
-      $with.removeProperty("font-family");
-      $with.removeProperty("font-size");
-      $with.removeProperty("font-weight");
-      $with.removeProperty("font-style");
-      $with.removeProperty("text-decoration");
-    } else {
-      $with.setProperty("font-family",AFont.FName);
-      $with.setProperty("font-size",pas.SysUtils.IntToStr(AFont.FSize) + "pt");
-      if (0 in AFont.FStyle) {
-        $with.setProperty("font-weight","bold")}
-       else $with.setProperty("font-weight","");
-      $with.setProperty("font-style","normal");
-      s = "";
-      if (1 in AFont.FStyle) s = "italic";
-      if (2 in AFont.FStyle) {
-        if (s !== "") s = s + " ";
-        s = s + "underline";
-      };
-      if (3 in AFont.FStyle) {
-        if (s !== "") s = s + " ";
-        s = s + "line-through";
-      };
-      if (s !== "") {
-        $with.setProperty("text-decoration",s)}
-       else $with.removeProperty("text-decoration");
-    };
-  };
   this.ExtractKeyCode = function (AEvent) {
     var Result = 0;
     var VLocation = 0;
@@ -5835,7 +6003,17 @@ rtl.module("ExtCtrls",["System","Classes","SysUtils","Types","Web","Graphics","C
             $with1.style.setProperty("vertical-align","bottom")}
            else if ($tmp2 === 1) {
             $with1.style.setProperty("vertical-align","middle")}
-           else if ($tmp2 === 0) $with1.style.setProperty("vertical-align","top");
+           else if ($tmp2 === 0) {
+            $with1.style.setProperty("vertical-align","top")}
+           else if ($tmp2 === 3) {
+            $with1.style.setProperty("position","absolute");
+            $with1.style.setProperty("top","-8px");
+            $with1.style.setProperty("left","5px");
+            $with1.style.setProperty("padding-left","5px");
+            $with1.style.setProperty("padding-right","5px");
+            $with1.style.setProperty("background-color",pas.Graphics.JSColor(this.FColor));
+            $with1.style.setProperty("font-weight","bold");
+          };
           if (this.FWordWrap) {
             $with1.style.setProperty("word-wrap","break-word");
           } else {
@@ -5960,7 +6138,83 @@ rtl.module("WebCtrls",["System","Classes","SysUtils","Types","Graphics","Control
     $r.addProperty("OnResize",0,pas.Classes.$rtti["TNotifyEvent"],"FOnResize","FOnResize");
   });
 });
-rtl.module("WebCtrlsMore",["System","Classes","SysUtils","Types","Graphics","Controls","StdCtrls","ExtCtrls","Forms"],function () {
+rtl.module("browserapp",["System","Classes","SysUtils","Types","JS","Web"],function () {
+  "use strict";
+  var $mod = this;
+  var $impl = $mod.$impl;
+  this.ReloadEnvironmentStrings = function () {
+    var I = 0;
+    var S = "";
+    var N = "";
+    var A = [];
+    var P = [];
+    if ($impl.EnvNames != null) pas.SysUtils.FreeAndNil({p: $impl, get: function () {
+        return this.p.EnvNames;
+      }, set: function (v) {
+        this.p.EnvNames = v;
+      }});
+    $impl.EnvNames = new Object();
+    S = window.location.search;
+    S = pas.System.Copy(S,2,S.length - 1);
+    A = S.split("&");
+    for (var $l = 0, $end = rtl.length(A) - 1; $l <= $end; $l++) {
+      I = $l;
+      P = A[I].split("=");
+      N = pas.SysUtils.LowerCase(decodeURIComponent(P[0]));
+      if (rtl.length(P) === 2) {
+        $impl.EnvNames[N] = decodeURIComponent(P[1])}
+       else if (rtl.length(P) === 1) $impl.EnvNames[N] = "";
+    };
+  };
+  $mod.$implcode = function () {
+    $impl.EnvNames = null;
+    $impl.Params = [];
+    $impl.ReloadParamStrings = function () {
+      $impl.Params = rtl.arraySetLength($impl.Params,"",1);
+      $impl.Params[0] = window.location.pathname;
+    };
+    $impl.GetParamCount = function () {
+      var Result = 0;
+      Result = rtl.length($impl.Params) - 1;
+      return Result;
+    };
+    $impl.GetParamStr = function (Index) {
+      var Result = "";
+      Result = $impl.Params[Index];
+      return Result;
+    };
+    $impl.MyGetEnvironmentVariable = function (EnvVar) {
+      var Result = "";
+      var aName = "";
+      aName = pas.SysUtils.LowerCase(EnvVar);
+      if ($impl.EnvNames.hasOwnProperty(aName)) {
+        Result = "" + $impl.EnvNames[aName]}
+       else Result = "";
+      return Result;
+    };
+    $impl.MyGetEnvironmentVariableCount = function () {
+      var Result = 0;
+      Result = rtl.length(Object.getOwnPropertyNames($impl.EnvNames));
+      return Result;
+    };
+    $impl.MyGetEnvironmentString = function (Index) {
+      var Result = "";
+      Result = "" + $impl.EnvNames[Object.getOwnPropertyNames($impl.EnvNames)[Index]];
+      return Result;
+    };
+  };
+  $mod.$init = function () {
+    pas.System.IsConsole = true;
+    pas.System.OnParamCount = $impl.GetParamCount;
+    pas.System.OnParamStr = $impl.GetParamStr;
+    $mod.ReloadEnvironmentStrings();
+    $impl.ReloadParamStrings();
+    pas.SysUtils.OnGetEnvironmentVariable = $impl.MyGetEnvironmentVariable;
+    pas.SysUtils.OnGetEnvironmentVariableCount = $impl.MyGetEnvironmentVariableCount;
+    pas.SysUtils.OnGetEnvironmentString = $impl.MyGetEnvironmentString;
+  };
+},[]);
+rtl.module("WebCtrlsMore",["System","Classes","SysUtils","Types","Graphics","Controls","StdCtrls","ExtCtrls","WebCtrls","Forms","Web","browserapp"],function () {
   "use strict";
   var $mod = this;
   rtl.createClass(this,"TXPManifest",pas.ExtCtrls.TCustomPanel,function () {
@@ -6329,13 +6583,11 @@ rtl.module("u1",["System","Classes","Controls","Forms","WebCtrls","WebCtrlsMore"
     var $with = pas.Unit1.Form1;
     pas.Unit1.Form1.BeginUpdate();
     pas.Unit1.Form1.SetLeft(198);
-    pas.Unit1.Form1.SetHeight(206);
-    pas.Unit1.Form1.SetTop(114);
-    pas.Unit1.Form1.SetWidth(206);
+    pas.Unit1.Form1.SetHeight(250);
+    pas.Unit1.Form1.SetTop(10);
+    pas.Unit1.Form1.SetWidth(250);
     pas.Unit1.Form1.fFormBorderStyle = 1;
     pas.Unit1.Form1.SetText("Mini Calculator");
-    pas.Unit1.Form1.SetClientHeight(206);
-    pas.Unit1.Form1.SetClientWidth(206);
     pas.Unit1.Form1.FKeyPreview = true;
     pas.Unit1.Form1.FOnCreate = rtl.createCallback($with,"FormCreate");
     pas.Unit1.Form1.FOnKeyPress = rtl.createCallback($with,"FormKeyPress");

@@ -22,13 +22,11 @@ begin
 
     Form1.BeginUpdate;
     Form1.Left := 198;
-    Form1.Height := 206;
-    Form1.Top := 114;
-    Form1.Width := 206;
+    Form1.Height := 250;
+    Form1.Top := 10;
+    Form1.Width := 250;
     Form1.BorderStyle := bsSingle;
     Form1.Caption := 'Mini Calculator';
-    Form1.ClientHeight := 206;
-    Form1.ClientWidth := 206;
     Form1.KeyPreview := True;
     Form1.OnCreate := FormCreate;
     Form1.OnKeyPress := FormKeyPress;
