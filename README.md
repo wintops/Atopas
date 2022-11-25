@@ -41,6 +41,16 @@ uses  SysUtils, Classes, Dialogs, Controls, StdCtrls, Forms,
   ;
 ```
 
+### Lazarus pas2js Project Setting
+
+MainMenu - Project - Project Options...
+
+Complier Options - Path - Other unit files(-Fu) 
+add （llcl_path）
+
+Custom options
+-Jeutf-8 -Jirtl.js -Jc -Jminclude -dPASJS -dFPC 
+
 ### Now
 - [LLCL](https://github.com/FChrisF/LLCL)
 - FPC [PAS2JS](https://wiki.lazarus.freepascal.org/pas2js)
