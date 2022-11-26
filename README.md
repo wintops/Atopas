@@ -45,9 +45,7 @@ uses  SysUtils, Classes, Dialogs, Controls, StdCtrls, Forms,
 
 MainMenu - Project - Project Options...
 
-Complier Options - Path - Other unit files(-Fu) 
-
-add （llcl_path）
+Complier Options - Path - Other unit files(-Fu) - add （pasjs_llcl_path）
 
 Custom options
 ```
