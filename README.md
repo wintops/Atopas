@@ -11,11 +11,11 @@ no install extra web controls!
 
 ### Demo
 
-https://wintops.github.io/llcljs/llcl.html
+Basic HTML： https://wintops.github.io/llcljs/llcl.html  
 
-https://wintops.github.io/llcljs/llcljs.html
+Layui ： https://wintops.github.io/llcljs/llcljs.html
 
-https://wintops.github.io/llcljs/MiniCalcJS.html
+MiniCalc： https://wintops.github.io/llcljs/MiniCalcJS.html
 
 [![LLCL screenshot](https://wintops.github.io/llcljs/image_llcl.png)](https://wintops.github.io/llcljs/image_llcl.png)  [![LLCL Web screenshot](https://wintops.github.io/llcljs/image_web.png)](https://wintops.github.io/llcljs/image_web.png)
 
