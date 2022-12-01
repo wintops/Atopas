@@ -216,6 +216,11 @@
     rtl.exitcode = 0;
   };
 },[]);
+rtl.module("RTLConsts",["System"],function () {
+  "use strict";
+  var $mod = this;
+  $mod.$resourcestrings = {SArgumentMissing: {org: 'Missing argument in format "%s"'}, SInvalidFormat: {org: 'Invalid format specifier : "%s"'}, SInvalidArgIndex: {org: 'Invalid argument index in format: "%s"'}, SListCapacityError: {org: "List capacity (%s) exceeded."}, SListCountError: {org: "List count (%s) out of bounds."}, SListIndexError: {org: "List index (%s) out of bounds"}, SSortedListError: {org: "Operation not allowed on sorted list"}, SDuplicateString: {org: "String list does not allow duplicates"}, SErrFindNeedsSortedList: {org: "Cannot use find on unsorted list"}, SInvalidName: {org: 'Invalid component name: "%s"'}, SDuplicateName: {org: 'Duplicate component name: "%s"'}};
+});
 rtl.module("Types",["System"],function () {
   "use strict";
   var $mod = this;
@@ -291,17 +296,6 @@ rtl.module("JS",["System","Types"],function () {
   this.isClassInstance = function (v) {
     return (typeof(v)=="object") && (v!=null) && (v.$class == Object.getPrototypeOf(v));
   };
-});
-rtl.module("Web",["System","Types","JS"],function () {
-  "use strict";
-  var $mod = this;
-  this.$rtti.$ExtClass("TJSHTMLElement",{ancestor: this.$rtti["TJSElement"], jsclass: "HTMLElement"});
-  this.$rtti.$ExtClass("TJSHTMLInputElement",{ancestor: this.$rtti["TJSHTMLElement"], jsclass: "HTMLInputElement"});
-});
-rtl.module("RTLConsts",["System"],function () {
-  "use strict";
-  var $mod = this;
-  $mod.$resourcestrings = {SArgumentMissing: {org: 'Missing argument in format "%s"'}, SInvalidFormat: {org: 'Invalid format specifier : "%s"'}, SInvalidArgIndex: {org: 'Invalid argument index in format: "%s"'}, SListCapacityError: {org: "List capacity (%s) exceeded."}, SListCountError: {org: "List count (%s) out of bounds."}, SListIndexError: {org: "List index (%s) out of bounds"}, SSortedListError: {org: "Operation not allowed on sorted list"}, SDuplicateString: {org: "String list does not allow duplicates"}, SErrFindNeedsSortedList: {org: "Cannot use find on unsorted list"}, SInvalidName: {org: 'Invalid component name: "%s"'}, SDuplicateName: {org: 'Duplicate component name: "%s"'}};
 });
 rtl.module("SysUtils",["System","RTLConsts","JS"],function () {
   "use strict";
@@ -2044,13 +2038,11 @@ rtl.module("Classes",["System","RTLConsts","Types","SysUtils","JS"],function () 
     $impl.ClassList = new Object();
   };
 },[]);
-rtl.module("TopTypes",["System","Classes","SysUtils"],function () {
+rtl.module("Web",["System","Types","JS"],function () {
   "use strict";
   var $mod = this;
-  this.TStaticBorderStyle = {"0": "sbsNone", sbsNone: 0, "1": "sbsSingle", sbsSingle: 1, "2": "sbsSunken", sbsSunken: 2};
-  this.$rtti.$Enum("TStaticBorderStyle",{minvalue: 0, maxvalue: 2, ordtype: 1, enumtype: this.TStaticBorderStyle});
-  this.TTickStyle = {"0": "tsAuto", tsAuto: 0, "1": "tsManual", tsManual: 1, "2": "tsNone", tsNone: 2};
-  this.MenuItemHeight = 30;
+  this.$rtti.$ExtClass("TJSHTMLElement",{ancestor: this.$rtti["TJSElement"], jsclass: "HTMLElement"});
+  this.$rtti.$ExtClass("TJSHTMLInputElement",{ancestor: this.$rtti["TJSHTMLElement"], jsclass: "HTMLInputElement"});
 });
 rtl.module("Graphics",["System","Classes","SysUtils","Types","Web"],function () {
   "use strict";
@@ -2331,6 +2323,63 @@ rtl.module("Graphics",["System","Classes","SysUtils","Types","Web"],function () 
     var $r = this.$rtti;
     $r.addProperty("Color",2,rtl.longint,"FColor","SetColor");
     $r.addProperty("Style",2,$mod.$rtti["TBrushStyle"],"FStyle","SetStyle");
+    $r.addProperty("OnChange",0,pas.Classes.$rtti["TNotifyEvent"],"FOnChange","FOnChange");
+  });
+  rtl.createClass(this,"TPicture",pas.Classes.TPersistent,function () {
+    this.$init = function () {
+      pas.Classes.TPersistent.$init.call(this);
+      this.FData = "";
+      this.FUpdateCount = 0;
+      this.FOnChange = null;
+    };
+    this.$final = function () {
+      this.FOnChange = undefined;
+      pas.Classes.TPersistent.$final.call(this);
+    };
+    this.SetData = function (AValue) {
+      if (this.FData !== AValue) {
+        this.FData = AValue;
+        this.Changed();
+      };
+    };
+    this.Changed = function () {
+      if ((this.FUpdateCount === 0) && (this.FOnChange != null)) {
+        this.FOnChange(this);
+      };
+    };
+    this.Create$1 = function () {
+      this.FData = "";
+      this.FUpdateCount = 0;
+      this.FOnChange = null;
+      return this;
+    };
+    this.Assign = function (Source) {
+      var VPicture = null;
+      if ((Source != null) && $mod.TPicture.isPrototypeOf(Source)) {
+        this.BeginUpdate();
+        try {
+          VPicture = Source;
+          this.FData = VPicture.FData;
+        } finally {
+          this.EndUpdate();
+        };
+      } else {
+        pas.Classes.TPersistent.Assign.call(this,Source);
+      };
+    };
+    this.BeginUpdate = function () {
+      this.FUpdateCount += 1;
+    };
+    this.EndUpdate = function () {
+      if (this.FUpdateCount > 0) {
+        this.FUpdateCount -= 1;
+        if (this.FUpdateCount === 0) {
+          this.Changed();
+        };
+      };
+    };
+    var $r = this.$rtti;
+    $r.addProperty("Data",2,rtl.string,"FData","SetData");
     $r.addProperty("OnChange",0,pas.Classes.$rtti["TNotifyEvent"],"FOnChange","FOnChange");
   });
   rtl.createClass(this,"TCanvas",pas.Classes.TPersistent,function () {
@@ -2887,6 +2936,29 @@ rtl.module("Forms",["System","Classes","SysUtils","Types","JS","Web","Graphics",
       this.SetFocus();
       this.DoShow();
     };
+    this.ShowModal = function (AModalResultProc) {
+      var VForm = null;
+      if (!(this.FOwner != null)) {
+        throw new Error("Owner not found.");
+      };
+      if (!$mod.TCustomForm.isPrototypeOf(this.FOwner)) {
+        throw new Error("Invalid owner.");
+      };
+      VForm = this.FOwner;
+      if (VForm.FChildForm != null) {
+        throw new Error("Modal form already exists.");
+      };
+      VForm.FChildForm = this;
+      VForm.FOverlay = $impl.TOverlay.$create("Create$1",[VForm]);
+      this.FFormType = $mod.TFormType.ftModalForm;
+      this.FModalResult = 0;
+      if (AModalResultProc != null) {
+        this.FModalResultProc = AModalResultProc;
+      } else {
+        this.FModalResultProc = $impl.DefaultModalProc;
+      };
+      this.Show();
+    };
   });
   rtl.createClass(this,"TApplication",pas.Classes.TComponent,function () {
     this.$init = function () {
@@ -3133,7 +3205,47 @@ rtl.module("Forms",["System","Classes","SysUtils","Types","JS","Web","Graphics",
     return Result;
   };
   $mod.$implcode = function () {
+    $impl.DefaultModalProc = function (Sender, ModalResult) {
+      if (Sender != null) {
+        Sender.$destroy("Destroy");
+        Sender = null;
+      };
+    };
     $impl.VAppInstance = null;
+    rtl.createClass($impl,"TOverlay",pas.System.TObject,function () {
+      this.$init = function () {
+        pas.System.TObject.$init.call(this);
+        this.FForm = null;
+        this.FHandleElement = null;
+      };
+      this.$final = function () {
+        this.FForm = undefined;
+        this.FHandleElement = undefined;
+        pas.System.TObject.$final.call(this);
+      };
+      this.Create$1 = function (AForm) {
+        this.FForm = AForm;
+        if (this.FForm != null) {
+          this.FHandleElement = document.createElement("div");
+          var $with = this.FHandleElement;
+          $with.setAttribute("class","TOverlay");
+          $with.style.setProperty("left","0px");
+          $with.style.setProperty("top","0px");
+          $with.style.setProperty("height","100%");
+          $with.style.setProperty("width","100%");
+          $with.style.setProperty("background","rgba(0, 0, 0, 0.6)");
+          $with.style.setProperty("position","absolute");
+          $with.style.setProperty("overflow","hidden");
+          document.body.appendChild(this.FHandleElement);
+        };
+        return this;
+      };
+      this.Destroy = function () {
+        document.body.removeChild(this.FHandleElement);
+        if (this.FForm != null) ;
+        pas.System.TObject.Destroy.call(this);
+      };
+    });
     $impl.DoUncaughtPascalException = function (E) {
       $mod.Application().HandleException(E);
     };
@@ -3143,6 +3255,17 @@ rtl.module("Controls",["System","Classes","SysUtils","Types","JS","Web","Graphic
   "use strict";
   var $mod = this;
   this.mrNone = 0;
+  this.mrOk = 0 + 1;
+  this.mrCancel = 0 + 2;
+  this.mrAbort = 0 + 3;
+  this.mrRetry = 0 + 4;
+  this.mrIgnore = 0 + 5;
+  this.mrYes = 0 + 6;
+  this.mrNo = 0 + 7;
+  this.mrAll = 0 + 8;
+  this.mrNoToAll = 0 + 9;
+  this.mrYesToAll = 0 + 10;
+  this.mrClose = 0 + 11;
   this.crDefault = 0;
   this.crNone = -1;
   this.crCross = -3;
@@ -3177,6 +3300,7 @@ rtl.module("Controls",["System","Classes","SysUtils","Types","JS","Web","Graphic
   this.$rtti.$Enum("TAnchorKind",{minvalue: 0, maxvalue: 3, ordtype: 1, enumtype: this.TAnchorKind});
   this.$rtti.$Set("TAnchors",{comptype: this.$rtti["TAnchorKind"]});
   this.TBevelCut = {"0": "bvNone", bvNone: 0, "1": "bvLowered", bvLowered: 1, "2": "bvRaised", bvRaised: 2, "3": "bvSpace", bvSpace: 3};
+  this.$rtti.$Enum("TBevelCut",{minvalue: 0, maxvalue: 3, ordtype: 1, enumtype: this.TBevelCut});
   this.TFormBorderStyle = {"0": "bsNone", bsNone: 0, "1": "bsSingle", bsSingle: 1, "2": "bsSizeable", bsSizeable: 2, "3": "bsDialog", bsDialog: 3, "4": "bsToolWindow", bsToolWindow: 4, "5": "bsSizeToolWin", bsSizeToolWin: 5};
   this.$rtti.$Enum("TBorderStyle",{minvalue: 0, maxvalue: 1, ordtype: 1, enumtype: this.TFormBorderStyle});
   this.$rtti.$inherited("TCaption",rtl.string,{});
@@ -3244,6 +3368,12 @@ rtl.module("Controls",["System","Classes","SysUtils","Types","JS","Web","Graphic
     this.$final = function () {
       this.FOnChange = undefined;
       pas.Classes.TPersistent.$final.call(this);
+    };
+    this.SetAround = function (AValue) {
+      if (this.FAround !== AValue) {
+        this.FAround = AValue;
+        this.Changed();
+      };
     };
     this.Changed = function () {
       if ((this.FUpdateCount === 0) && (this.FOnChange != null)) {
@@ -6000,9 +6130,147 @@ rtl.module("StdCtrls",["System","Classes","SysUtils","Types","Web","WebExtra","G
     });
   };
 },["RTLConsts"]);
+rtl.module("TopTypes",["System","Classes","SysUtils"],function () {
+  "use strict";
+  var $mod = this;
+  this.TStaticBorderStyle = {"0": "sbsNone", sbsNone: 0, "1": "sbsSingle", sbsSingle: 1, "2": "sbsSunken", sbsSunken: 2};
+  this.$rtti.$Enum("TStaticBorderStyle",{minvalue: 0, maxvalue: 2, ordtype: 1, enumtype: this.TStaticBorderStyle});
+  this.TOrientation = {"0": "trHorizontal", trHorizontal: 0, "1": "trVertical", trVertical: 1};
+  this.$rtti.$Enum("TOrientation",{minvalue: 0, maxvalue: 1, ordtype: 1, enumtype: this.TOrientation});
+  this.TTickStyle = {"0": "tsAuto", tsAuto: 0, "1": "tsManual", tsManual: 1, "2": "tsNone", tsNone: 2};
+  this.$rtti.$Enum("TTickStyle",{minvalue: 0, maxvalue: 2, ordtype: 1, enumtype: this.TTickStyle});
+  this.MenuItemHeight = 30;
+});
 rtl.module("ExtCtrls",["System","Classes","SysUtils","Types","Web","Graphics","Controls"],function () {
   "use strict";
   var $mod = this;
+  rtl.createClass(this,"TCustomImage",pas.Controls.TCustomControl,function () {
+    this.$init = function () {
+      pas.Controls.TCustomControl.$init.call(this);
+      this.FCenter = false;
+      this.FPicture = null;
+      this.FProportional = false;
+      this.FStretch = false;
+      this.FOnPictureChanged = null;
+      this.FStretchInEnabled = false;
+      this.FStretchOutEnabled = false;
+      this.FTransparent = false;
+      this.FURL = "";
+    };
+    this.$final = function () {
+      this.FPicture = undefined;
+      this.FOnPictureChanged = undefined;
+      pas.Controls.TCustomControl.$final.call(this);
+    };
+    this.SetCenter = function (AValue) {
+      if (this.FCenter !== AValue) {
+        this.FCenter = AValue;
+        this.PictureChanged(this);
+      };
+    };
+    this.SetProportional = function (AValue) {
+      if (this.FProportional !== AValue) {
+        this.FProportional = AValue;
+        this.PictureChanged(this);
+      };
+    };
+    this.SetStretch = function (AValue) {
+      if (this.FStretch !== AValue) {
+        this.FStretch = AValue;
+        this.PictureChanged(this);
+      };
+    };
+    this.SetStretchInEnabled = function (AValue) {
+      if (this.FStretchInEnabled !== AValue) ;
+      this.FStretchInEnabled = AValue;
+      this.PictureChanged(this);
+    };
+    this.SetStretchOutEnabled = function (AValue) {
+      if (this.FStretchOutEnabled !== AValue) {
+        this.FStretchOutEnabled = AValue;
+        this.PictureChanged(this);
+      };
+    };
+    this.SetTransparent = function (AValue) {
+      if (this.FTransparent === AValue) {
+        this.FTransparent = AValue;
+      };
+    };
+    this.SetURL = function (AValue) {
+      if (this.FURL === AValue) return;
+      this.FURL = AValue;
+      this.PictureChanged(this);
+    };
+    this.Changed = function () {
+      pas.Controls.TControl.Changed.call(this);
+      if (!this.IsUpdating() && !(pas.Classes.TComponentStateItem.csLoading in this.FComponentState)) {
+        var $with = this.FHandleElement;
+        $with.style.setProperty("outline","none");
+        $with.style.setProperty("background-image",pas.SysUtils.Format("url('%s')",pas.System.VarRecs(18,this.FURL)));
+        $with.style.setProperty("background-repeat","no-repeat");
+        if (this.FCenter) {
+          $with.style.setProperty("background-position","center  center");
+        } else {
+          $with.style.removeProperty("background-position");
+        };
+        if (this.FProportional) {
+          $with.style.setProperty("background-size","contain");
+        } else if (this.FStretch) {
+          if (this.FStretchInEnabled && this.FStretchOutEnabled) {
+            $with.style.setProperty("background-size","100% 100%");
+          } else if (this.FStretchInEnabled) {
+            $with.style.setProperty("background-size","auto 100%");
+          } else if (this.FStretchOutEnabled) {
+            $with.style.setProperty("background-size","100% auto");
+          };
+        } else {
+          $with.style.setProperty("background-size","auto");
+        };
+      };
+    };
+    this.CreateHandleElement = function () {
+      var Result = null;
+      Result = document.createElement("div");
+      return Result;
+    };
+    this.CheckChildClassAllowed = function (AChildClass) {
+      var Result = false;
+      Result = false;
+      return Result;
+    };
+    this.PictureChanged = function (Sender) {
+      this.Changed();
+      if (this.FOnPictureChanged != null) {
+        this.FOnPictureChanged(this);
+      };
+    };
+    this.GetControlClassDefaultSize = function () {
+      var Result = pas.Types.TSize.$new();
+      Result.cx = 90;
+      Result.cy = 90;
+      return Result;
+    };
+    this.Create$1 = function (AOwner) {
+      pas.Controls.TControl.Create$1.call(this,AOwner);
+      this.FPicture = pas.Graphics.TPicture.$create("Create$1");
+      this.FPicture.FOnChange = rtl.createCallback(this,"PictureChanged");
+      this.FCenter = false;
+      this.FProportional = false;
+      this.FStretch = false;
+      this.FStretchOutEnabled = true;
+      this.FStretchInEnabled = true;
+      this.FTransparent = false;
+      this.BeginUpdate();
+      try {
+        var $with = this.$class.GetControlClassDefaultSize();
+        this.SetBounds(0,0,$with.cx,$with.cy);
+      } finally {
+        this.EndUpdate();
+      };
+      return this;
+    };
+  });
+  this.$rtti.$Int("TBevelWidth",{minvalue: 1, maxvalue: 2147483647, ordtype: 5});
   rtl.createClass(this,"TCustomPanel",pas.Controls.TCustomControl,function () {
     this.$init = function () {
       pas.Controls.TCustomControl.$init.call(this);
@@ -6031,6 +6299,12 @@ rtl.module("ExtCtrls",["System","Classes","SysUtils","Types","Web","Graphics","C
         this.Changed();
       };
     };
+    this.SetBevelInner = function (AValue) {
+      if (this.FBevelInner !== AValue) {
+        this.FBevelInner = AValue;
+        this.Changed();
+      };
+    };
     this.SetBevelOuter = function (AValue) {
       if (this.FBevelOuter !== AValue) {
         this.FBevelOuter = AValue;
@@ -6046,6 +6320,12 @@ rtl.module("ExtCtrls",["System","Classes","SysUtils","Types","Web","Graphics","C
     this.SetLayout = function (AValue) {
       if (this.FLayout !== AValue) {
         this.FLayout = AValue;
+        this.Changed();
+      };
+    };
+    this.SetWordWrap = function (AValue) {
+      if (this.FWordWrap !== AValue) {
+        this.FWordWrap = AValue;
         this.Changed();
       };
     };
@@ -6230,405 +6510,10 @@ rtl.module("ExtCtrls",["System","Classes","SysUtils","Types","Web","Graphics","C
 rtl.module("WebCtrls",["System","Classes","SysUtils","Types","Graphics","Controls","Forms","StdCtrls","ExtCtrls"],function () {
   "use strict";
   var $mod = this;
-  rtl.createClass(this,"TCheckbox",pas.StdCtrls.TCustomCheckbox,function () {
-    var $r = this.$rtti;
-    $r.addProperty("Align",2,pas.Controls.$rtti["TAlign"],"FAlign","SetAlign");
-    $r.addProperty("Alignment",2,pas.StdCtrls.$rtti["TLeftRight"],"FAlignment","SetAlignment",{Default: pas.Classes.TAlignment.taRightJustify});
-    $r.addProperty("AllowGrayed",0,rtl.boolean,"FAllowGrayed","FAllowGrayed",{Default: true});
-    $r.addProperty("Anchors",2,pas.Controls.$rtti["TAnchors"],"FAnchors","SetAnchors");
-    $r.addProperty("AutoSize",2,rtl.boolean,"FAutoSize","SetAutoSize",{Default: false});
-    $r.addProperty("BorderSpacing",2,pas.Controls.$rtti["TControlBorderSpacing"],"FBorderSpacing","SetBorderSpacing");
-    $r.addProperty("Caption",3,pas.Controls.$rtti["TCaption"],"GetText","SetText");
-    $r.addProperty("Checked",3,rtl.boolean,"GetChecked","SetChecked");
-    $r.addProperty("Color",2,rtl.longint,"FColor","SetColor");
-    $r.addProperty("Enabled",2,rtl.boolean,"FEnabled","SetEnabled");
-    $r.addProperty("Font",2,pas.Graphics.$rtti["TFont"],"FFont","SetFont");
-    $r.addProperty("HandleClass",2,rtl.string,"FHandleClass","SetHandleClass");
-    $r.addProperty("HandleId",2,rtl.string,"FHandleId","SetHandleId");
-    $r.addProperty("ParentColor",2,rtl.boolean,"FParentColor","SetParentColor");
-    $r.addProperty("ParentFont",2,rtl.boolean,"FParentFont","SetParentFont");
-    $r.addProperty("ParentShowHint",2,rtl.boolean,"FParentShowHint","SetParentShowHint");
-    $r.addProperty("ShowHint",2,rtl.boolean,"FShowHint","SetShowHint");
-    $r.addProperty("State",3,pas.StdCtrls.$rtti["TCheckBoxState"],"GetState","SetState",{Default: pas.StdCtrls.TCheckBoxState.cbUnchecked});
-    $r.addProperty("TabOrder",2,rtl.nativeint,"FTabOrder","SetTabOrder");
-    $r.addProperty("TabStop",2,rtl.boolean,"FTabStop","SetTabStop");
-    $r.addProperty("Visible",2,rtl.boolean,"FVisible","SetVisible");
-    $r.addProperty("OnChange",0,pas.Classes.$rtti["TNotifyEvent"],"FOnChange","FOnChange");
-    $r.addProperty("OnClick",0,pas.Classes.$rtti["TNotifyEvent"],"FOnClick","FOnClick");
-    $r.addProperty("OnEnter",0,pas.Classes.$rtti["TNotifyEvent"],"FOnEnter","FOnEnter");
-    $r.addProperty("OnExit",0,pas.Classes.$rtti["TNotifyEvent"],"FOnExit","FOnExit");
-    $r.addProperty("OnKeyPress",0,pas.Controls.$rtti["TKeyPressEvent"],"FOnKeyPress","FOnKeyPress");
-    $r.addProperty("OnKeyDown",0,pas.Controls.$rtti["TKeyEvent"],"FOnKeyDown","FOnKeyDown");
-    $r.addProperty("OnKeyUp",0,pas.Controls.$rtti["TKeyEvent"],"FOnKeyUp","FOnKeyUp");
-    $r.addProperty("OnMouseDown",0,pas.Controls.$rtti["TMouseEvent"],"FOnMouseDown","FOnMouseDown");
-    $r.addProperty("OnMouseEnter",0,pas.Classes.$rtti["TNotifyEvent"],"FOnMouseEnter","FOnMouseEnter");
-    $r.addProperty("OnMouseLeave",0,pas.Classes.$rtti["TNotifyEvent"],"FOnMouseLeave","FOnMouseLeave");
-    $r.addProperty("OnMouseMove",0,pas.Controls.$rtti["TMouseMoveEvent"],"FOnMouseMove","FOnMouseMove");
-    $r.addProperty("OnMouseUp",0,pas.Controls.$rtti["TMouseEvent"],"FOnMouseUp","FOnMouseUp");
-    $r.addProperty("OnMouseWheel",0,pas.Controls.$rtti["TMouseWheelEvent"],"FOnMouseWheel","FOnMouseWheel");
-    $r.addProperty("OnResize",0,pas.Classes.$rtti["TNotifyEvent"],"FOnResize","FOnResize");
-  });
-});
-rtl.module("browserapp",["System","Classes","SysUtils","Types","JS","Web"],function () {
-  "use strict";
-  var $mod = this;
-  var $impl = $mod.$impl;
-  this.ReloadEnvironmentStrings = function () {
-    var I = 0;
-    var S = "";
-    var N = "";
-    var A = [];
-    var P = [];
-    if ($impl.EnvNames != null) pas.SysUtils.FreeAndNil({p: $impl, get: function () {
-        return this.p.EnvNames;
-      }, set: function (v) {
-        this.p.EnvNames = v;
-      }});
-    $impl.EnvNames = new Object();
-    S = window.location.search;
-    S = pas.System.Copy(S,2,S.length - 1);
-    A = S.split("&");
-    for (var $l = 0, $end = rtl.length(A) - 1; $l <= $end; $l++) {
-      I = $l;
-      P = A[I].split("=");
-      N = pas.SysUtils.LowerCase(decodeURIComponent(P[0]));
-      if (rtl.length(P) === 2) {
-        $impl.EnvNames[N] = decodeURIComponent(P[1])}
-       else if (rtl.length(P) === 1) $impl.EnvNames[N] = "";
-    };
-  };
-  $mod.$implcode = function () {
-    $impl.EnvNames = null;
-    $impl.Params = [];
-    $impl.ReloadParamStrings = function () {
-      $impl.Params = rtl.arraySetLength($impl.Params,"",1);
-      $impl.Params[0] = window.location.pathname;
-    };
-    $impl.GetParamCount = function () {
-      var Result = 0;
-      Result = rtl.length($impl.Params) - 1;
-      return Result;
-    };
-    $impl.GetParamStr = function (Index) {
-      var Result = "";
-      Result = $impl.Params[Index];
-      return Result;
-    };
-    $impl.MyGetEnvironmentVariable = function (EnvVar) {
-      var Result = "";
-      var aName = "";
-      aName = pas.SysUtils.LowerCase(EnvVar);
-      if ($impl.EnvNames.hasOwnProperty(aName)) {
-        Result = "" + $impl.EnvNames[aName]}
-       else Result = "";
-      return Result;
-    };
-    $impl.MyGetEnvironmentVariableCount = function () {
-      var Result = 0;
-      Result = rtl.length(Object.getOwnPropertyNames($impl.EnvNames));
-      return Result;
-    };
-    $impl.MyGetEnvironmentString = function (Index) {
-      var Result = "";
-      Result = "" + $impl.EnvNames[Object.getOwnPropertyNames($impl.EnvNames)[Index]];
-      return Result;
-    };
-  };
-  $mod.$init = function () {
-    pas.System.IsConsole = true;
-    pas.System.OnParamCount = $impl.GetParamCount;
-    pas.System.OnParamStr = $impl.GetParamStr;
-    $mod.ReloadEnvironmentStrings();
-    $impl.ReloadParamStrings();
-    pas.SysUtils.OnGetEnvironmentVariable = $impl.MyGetEnvironmentVariable;
-    pas.SysUtils.OnGetEnvironmentVariableCount = $impl.MyGetEnvironmentVariableCount;
-    pas.SysUtils.OnGetEnvironmentString = $impl.MyGetEnvironmentString;
-  };
-},[]);
-rtl.module("TopCtrls",["System","TopTypes","Classes","SysUtils","Types","Graphics","Controls","StdCtrls","ExtCtrls","WebCtrls","Forms","Web","browserapp"],function () {
-  "use strict";
-  var $mod = this;
-  rtl.createClass(this,"TCustomTrackBar",pas.Controls.TCustomControl,function () {
-    this.$init = function () {
-      pas.Controls.TCustomControl.$init.call(this);
-      this.fMin = 0;
-      this.fMax = 0;
-      this.fPosition = 0;
-      this.fFrequency = 0;
-      this.fLineSize = 0;
-      this.fPageSize = 0;
-      this.fTickStyle = 0;
-      this.FOnChange = null;
-    };
-    this.$final = function () {
-      this.FOnChange = undefined;
-      pas.Controls.TCustomControl.$final.call(this);
-    };
-    this.GetPosition = function () {
-      var Result = 0;
-      Result = this.fPosition;
-      return Result;
-    };
-    this.SetPosition = function (Value) {
-      this.fPosition = Value;
-    };
-    this.Changed = function () {
-      this.GetCanvas().SetWidth(this.FWidth);
-      this.GetCanvas().SetHeight(this.FHeight);
-      pas.Controls.TControl.Changed.call(this);
-    };
-    this.Paint = function () {
-      var i = 0;
-      var x = 0;
-      this.GetCanvas().Clear();
-      this.GetCanvas().FBrush.SetColor(12632256);
-      this.GetCanvas().FBrush.SetStyle(pas.Graphics.TBrushStyle.bsSolid);
-      this.GetCanvas().FPen.SetColor(8421504);
-      this.GetCanvas().FPen.SetStyle(pas.Graphics.TPenStyle.psSolid);
-      this.GetCanvas().FPen.SetWidth(this.fLineSize);
-      this.GetCanvas().Rectangle$1(0,Math.round((this.FHeight / 2) - 4),this.FWidth,8);
-      for (var $l = this.fMin, $end = this.fMax; $l <= $end; $l++) {
-        i = $l;
-        x = Math.round(((i - this.fMin) / (this.fMax - this.fMin)) * this.FWidth);
-        this.GetCanvas().MoveTo(x,Math.round((this.FHeight / 2) + 6));
-        this.GetCanvas().LineTo(x,this.FHeight - 2);
-      };
-      this.GetCanvas().FBrush.SetColor(16711680);
-      x = Math.round(((this.fPosition - this.fMin) / (this.fMax - this.fMin)) * this.FWidth);
-      this.GetCanvas().FillRect$1(x - 4,4,8,16);
-    };
-    this.MouseUp = function (Button, Shift, X, Y) {
-      this.fPosition = this.fMin + Math.round((X / this.FWidth) * (this.fMax - this.fMin));
-      this.Invalidate();
-      pas.Controls.TControl.MouseUp.call(this,Button,rtl.refSet(Shift),X,Y);
-      if (this.FOnChange != null) this.FOnChange(this);
-    };
-    this.CreateHandleElement = function () {
-      var Result = null;
-      Result = document.createElement("div");
-      return Result;
-    };
-    this.Create$1 = function (AOwner) {
-      pas.Controls.TControl.Create$1.call(this,AOwner);
-      this.fMax = 10;
-      this.fFrequency = 1;
-      this.fLineSize = 1;
-      this.fPageSize = 2;
-      this.fTickStyle = pas.TopTypes.TTickStyle.tsAuto;
-      return this;
-    };
-  });
-  rtl.createClass(this,"TCustomProgressBar",pas.Controls.TControl,function () {
-    this.$init = function () {
-      pas.Controls.TControl.$init.call(this);
-      this.fMin = 0;
-      this.fMax = 0;
-      this.fPosition = 0;
-      this.fStep = 0;
-      this.BarElement = null;
-    };
-    this.$final = function () {
-      this.BarElement = undefined;
-      pas.Controls.TControl.$final.call(this);
-    };
-    this.GetPosition = function () {
-      var Result = 0;
-      Result = this.fPosition;
-      return Result;
-    };
-    this.Changed = function () {
-      pas.Controls.TControl.Changed.call(this);
-      this.FHandleElement.style["background-color"] = pas.Graphics.JSColor(12632256);
-      this.BarElement.style["width"] = pas.SysUtils.IntToStr(Math.round((this.GetPosition() / this.fMax) * 100)) + "%";
-    };
-    this.CreateHandleElement = function () {
-      var Result = null;
-      Result = document.createElement("div");
-      this.BarElement = document.createElement("div");
-      this.BarElement.style["height"] = "100%";
-      this.BarElement.style["background-color"] = pas.Graphics.JSColor(32768);
-      Result.appendChild(this.BarElement);
-      return Result;
-    };
-    this.SetPosition = function (Value) {
-      this.fPosition = Value;
-      this.Changed();
-    };
-    this.Create$1 = function (AOwner) {
-      pas.Controls.TControl.Create$1.call(this,AOwner);
-      this.fMax = 100;
-      this.fMin = 0;
-      this.fStep = 10;
-      return this;
-    };
-    this.StepIt = function () {
-      this.fPosition = this.fPosition + this.fStep;
-      this.Changed();
-    };
-  });
-  rtl.createClass(this,"TMenuItem",pas.Controls.TWinControl,function () {
-    this.$init = function () {
-      pas.Controls.TWinControl.$init.call(this);
-      this.AutoCheck = false;
-      this.Checked = false;
-      this.Findex = 0;
-      this.FUpIndex = 0;
-      this.LabelElement = null;
-      this.SubMenuElement = null;
-    };
-    this.$final = function () {
-      this.LabelElement = undefined;
-      this.SubMenuElement = undefined;
-      pas.Controls.TWinControl.$final.call(this);
-    };
-    this.Changed = function () {
-      var i = 0;
-      var m = null;
-      pas.Controls.TControl.Changed.call(this);
-      if (this.GetComponentCount() > 0) {
-        if (this.SubMenuElement === null) {
-          this.SubMenuElement = document.createElement("ul");
-          this.SubMenuElement.style.setProperty("display","none");
-          this.FHandleElement.appendChild(this.SubMenuElement);
-        };
-      };
-      for (var $l = 0, $end = this.GetComponentCount() - 1; $l <= $end; $l++) {
-        i = $l;
-        m = this.GetComponent(i);
-        this.SubMenuElement.appendChild(m.FHandleElement);
-      };
-      this.FHandleElement.style.removeProperty("left");
-      this.FHandleElement.style.removeProperty("top");
-      this.FHandleElement.style.removeProperty("width");
-      this.FHandleElement.style.removeProperty("height");
-      this.FHandleElement.style.removeProperty("display");
-      this.FHandleElement.style.removeProperty("position");
-      if (this.GetText() === "-") {
-        this.SetText("_______________");
-      };
-      if (this.LabelElement !== null) this.LabelElement.innerHTML = this.GetText();
-    };
-    this.Click = function () {
-      if ($mod.TPopupMenu.isPrototypeOf(this.FOwner)) this.FOwner.SetVisible(false);
-      pas.Controls.TControl.Click.call(this);
-    };
-    this.MouseEnter = function () {
-      if (this.FHandleId === "MainMenu") return;
-      if (this.SubMenuElement !== null) {
-        this.SubMenuElement.style.setProperty("display","block");
-        if (this.FHeight === pas.TopTypes.MenuItemHeight) ;
-      };
-      pas.Controls.TControl.MouseEnter.call(this);
-    };
-    this.MouseLeave = function () {
-      if (this.FHandleId === "MainMenu") return;
-      if (this.SubMenuElement !== null) {
-        this.SubMenuElement.style.setProperty("display","none");
-      };
-      pas.Controls.TControl.MouseLeave.call(this);
-    };
-    this.CreateHandleElement = function () {
-      var Result = null;
-      Result = document.createElement("li");
-      this.LabelElement = document.createElement("div");
-      Result.appendChild(this.LabelElement);
-      return Result;
-    };
-    var $r = this.$rtti;
-    $r.addField("AutoCheck",rtl.boolean);
-    $r.addField("Checked",rtl.boolean);
-    $r.addField("Findex",rtl.longint);
-    $r.addField("FUpIndex",rtl.longint);
-    $r.addField("LabelElement",pas.Web.$rtti["TJSHTMLElement"]);
-    $r.addField("SubMenuElement",pas.Web.$rtti["TJSHTMLElement"]);
-  });
-  rtl.createClass(this,"TMainMenu",this.TMenuItem,function () {
-    this.$init = function () {
-      $mod.TMenuItem.$init.call(this);
-      this.FMenuForm = null;
-    };
-    this.$final = function () {
-      this.FMenuForm = undefined;
-      $mod.TMenuItem.$final.call(this);
-    };
-    this.Changed = function () {
-      var i = 0;
-      var m = null;
-      $mod.TMenuItem.Changed.call(this);
-      if (this.SubMenuElement === null) {
-        this.SubMenuElement = document.createElement("ul");
-        this.FHandleElement.appendChild(this.SubMenuElement);
-      };
-      this.FOwner.SetTop(this.FHeight);
-      for (var $l = 0, $end = this.GetComponentCount() - 1; $l <= $end; $l++) {
-        i = $l;
-        m = this.GetComponent(i);
-        m.SetHandleId("MainMenuItem" + pas.SysUtils.IntToStr(i));
-        m.SetHandleClass("MainMenuItem");
-      };
-      if (this.FMenuForm !== null) this.FMenuForm.appendChild(this.FHandleElement);
-    };
-    this.CreateHandleElement = function () {
-      var Result = null;
-      Result = document.createElement("div");
-      return Result;
-    };
-    this.Create$1 = function (AOwner) {
-      pas.Controls.TControl.Create$1.call(this,AOwner);
-      this.SetLeft(0);
-      this.SetTop(0);
-      this.SetHeight(pas.TopTypes.MenuItemHeight + 5);
-      this.SetVisible(true);
-      this.SetHandleId("MainMenu");
-      this.FMenuForm = document.createElement("div");
-      this.FMenuForm.style.setProperty("width","100%");
-      this.FMenuForm.id = this.FOwner.FHandleId;
-      this.FOwner.SetHandleId(this.FOwner.FHandleId + "FORM");
-      this.FMenuForm.appendChild(this.FOwner.FHandleElement);
-      document.body.appendChild(this.FMenuForm);
-      return this;
-    };
-  });
-  rtl.createClass(this,"TPopupMenu",this.TMenuItem,function () {
-    this.Changed = function () {
-      $mod.TMenuItem.Changed.call(this);
-      this.FHandleElement.style.setProperty("display","none");
-    };
-    this.Create$1 = function (AOwner) {
-      pas.Controls.TControl.Create$1.call(this,AOwner);
-      return this;
-    };
-    this.Popup = function (X, Y) {
-      var r = null;
-      r = this.FOwner.FHandleElement.getBoundingClientRect();
-      this.SetLeft(pas.System.Trunc((X - r.left) + window.scrollX));
-      this.SetTop(pas.System.Trunc((Y - r.top) + window.screenY) + pas.TopTypes.MenuItemHeight);
-      this.SubMenuElement.style.setProperty("display","block");
-      this.SubMenuElement.style.setProperty("position","absolute");
-      this.SubMenuElement.style.setProperty("left",pas.SysUtils.IntToStr(this.FLeft) + "px");
-      this.SubMenuElement.style.setProperty("top",pas.SysUtils.IntToStr(this.FTop) + "px");
-      this.FHandleElement.style.setProperty("display","block");
-    };
-    this.OnContextMenu = function (Event) {
-      var Result = false;
-      this.Popup(Math.round(rtl.asExt(Event,MouseEvent).clientX) - this.FOwner.FLeft,Math.round(rtl.asExt(Event,MouseEvent).clientY) - this.FOwner.FTop);
-      Result = false;
-      return Result;
-    };
-  });
-});
-rtl.module("layui",["System","JS","Web","TopTypes","Classes","SysUtils","Types","Graphics","Controls","Forms","StdCtrls","ExtCtrls","TopCtrls"],function () {
-  "use strict";
-  var $mod = this;
-  var $impl = $mod.$impl;
   rtl.createClass(this,"TComboBox",pas.StdCtrls.TCustomComboBox,function () {
     this.$init = function () {
       pas.StdCtrls.TCustomComboBox.$init.call(this);
       this.DroppedDown = false;
-    };
-    this.Changed = function () {
-      pas.StdCtrls.TCustomComboBox.Changed.call(this);
-      this.FHandleElement.setAttribute("class","layui-form-item");
     };
     var $r = this.$rtti;
     $r.addField("DroppedDown",rtl.boolean);
@@ -6793,12 +6678,6 @@ rtl.module("layui",["System","JS","Web","TopTypes","Classes","SysUtils","Types",
     $r.addProperty("OnResize",0,pas.Classes.$rtti["TNotifyEvent"],"FOnResize","FOnResize");
   });
   rtl.createClass(this,"TButton",pas.StdCtrls.TCustomButton,function () {
-    this.Changed = function () {
-      pas.StdCtrls.TCustomButton.Changed.call(this);
-      if (this.FHeight < 30) {
-        this.FHandleElement.setAttribute("class","layui-btn layui-btn-xs")}
-       else this.FHandleElement.setAttribute("class","layui-btn");
-    };
     var $r = this.$rtti;
     $r.addProperty("Align",2,pas.Controls.$rtti["TAlign"],"FAlign","SetAlign");
     $r.addProperty("Anchors",2,pas.Controls.$rtti["TAnchors"],"FAnchors","SetAnchors");
@@ -6833,10 +6712,6 @@ rtl.module("layui",["System","JS","Web","TopTypes","Classes","SysUtils","Types",
     $r.addProperty("OnResize",0,pas.Classes.$rtti["TNotifyEvent"],"FOnResize","FOnResize");
   });
   rtl.createClass(this,"TCheckbox",pas.StdCtrls.TCustomCheckbox,function () {
-    this.Changed = function () {
-      pas.StdCtrls.TCustomCheckbox.Changed.call(this);
-      this.FHandleElement.setAttribute("class","layui-form-item");
-    };
     var $r = this.$rtti;
     $r.addProperty("Align",2,pas.Controls.$rtti["TAlign"],"FAlign","SetAlign");
     $r.addProperty("Alignment",2,pas.StdCtrls.$rtti["TLeftRight"],"FAlignment","SetAlignment",{Default: pas.Classes.TAlignment.taRightJustify});
@@ -6906,6 +6781,77 @@ rtl.module("layui",["System","JS","Web","TopTypes","Classes","SysUtils","Types",
     $r.addProperty("OnMouseWheel",0,pas.Controls.$rtti["TMouseWheelEvent"],"FOnMouseWheel","FOnMouseWheel");
     $r.addProperty("OnResize",0,pas.Classes.$rtti["TNotifyEvent"],"FOnResize","FOnResize");
   });
+  rtl.createClass(this,"TImage",pas.ExtCtrls.TCustomImage,function () {
+    var $r = this.$rtti;
+    $r.addProperty("Align",2,pas.Controls.$rtti["TAlign"],"FAlign","SetAlign");
+    $r.addProperty("Anchors",2,pas.Controls.$rtti["TAnchors"],"FAnchors","SetAnchors");
+    $r.addProperty("AutoSize",2,rtl.boolean,"FAutoSize","SetAutoSize",{Default: false});
+    $r.addProperty("BorderSpacing",2,pas.Controls.$rtti["TControlBorderSpacing"],"FBorderSpacing","SetBorderSpacing");
+    $r.addProperty("Center",2,rtl.boolean,"FCenter","SetCenter",{Default: false});
+    $r.addProperty("Enabled",2,rtl.boolean,"FEnabled","SetEnabled");
+    $r.addProperty("HandleClass",2,rtl.string,"FHandleClass","SetHandleClass");
+    $r.addProperty("HandleId",2,rtl.string,"FHandleId","SetHandleId");
+    $r.addProperty("ParentShowHint",2,rtl.boolean,"FParentShowHint","SetParentShowHint");
+    $r.addProperty("Proportional",2,rtl.boolean,"FProportional","SetProportional",{Default: false});
+    $r.addProperty("ShowHint",2,rtl.boolean,"FShowHint","SetShowHint");
+    $r.addProperty("Stretch",2,rtl.boolean,"FStretch","SetStretch",{Default: false});
+    $r.addProperty("StretchOutEnabled",2,rtl.boolean,"FStretchOutEnabled","SetStretchOutEnabled",{Default: true});
+    $r.addProperty("StretchInEnabled",2,rtl.boolean,"FStretchInEnabled","SetStretchInEnabled",{Default: true});
+    $r.addProperty("Transparent",2,rtl.boolean,"FTransparent","SetTransparent",{Default: false});
+    $r.addProperty("URL",2,rtl.string,"FURL","SetURL");
+    $r.addProperty("Visible",2,rtl.boolean,"FVisible","SetVisible");
+    $r.addProperty("OnClick",0,pas.Classes.$rtti["TNotifyEvent"],"FOnClick","FOnClick");
+    $r.addProperty("OnDblClick",0,pas.Classes.$rtti["TNotifyEvent"],"FOnDblClick","FOnDblClick");
+    $r.addProperty("OnMouseDown",0,pas.Controls.$rtti["TMouseEvent"],"FOnMouseDown","FOnMouseDown");
+    $r.addProperty("OnMouseEnter",0,pas.Classes.$rtti["TNotifyEvent"],"FOnMouseEnter","FOnMouseEnter");
+    $r.addProperty("OnMouseLeave",0,pas.Classes.$rtti["TNotifyEvent"],"FOnMouseLeave","FOnMouseLeave");
+    $r.addProperty("OnMouseMove",0,pas.Controls.$rtti["TMouseMoveEvent"],"FOnMouseMove","FOnMouseMove");
+    $r.addProperty("OnMouseUp",0,pas.Controls.$rtti["TMouseEvent"],"FOnMouseUp","FOnMouseUp");
+    $r.addProperty("OnMouseWheel",0,pas.Controls.$rtti["TMouseWheelEvent"],"FOnMouseWheel","FOnMouseWheel");
+    $r.addProperty("OnPaint",0,pas.Classes.$rtti["TNotifyEvent"],"FOnPaint","FOnPaint");
+    $r.addProperty("OnPictureChanged",0,pas.Classes.$rtti["TNotifyEvent"],"FOnPictureChanged","FOnPictureChanged");
+    $r.addProperty("OnResize",0,pas.Classes.$rtti["TNotifyEvent"],"FOnResize","FOnResize");
+  });
+  rtl.createClass(this,"TPanel",pas.ExtCtrls.TCustomPanel,function () {
+    var $r = this.$rtti;
+    $r.addProperty("Align",2,pas.Controls.$rtti["TAlign"],"FAlign","SetAlign");
+    $r.addProperty("Alignment",2,pas.Classes.$rtti["TAlignment"],"FAlignment","SetAlignment",{Default: pas.Classes.TAlignment.taCenter});
+    $r.addProperty("Anchors",2,pas.Controls.$rtti["TAnchors"],"FAnchors","SetAnchors");
+    $r.addProperty("AutoSize",2,rtl.boolean,"FAutoSize","SetAutoSize",{Default: false});
+    $r.addProperty("BevelColor",2,rtl.longint,"FBevelColor","SetBevelColor",{Default: 536870912});
+    $r.addProperty("BevelInner",2,pas.Controls.$rtti["TBevelCut"],"FBevelInner","SetBevelInner",{Default: pas.Controls.TBevelCut.bvNone});
+    $r.addProperty("BevelOuter",2,pas.Controls.$rtti["TBevelCut"],"FBevelOuter","SetBevelOuter",{Default: pas.Controls.TBevelCut.bvRaised});
+    $r.addProperty("BevelWidth",2,pas.ExtCtrls.$rtti["TBevelWidth"],"FBevelWidth","SetBevelWidth",{Default: 1});
+    $r.addProperty("BorderSpacing",2,pas.Controls.$rtti["TControlBorderSpacing"],"FBorderSpacing","SetBorderSpacing");
+    $r.addProperty("Caption",3,pas.Controls.$rtti["TCaption"],"GetText","SetText");
+    $r.addProperty("ClientHeight",3,rtl.nativeint,"GetClientHeight","SetClientHeight");
+    $r.addProperty("ClientWidth",3,rtl.nativeint,"GetClientWidth","SetClientWidth");
+    $r.addProperty("Color",2,rtl.longint,"FColor","SetColor");
+    $r.addProperty("Enabled",2,rtl.boolean,"FEnabled","SetEnabled");
+    $r.addProperty("Font",2,pas.Graphics.$rtti["TFont"],"FFont","SetFont");
+    $r.addProperty("HandleClass",2,rtl.string,"FHandleClass","SetHandleClass");
+    $r.addProperty("HandleId",2,rtl.string,"FHandleId","SetHandleId");
+    $r.addProperty("ParentColor",2,rtl.boolean,"FParentColor","SetParentColor");
+    $r.addProperty("ParentFont",2,rtl.boolean,"FParentFont","SetParentFont");
+    $r.addProperty("ParentShowHint",2,rtl.boolean,"FParentShowHint","SetParentShowHint");
+    $r.addProperty("ShowHint",2,rtl.boolean,"FShowHint","SetShowHint");
+    $r.addProperty("TabOrder",2,rtl.nativeint,"FTabOrder","SetTabOrder");
+    $r.addProperty("TabStop",2,rtl.boolean,"FTabStop","SetTabStop");
+    $r.addProperty("Visible",2,rtl.boolean,"FVisible","SetVisible");
+    $r.addProperty("WordWrap",2,rtl.boolean,"FWordWrap","SetWordWrap");
+    $r.addProperty("OnClick",0,pas.Classes.$rtti["TNotifyEvent"],"FOnClick","FOnClick");
+    $r.addProperty("OnDblClick",0,pas.Classes.$rtti["TNotifyEvent"],"FOnDblClick","FOnDblClick");
+    $r.addProperty("OnEnter",0,pas.Classes.$rtti["TNotifyEvent"],"FOnEnter","FOnEnter");
+    $r.addProperty("OnExit",0,pas.Classes.$rtti["TNotifyEvent"],"FOnExit","FOnExit");
+    $r.addProperty("OnMouseDown",0,pas.Controls.$rtti["TMouseEvent"],"FOnMouseDown","FOnMouseDown");
+    $r.addProperty("OnMouseEnter",0,pas.Classes.$rtti["TNotifyEvent"],"FOnMouseEnter","FOnMouseEnter");
+    $r.addProperty("OnMouseLeave",0,pas.Classes.$rtti["TNotifyEvent"],"FOnMouseLeave","FOnMouseLeave");
+    $r.addProperty("OnMouseMove",0,pas.Controls.$rtti["TMouseMoveEvent"],"FOnMouseMove","FOnMouseMove");
+    $r.addProperty("OnMouseUp",0,pas.Controls.$rtti["TMouseEvent"],"FOnMouseUp","FOnMouseUp");
+    $r.addProperty("OnMouseWheel",0,pas.Controls.$rtti["TMouseWheelEvent"],"FOnMouseWheel","FOnMouseWheel");
+    $r.addProperty("OnPaint",0,pas.Classes.$rtti["TNotifyEvent"],"FOnPaint","FOnPaint");
+    $r.addProperty("OnResize",0,pas.Classes.$rtti["TNotifyEvent"],"FOnResize","FOnResize");
+  });
   rtl.createClass(this,"TTimer",pas.ExtCtrls.TCustomTimer,function () {
     var $r = this.$rtti;
     $r.addProperty("Enabled",2,rtl.boolean,"FEnabled","SetEnabled",{Default: true});
@@ -6914,108 +6860,409 @@ rtl.module("layui",["System","JS","Web","TopTypes","Classes","SysUtils","Types",
     $r.addProperty("OnStartTimer",0,pas.Classes.$rtti["TNotifyEvent"],"FOnStartTimer","FOnStartTimer");
     $r.addProperty("OnStopTimer",0,pas.Classes.$rtti["TNotifyEvent"],"FOnStopTimer","FOnStopTimer");
   });
-  rtl.createClass(this,"TProgressBar",pas.TopCtrls.TCustomProgressBar,function () {
-    this.Changed = function () {
-      pas.TopCtrls.TCustomProgressBar.Changed.call(this);
-      this.FHandleElement.style.removeProperty("background-color");
-      this.FHandleElement.setAttribute("class","layui-progress ");
-      this.BarElement.setAttribute("class",'layui-progress-bar lay-filter="demo"');
-      this.BarElement.style["height"] = "100%";
-      this.BarElement.style["width"] = pas.SysUtils.IntToStr(Math.round((this.GetPosition() / this.fMax) * 100)) + "%";
-      this.BarElement.setAttribute("lay-percent",pas.SysUtils.IntToStr(Math.round((this.GetPosition() / this.fMax) * 100)) + "%");
+});
+rtl.module("browserapp",["System","Classes","SysUtils","Types","JS","Web"],function () {
+  "use strict";
+  var $mod = this;
+  var $impl = $mod.$impl;
+  this.ReloadEnvironmentStrings = function () {
+    var I = 0;
+    var S = "";
+    var N = "";
+    var A = [];
+    var P = [];
+    if ($impl.EnvNames != null) pas.SysUtils.FreeAndNil({p: $impl, get: function () {
+        return this.p.EnvNames;
+      }, set: function (v) {
+        this.p.EnvNames = v;
+      }});
+    $impl.EnvNames = new Object();
+    S = window.location.search;
+    S = pas.System.Copy(S,2,S.length - 1);
+    A = S.split("&");
+    for (var $l = 0, $end = rtl.length(A) - 1; $l <= $end; $l++) {
+      I = $l;
+      P = A[I].split("=");
+      N = pas.SysUtils.LowerCase(decodeURIComponent(P[0]));
+      if (rtl.length(P) === 2) {
+        $impl.EnvNames[N] = decodeURIComponent(P[1])}
+       else if (rtl.length(P) === 1) $impl.EnvNames[N] = "";
+    };
+  };
+  $mod.$implcode = function () {
+    $impl.EnvNames = null;
+    $impl.Params = [];
+    $impl.ReloadParamStrings = function () {
+      $impl.Params = rtl.arraySetLength($impl.Params,"",1);
+      $impl.Params[0] = window.location.pathname;
+    };
+    $impl.GetParamCount = function () {
+      var Result = 0;
+      Result = rtl.length($impl.Params) - 1;
+      return Result;
+    };
+    $impl.GetParamStr = function (Index) {
+      var Result = "";
+      Result = $impl.Params[Index];
+      return Result;
+    };
+    $impl.MyGetEnvironmentVariable = function (EnvVar) {
+      var Result = "";
+      var aName = "";
+      aName = pas.SysUtils.LowerCase(EnvVar);
+      if ($impl.EnvNames.hasOwnProperty(aName)) {
+        Result = "" + $impl.EnvNames[aName]}
+       else Result = "";
+      return Result;
+    };
+    $impl.MyGetEnvironmentVariableCount = function () {
+      var Result = 0;
+      Result = rtl.length(Object.getOwnPropertyNames($impl.EnvNames));
+      return Result;
+    };
+    $impl.MyGetEnvironmentString = function (Index) {
+      var Result = "";
+      Result = "" + $impl.EnvNames[Object.getOwnPropertyNames($impl.EnvNames)[Index]];
+      return Result;
+    };
+  };
+  $mod.$init = function () {
+    pas.System.IsConsole = true;
+    pas.System.OnParamCount = $impl.GetParamCount;
+    pas.System.OnParamStr = $impl.GetParamStr;
+    $mod.ReloadEnvironmentStrings();
+    $impl.ReloadParamStrings();
+    pas.SysUtils.OnGetEnvironmentVariable = $impl.MyGetEnvironmentVariable;
+    pas.SysUtils.OnGetEnvironmentVariableCount = $impl.MyGetEnvironmentVariableCount;
+    pas.SysUtils.OnGetEnvironmentString = $impl.MyGetEnvironmentString;
+  };
+},[]);
+rtl.module("TopCtrls",["System","TopTypes","Classes","SysUtils","Types","Graphics","Controls","StdCtrls","ExtCtrls","WebCtrls","Forms","Web","browserapp"],function () {
+  "use strict";
+  var $mod = this;
+  rtl.createClass(this,"TCustomTrackBar",pas.Controls.TCustomControl,function () {
+    this.$init = function () {
+      pas.Controls.TCustomControl.$init.call(this);
+      this.fMin = 0;
+      this.fMax = 0;
+      this.fPosition = 0;
+      this.fFrequency = 0;
+      this.fLineSize = 0;
+      this.fPageSize = 0;
+      this.fOrientation = 0;
+      this.fTickStyle = 0;
+      this.FOnChange = null;
+    };
+    this.$final = function () {
+      this.FOnChange = undefined;
+      pas.Controls.TCustomControl.$final.call(this);
+    };
+    this.SetMin = function (Value) {
+      this.SetRange(Value,this.fMax);
+    };
+    this.SetMax = function (Value) {
+      this.SetRange(this.fMin,Value);
+    };
+    this.SetRange = function (ValueMin, ValueMax) {
+      this.fMin = ValueMin;
+      this.fMax = ValueMax;
+    };
+    this.GetPosition = function () {
+      var Result = 0;
+      Result = this.fPosition;
+      return Result;
     };
     this.SetPosition = function (Value) {
-      pas.TopCtrls.TCustomProgressBar.SetPosition.apply(this,arguments);
+      this.fPosition = Value;
     };
-  });
-  rtl.createClass(this,"TTrackBar",pas.TopCtrls.TCustomTrackBar,function () {
+    this.SetFrequency = function (Value) {
+      this.fFrequency = Value;
+    };
+    this.SetLineSize = function (Value) {
+      this.fLineSize = Value;
+    };
+    this.SetPageSize = function (Value) {
+      this.fPageSize = Value;
+    };
     this.Changed = function () {
-      var $Self = this;
-      var id = "";
-      var iMin = 0;
-      var iMax = 0;
-      var iStep = 0;
-      var changed = null;
-      pas.TopCtrls.TCustomTrackBar.Changed.call(this);
-      $Self.SetHandleId($Self.FName);
-      this.FHandleElement.style.setProperty("margin","5px");
-      this.FHandleElement.setAttribute("id",this.FHandleId);
-      id = "#" + this.FHandleId;
-      changed = function (value) {
-        $Self.SetPosition(value);
-        if ($Self.FOnChange != null) $Self.FOnChange($Self);
-      };
-      iMin = this.fMin;
-      iMax = this.fMax;
-      iStep = this.fFrequency;
-      layui.slider.render({
-        elem: id,
-        min:iMin,
-        max:iMax,
-        step:iStep,
-        change:changed
-      });
+      this.GetCanvas().SetWidth(this.FWidth);
+      this.GetCanvas().SetHeight(this.FHeight);
+      pas.Controls.TControl.Changed.call(this);
     };
     this.Paint = function () {
+      var i = 0;
+      var x = 0;
+      this.GetCanvas().Clear();
+      this.GetCanvas().FBrush.SetColor(12632256);
+      this.GetCanvas().FBrush.SetStyle(pas.Graphics.TBrushStyle.bsSolid);
+      this.GetCanvas().FPen.SetColor(8421504);
+      this.GetCanvas().FPen.SetStyle(pas.Graphics.TPenStyle.psSolid);
+      this.GetCanvas().FPen.SetWidth(this.fLineSize);
+      this.GetCanvas().Rectangle$1(0,Math.round((this.FHeight / 2) - 4),this.FWidth,8);
+      for (var $l = this.fMin, $end = this.fMax; $l <= $end; $l++) {
+        i = $l;
+        x = Math.round(((i - this.fMin) / (this.fMax - this.fMin)) * this.FWidth);
+        this.GetCanvas().MoveTo(x,Math.round((this.FHeight / 2) + 6));
+        this.GetCanvas().LineTo(x,this.FHeight - 2);
+      };
+      this.GetCanvas().FBrush.SetColor(16711680);
+      x = Math.round(((this.fPosition - this.fMin) / (this.fMax - this.fMin)) * this.FWidth);
+      this.GetCanvas().FillRect$1(x - 4,4,8,16);
+    };
+    this.MouseUp = function (Button, Shift, X, Y) {
+      this.fPosition = this.fMin + Math.round((X / this.FWidth) * (this.fMax - this.fMin));
+      this.Invalidate();
+      pas.Controls.TControl.MouseUp.call(this,Button,rtl.refSet(Shift),X,Y);
+      if (this.FOnChange != null) this.FOnChange(this);
     };
     this.CreateHandleElement = function () {
       var Result = null;
       Result = document.createElement("div");
       return Result;
     };
-    this.MouseUp = function (Button, Shift, X, Y) {
-    };
     this.Create$1 = function (AOwner) {
-      var $Self = this;
-      pas.TopCtrls.TCustomTrackBar.Create$1.call(this,AOwner);
-      layui.use(["slider"],function () {
-      });
+      pas.Controls.TControl.Create$1.call(this,AOwner);
+      this.fMax = 10;
+      this.fFrequency = 1;
+      this.fLineSize = 1;
+      this.fPageSize = 2;
+      this.fTickStyle = pas.TopTypes.TTickStyle.tsAuto;
       return this;
     };
   });
-  rtl.createClass(this,"TMainMenu",pas.TopCtrls.TMainMenu,function () {
-    this.Create$1 = function (AOwner) {
-      var $Self = this;
-      pas.TopCtrls.TMainMenu.Create$1.call(this,AOwner);
-      layui.use(["dropdown"],function () {
-      });
-      return this;
+  rtl.createClass(this,"TCustomProgressBar",pas.Controls.TControl,function () {
+    this.$init = function () {
+      pas.Controls.TControl.$init.call(this);
+      this.fMin = 0;
+      this.fMax = 0;
+      this.fPosition = 0;
+      this.fStep = 0;
+      this.BarElement = null;
     };
-  });
-  rtl.createClass(this,"TMenuItem",pas.TopCtrls.TMenuItem,function () {
+    this.$final = function () {
+      this.BarElement = undefined;
+      pas.Controls.TControl.$final.call(this);
+    };
+    this.GetPosition = function () {
+      var Result = 0;
+      Result = this.fPosition;
+      return Result;
+    };
     this.Changed = function () {
-      this.LabelElement.setAttribute("class","layui-menu-body-title");
-      if (this.GetText() === "-") {
-        this.SetHandleClass("layui-menu-item-divider");
-        if (this.FHandleElement.contains(this.LabelElement)) this.FHandleElement.removeChild(this.LabelElement);
+      pas.Controls.TControl.Changed.call(this);
+      this.FHandleElement.style["background-color"] = pas.Graphics.JSColor(12632256);
+      this.BarElement.style["width"] = pas.SysUtils.IntToStr(Math.round((this.GetPosition() / this.fMax) * 100)) + "%";
+    };
+    this.CreateHandleElement = function () {
+      var Result = null;
+      Result = document.createElement("div");
+      this.BarElement = document.createElement("div");
+      this.BarElement.style["height"] = "100%";
+      this.BarElement.style["background-color"] = pas.Graphics.JSColor(32768);
+      Result.appendChild(this.BarElement);
+      return Result;
+    };
+    this.SetPosition = function (Value) {
+      this.fPosition = Value;
+      this.Changed();
+    };
+    this.Create$1 = function (AOwner) {
+      pas.Controls.TControl.Create$1.call(this,AOwner);
+      this.fMax = 100;
+      this.fMin = 0;
+      this.fStep = 10;
+      return this;
+    };
+    this.StepIt = function () {
+      this.fPosition = this.fPosition + this.fStep;
+      this.Changed();
+    };
+  });
+  rtl.createClass(this,"TProgressBar",this.TCustomProgressBar,function () {
+  });
+  rtl.createClass(this,"TTrackBar",this.TCustomTrackBar,function () {
+    var $r = this.$rtti;
+    $r.addProperty("Min",2,rtl.longint,"fMin","SetMin");
+    $r.addProperty("Max",2,rtl.longint,"fMax","SetMax");
+    $r.addProperty("Position",3,rtl.longint,"GetPosition","SetPosition");
+    $r.addProperty("Frequency",2,rtl.longint,"fFrequency","SetFrequency");
+    $r.addProperty("LineSize",2,rtl.longint,"fLineSize","SetLineSize");
+    $r.addProperty("PageSize",2,rtl.longint,"fPageSize","SetPageSize");
+    $r.addProperty("Orientation",0,pas.TopTypes.$rtti["TOrientation"],"fOrientation","fOrientation");
+    $r.addProperty("TickStyle",0,pas.TopTypes.$rtti["TTickStyle"],"fTickStyle","fTickStyle");
+    $r.addProperty("OnChange",0,pas.Classes.$rtti["TNotifyEvent"],"FOnChange","FOnChange");
+  });
+  rtl.createClass(this,"TMenuItem",pas.Controls.TWinControl,function () {
+    this.$init = function () {
+      pas.Controls.TWinControl.$init.call(this);
+      this.AutoCheck = false;
+      this.Checked = false;
+      this.Findex = 0;
+      this.FUpIndex = 0;
+      this.LabelElement = null;
+      this.SubMenuElement = null;
+    };
+    this.$final = function () {
+      this.LabelElement = undefined;
+      this.SubMenuElement = undefined;
+      pas.Controls.TWinControl.$final.call(this);
+    };
+    this.Changed = function () {
+      var i = 0;
+      var m = null;
+      pas.Controls.TControl.Changed.call(this);
+      if (this.GetComponentCount() > 0) {
+        if (this.SubMenuElement === null) {
+          this.SubMenuElement = document.createElement("ul");
+          this.SubMenuElement.style.setProperty("display","none");
+          this.FHandleElement.appendChild(this.SubMenuElement);
+        };
       };
-      pas.TopCtrls.TMenuItem.Changed.call(this);
-      if (this.SubMenuElement !== null) this.SubMenuElement.setAttribute("class"," layui-menu");
+      for (var $l = 0, $end = this.GetComponentCount() - 1; $l <= $end; $l++) {
+        i = $l;
+        m = this.GetComponent(i);
+        this.SubMenuElement.appendChild(m.FHandleElement);
+      };
+      this.FHandleElement.style.removeProperty("left");
+      this.FHandleElement.style.removeProperty("top");
+      this.FHandleElement.style.removeProperty("width");
+      this.FHandleElement.style.removeProperty("height");
+      this.FHandleElement.style.removeProperty("display");
+      this.FHandleElement.style.removeProperty("position");
+      if (this.GetText() === "-") {
+        this.SetText("_______________");
+      };
+      if (this.LabelElement !== null) this.LabelElement.innerHTML = this.GetText();
     };
+    this.Click = function () {
+      if ($mod.TPopupMenu.isPrototypeOf(this.FOwner)) this.FOwner.SetVisible(false);
+      pas.Controls.TControl.Click.call(this);
+    };
+    this.MouseEnter = function () {
+      if (this.FHandleId === "MainMenu") return;
+      if (this.SubMenuElement !== null) {
+        this.SubMenuElement.style.setProperty("display","block");
+        if (this.FHeight === pas.TopTypes.MenuItemHeight) ;
+      };
+      pas.Controls.TControl.MouseEnter.call(this);
+    };
+    this.MouseLeave = function () {
+      if (this.FHandleId === "MainMenu") return;
+      if (this.SubMenuElement !== null) {
+        this.SubMenuElement.style.setProperty("display","none");
+      };
+      pas.Controls.TControl.MouseLeave.call(this);
+    };
+    this.CreateHandleElement = function () {
+      var Result = null;
+      Result = document.createElement("li");
+      this.LabelElement = document.createElement("div");
+      Result.appendChild(this.LabelElement);
+      return Result;
+    };
+    var $r = this.$rtti;
+    $r.addField("AutoCheck",rtl.boolean);
+    $r.addField("Checked",rtl.boolean);
+    $r.addField("Findex",rtl.longint);
+    $r.addField("FUpIndex",rtl.longint);
+    $r.addField("LabelElement",pas.Web.$rtti["TJSHTMLElement"]);
+    $r.addField("SubMenuElement",pas.Web.$rtti["TJSHTMLElement"]);
   });
-  rtl.createClass(this,"TPopupMenu",pas.TopCtrls.TPopupMenu,function () {
+  rtl.createClass(this,"TMainMenu",this.TMenuItem,function () {
+    this.$init = function () {
+      $mod.TMenuItem.$init.call(this);
+      this.FMenuForm = null;
+    };
+    this.$final = function () {
+      this.FMenuForm = undefined;
+      $mod.TMenuItem.$final.call(this);
+    };
     this.Changed = function () {
-      pas.TopCtrls.TPopupMenu.Changed.call(this);
-      if (this.SubMenuElement !== null) this.SubMenuElement.setAttribute("class"," layui-menu");
+      var i = 0;
+      var m = null;
+      $mod.TMenuItem.Changed.call(this);
+      if (this.SubMenuElement === null) {
+        this.SubMenuElement = document.createElement("ul");
+        this.FHandleElement.appendChild(this.SubMenuElement);
+      };
+      this.FOwner.SetTop(this.FHeight);
+      for (var $l = 0, $end = this.GetComponentCount() - 1; $l <= $end; $l++) {
+        i = $l;
+        m = this.GetComponent(i);
+        m.SetHandleId("MainMenuItem" + pas.SysUtils.IntToStr(i));
+        m.SetHandleClass("MainMenuItem");
+      };
+      if (this.FMenuForm !== null) this.FMenuForm.appendChild(this.FHandleElement);
+    };
+    this.CreateHandleElement = function () {
+      var Result = null;
+      Result = document.createElement("div");
+      return Result;
     };
     this.Create$1 = function (AOwner) {
-      var $Self = this;
-      pas.TopCtrls.TPopupMenu.Create$1.call(this,AOwner);
-      layui.use(["dropdown"],function () {
-      });
+      pas.Controls.TControl.Create$1.call(this,AOwner);
+      this.SetLeft(0);
+      this.SetTop(0);
+      this.SetHeight(pas.TopTypes.MenuItemHeight + 5);
+      this.SetVisible(true);
+      this.SetHandleId("MainMenu");
+      this.FMenuForm = document.createElement("div");
+      this.FMenuForm.style.setProperty("width","100%");
+      this.FMenuForm.id = this.FOwner.FHandleId;
+      this.FOwner.SetHandleId(this.FOwner.FHandleId + "FORM");
+      this.FMenuForm.appendChild(this.FOwner.FHandleElement);
+      document.body.appendChild(this.FMenuForm);
       return this;
     };
   });
+  rtl.createClass(this,"TPopupMenu",this.TMenuItem,function () {
+    this.Changed = function () {
+      $mod.TMenuItem.Changed.call(this);
+      this.FHandleElement.style.setProperty("display","none");
+    };
+    this.Create$1 = function (AOwner) {
+      pas.Controls.TControl.Create$1.call(this,AOwner);
+      return this;
+    };
+    this.Popup = function (X, Y) {
+      var r = null;
+      r = this.FOwner.FHandleElement.getBoundingClientRect();
+      this.SetLeft(pas.System.Trunc((X - r.left) + window.scrollX));
+      this.SetTop(pas.System.Trunc((Y - r.top) + window.screenY) + pas.TopTypes.MenuItemHeight);
+      this.SubMenuElement.style.setProperty("display","block");
+      this.SubMenuElement.style.setProperty("position","absolute");
+      this.SubMenuElement.style.setProperty("left",pas.SysUtils.IntToStr(this.FLeft) + "px");
+      this.SubMenuElement.style.setProperty("top",pas.SysUtils.IntToStr(this.FTop) + "px");
+      this.FHandleElement.style.setProperty("display","block");
+    };
+    this.OnContextMenu = function (Event) {
+      var Result = false;
+      this.Popup(Math.round(rtl.asExt(Event,MouseEvent).clientX) - this.FOwner.FLeft,Math.round(rtl.asExt(Event,MouseEvent).clientY) - this.FOwner.FTop);
+      Result = false;
+      return Result;
+    };
+  });
+});
+rtl.module("Dialogs",["System","Classes","SysUtils","Types","Graphics","Controls","StdCtrls","ExtCtrls","Forms","WebCtrls"],function () {
+  "use strict";
+  var $mod = this;
+  var $impl = $mod.$impl;
   this.TMsgDlgType = {"0": "mtWarning", mtWarning: 0, "1": "mtError", mtError: 1, "2": "mtInformation", mtInformation: 2, "3": "mtConfirmation", mtConfirmation: 3, "4": "mtCustom", mtCustom: 4};
+  this.$rtti.$Enum("TMsgDlgType",{minvalue: 0, maxvalue: 4, ordtype: 1, enumtype: this.TMsgDlgType});
   this.TMsgDlgBtn = {"0": "mbYes", mbYes: 0, "1": "mbNo", mbNo: 1, "2": "mbOK", mbOK: 2, "3": "mbCancel", mbCancel: 3, "4": "mbAbort", mbAbort: 4, "5": "mbRetry", mbRetry: 5, "6": "mbIgnore", mbIgnore: 6, "7": "mbAll", mbAll: 7, "8": "mbNoToAll", mbNoToAll: 8, "9": "mbYesToAll", mbYesToAll: 9, "10": "mbHelp", mbHelp: 10, "11": "mbClose", mbClose: 11};
+  this.$rtti.$Enum("TMsgDlgBtn",{minvalue: 0, maxvalue: 11, ordtype: 1, enumtype: this.TMsgDlgBtn});
+  this.$rtti.$Set("TMsgDlgButtons",{comptype: this.$rtti["TMsgDlgBtn"]});
   this.MessageDlg = function (AOwner, ACaption, AMessage, ADlgType, AButtons, ADefaultButton, AModalResultProc) {
-    var index2= layer.open({
-             closeBtn: 0,
-              icon: 0,
-            title :ACaption,
-    
-      content: AMessage
-        });
+    var VMessageDialog = null;
+    if (!(AOwner != null)) AOwner = pas.Forms.Application().FActiveForm;
+    VMessageDialog = $impl.TMessageDialog.$create("Create$1",[AOwner]);
+    VMessageDialog.FButtons = rtl.refSet(AButtons);
+    VMessageDialog.SetText(ACaption);
+    VMessageDialog.FDefaultButton = ADefaultButton;
+    VMessageDialog.FDialogType = ADlgType;
+    VMessageDialog.FMessage = AMessage;
+    VMessageDialog.PrepareLayout();
+    VMessageDialog.ShowModal(AModalResultProc);
   };
   this.MessageDlg$2 = function (AOwner, ACaption, AMessage, ADlgType, AButtons, AModalResultProc) {
     $mod.MessageDlg(AOwner,ACaption,AMessage,ADlgType,rtl.refSet(AButtons),$impl.ModalDefaultButton(AButtons),AModalResultProc);
@@ -7023,27 +7270,168 @@ rtl.module("layui",["System","JS","Web","TopTypes","Classes","SysUtils","Types",
   this.ShowMessage$1 = function (AMessage) {
     $mod.MessageDlg$2(pas.Forms.Application().FActiveForm,"",AMessage,$mod.TMsgDlgType.mtInformation,rtl.createSet($mod.TMsgDlgBtn.mbOK),null);
   };
-  this.layui_use = function () {
-    layui.use(["layer","form"],function () {
-    });
-  };
-  this.layui_open = function () {
-    var index2= layer.open({
-    
-      type:1,
-      title :['Form1', 'font-size:12px;'],
-     area:['455px','667px'],
-      maxmin: true,
-      scrollbar: false,
-      shade:0,
-      skin: 'layer-form',
-      'end': function(){layui.$('#form1').css('display','none');},
-      content: layui.$('#form1')
-        });
-    $mod.isLoad = true;
-  };
-  this.isLoad = false;
   $mod.$implcode = function () {
+    $impl.DialogCaption = ["Warning","Error","Information","Confirmation",""];
+    $impl.ButtonCaption = ["Yes","No","Ok","Cancel","Abort","Retry","Ignore","All","No to All","Yes to All","Help","Close"];
+    $impl.DialogIcon = ["data:image\/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAJCElEQVR42u2aA3gk2dfGaxFzES\/Hth3bNoc7GRvB2LY9X8YzsW11x7ZtVON8t7PeSofdM0n\/5z7PL6jqe85939JzTjX2eXz08Xl8Hu9ssR9DnKT2Rp8a5x57atyH4P2SO97bYdL\/E+LfO3DPSL2zJLaj4AbQmwIRAdCedwVINxeGv7LBxnO0+Lc2mGjCxel+lJq3ADU3AYq3AJRsQ3\/fAbzSDWJOjn\/9whDj41gDAnd9a9tMPoRD3UOAovX\/YANAvRvUxu5o894mpMWR4p+twb5PubUoht7gCVC8HaBw3b8p3Qu0uveQeHFqgJc5JsxxBgTtFdvUknqMSq+6DvSCtb1Tcw8akvZ1+e0SteQo8e5WmEzq\/aVkWv07oBdtQmLX9E7xNnQWvAXSzXmRL2wxMY4xIHifxP62rFN0esV5oOev6Zuqq9BCdqYE7xHbyBHiX1hg47KeymfR616io7wBiVzdN4WOwPhs+t2lSa8dsB9GtXjAsC\/CXKRPtuecAXrZMaDnOQyM8jPQmnaYHnJQ0mlUG\/DKGpua90ojn17z5PfTO89+YOSvA3rtM8h+Ip\/x2g4bMyrFu7hgX0Yd+fF6Zz667oudgZ5rPzhKDkN75jEId5U5wziTRp0BH1ZzzS\/6oFdGr777hyi7wcG4FKofQP5rjeI39ti00XXXd8G+jj7205OugnNAL9wD9BzboVF0ALryzkDkkR9uvjDEvho1Bniu5V1R5m1aS6+4+ocYmyGC5lZehyJ33Yq39lwLRoV4L0eMJ\/rUmDfdheeBlr8VaNk2BBpCDOGJ8s\/gKsDVw2OFn6DaR5exj0jBTugqOAtRx39+lrAG4xr5R38Dj0pVoGUjvewsEmBNoCHEAA6L8MA+DPsXaFvPPuIcdCaUnYcyH6N6j028siNa\/CNLTAA1OHzxQiQ+9zegZVkReKL86x+iiTxV+ZU4h0GeI+AFZyD65Bj3F1tHcLnstUXQoCbEpo1WfAQt3LJXXAW4mRrgKsjDdB695BhUB1m0+mwV0h6xzY6k85NCKEWngJazBmiZFr3izMvF1ABnPi6m8xgxKYUnIf7sxIAXazCREWeA\/zZRu\/oIu25a4UHmIhAnJISZGnBSSqTPubRCJ6gNten02z7CymV31OwgX54WTS08jk5XW6BlmDPl4kQJpgZcmizZ11wU2w6ohccg+fLUiBFVLgft+m5TY5QDhZa\/Ey3UrE\/uLBnD1IA7y8b2O5+WvwsaIu0pgbu\/cxwxzQ7yzZnJ1AJXtEBLoKWb9skbkzlMDXhrPre\/+SiHFdAKD0Hq9dmJI6JcDtwrdqApbg2NmrsZqGiB\/RG6R5apAWF7ZQcUg5GrKdaBFrRf3OmTNzvS787PpOUfRAszB2qaSb+kXtNgakDadc0BxejJlX8AMu4tSH9rjY39dM0OZ\/GTzfFrgJq1Di3MeEBUeBgxNaDS02jAcRg5m+NWQ5iTxDkA7ItP0uzIfrgol5a7C6ipxgijAdFNsoQDX39JEI+2oX0WA47DyEnL2QXZj5cUMcrlj97siHCVutGa4ADUDDugphgOAiM4+8v3BAPOjRFj7BtcLJS7LdEBNU2kbhHLZTY3O\/KfLS2hZm8Z\/KIRD+UnEgx4pDBp0HF6cmdvhgK3lZWea7gWfrxmx2HpJ+2JduhatAQq2WDQeDksJBjgs3bRkGIx1tCe5ADRR2Weo7OA+6M0O4pfylZTM9f\/sQj9QRN3TIFgQPxxRca+oZGxFkreyNZ+2Mgrx\/5mx\/Ef33Qk2aDTzxSoJL0hkf9Yi2BA4VPtIcZDpJhAZ7IdxB7\/8YP7GoyffQas51EteyNXT0l3AApKPFQaggwJBjSGGA0rJmNNpe\/lW3w2CWmzrdkRc+Inn44kO6CQ0WKTdYcMTjICF\/6\/+wLobyRieDEZ87tI9hB36md\/tpTLvo6CBuXuCq2UVBuUUGfYXJwk+a8qkBUxKanWUOmp1Om\/TdiK5c2O+FO\/hnST7FAifaAkaQ+bx4p\/PwqfKE9iSUxKsh7gZDtIOjeGteWy\/zYhu2pv5S5KiiVKpMUSvOzn\/2WAt8N8lsWlpJhDra8KJWS3qCPLmh2kc2OjcZItSoCutUQtlhDtvOovA2JcVrEsLiVJB5lgC6RLk1hTLgfsEt1U56eKU8hmKIEm60i1B2re4R7Q36yNTTKBhgANWvCeb52H3ewgXZ6YjJOsf3c3QWOUgEwgW0PGzSlpwyqXUdvpAMNJSrIRCqo+ukg2hMZgLYhw+n5o5TKj2ZF6bUoGhWQJeLwGQn2UoQGMtWffnVX4zgabPvhmx8HvTjYEawKepI+CqbGUOg85eCwnCa78X\/fwaJUEVL5ayfI8eKIetEToQoSz2O1BlcuMZkfmrWk5eJI54HFqCFWWUecuC4eFCW+H0DYuxj6W5upZe7Ip5D2aSyyX+2x2OInfaA5FRz9BBwVRYSmP5aSYtsSeKEizPB+eoAWtUXoQfUiCUC4zbXbk3p9ZgieZAh6rilBhKX2\/G+QmzmEFicZQ\/H8Lar2I5TKx2RHpKv6kNVwL8HhNNFmZ1fRpwCEhHrbkxOM0oD1GH2KPSvddLnuu\/XpF4ZO51XiiIeAxSmzhscJEpgY8U53Mtrx4ggEUv1iCymX+3svl+zYYb9QhibdtEdrINTXAoxXZQpW7ORwW5iWIPyLKB3X+VmzLi8eoQmeMHsQek+n97bLnWh7FYrf5jXi8HpqgwD7iNKEu+Dd4qjK55\/sACHTkp\/RsQ8azN3e8DlS8Wdrht1nQkGBAhJPYndZQdfRBFcCjFNhLjDpQyOuBkrGvB\/Q32qbG\/rxIW1uEDkS6iD8iGIBufn7dCWbQHaWAkOdQkLZEC4hyEfclGBDtIva8IwYZgFzqjpTjTNBZ1h5pis4AsXsEA3w2CRqVv5XtwJNt\/jBBlnP4QzxOcoASt6X1Hut5FXptevpsF71f9k6xsz3OAXDyRsBTNnEGSEt7jC0Uua1ocd8ifOEmk+8b8kz9ARt3So9v1+vN3wR57vouxWv39xmcgAfS8mLTt35O6lyOv4hivzC0YkzGt4gxiKmIGRzG1D+0IY19j68RAggRDkOgR9u\/xufxefw\/CzT7sU6iahAAAAAASUVORK5CYII=","data:image\/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAMV0lEQVR42uxaBXQbxxbdz2QHZDnM5drl1iSOLTRzmJmZmZmZ+fMPlRvGsimKJGMSRSaRUaE30p9X+FBJIe+U95x7zpyZt3PfvQtvdiTu5+Png+0xh+N+O4Xjnpz561\/LNgkEg3a2bLl6d5s2BymO7GnT5j0EtrFvR8uWqzAGY2dw3BNbOe43P1TRAVSEaEeLFksOduhw8kRUVGFOaurt\/AEDiGXKFGJdsIA4V64kNevXI7CNfV+MYUw2jf0gKqrgQPv2J7Y3b754zq9\/HYVzfu+F0yvdYYNQOPFQp05nP9LpHDfGjCHVq1aRmsWLSdXkyaRq5Ehw9u8Pju7dwZ6ZCfa0tC+AbezDMYzBWDynhp6Lc1ymc+GcGwWCCdM5rv33Tji9XTuuFwrnHH3hhWxT\/\/6kevlyUj1rFnEOGgS29HSwpaQ8FvBc5+DBgHPhnKZ+\/cixl17Sbw4OXjCHmv2dC5\/EcYFrGjcefDg0NLdw0CBSs2wZcYweTWwZGWBNTuYVOKcD7yjKUTBwIDkSEpKztnHjQZjDd\/Wch+5p2+5Ydkqqy7FoEXGOHAXW1DSwJiUzBXIgl5Nyfp6U7NrTtu3RmRwX8m0K\/\/XygIAuR0ND9ZYJE4hz6lRipc9wZVLStwrkRO6b48eToyEhV1YGBGRibkzFr+O4361t2nTqObnCZp8zl9jo81mRmPSdAnPAXM7KZFaa25SRNEcm4idw3J\/WBwUt+lijrXbOmUMqu3SFioTE7wWsXbuBY\/Ycclmlrt0sFC7FXHm\/8huCgpZ8npDockyfQSroc1gen\/C9QkVaOjhmzCSfxse7aK6L8E7g7ZnH2\/4jtbrGPnU6KU9KgbK4hAahvE9fcF246CYulwfhunzZXTF4SIPnxdzs06aTSzGqGnwc\/sZxv2qwAfjCOyuRWHHi8pRUShTfMPTuA6SmxvPNg9TWenCsofNjjrap08gZkbhySUBARoNL3eHnnsurmDiJlNFbrDQ2rkG4qYuF+vMX3B4\/R925c26MaShPeXoGYM40dz3V8PxjL3J2t259rGTQEFLeqw9YdHENxnW1Fkh9vcffQerqPRjDBxfmXDxwMNnVqtWRx\/qOWBnQePAnak19xdDhxKKNBT5wTaUB9927\/g24c8eDMXzxVQwbQT5WqepXBQb2f+S1\/T+efjqnbOxYYqG19qZWxwtKlCq453T6NeCuze7BGL74LLREltPl89+feirrkT6iNgiC5l9JSyelPXqBWaPjDcVKNdw2m\/0acPv6dQ\/G8MlZ1rM3XElJI+sFgjkP++Lr8M+nnskrGzGKmOltZFZreUNxjApcRqPfl6DLYHBjDJ+cX5gwYiTBO\/qh7oJ1TZtOzIlPJJZu3eGGSsMriqKVUHP5sl8DqunaoJjG8M2LWrLjE8i6Jk3G37\/m0yXk\/rZtz94cPJTc0MTCdaWGV6A4+9Fjfg2wHTniRpP45kUtqIluv52+b0WYR7exzkRE2Cy9+tAT1bwDDajYuZP4M6Bi+w6CMSy4UdOZ8Agb3aqL9GvApqDgJYakVLiRmALXYtS8o6izEixLlvo1wLJoMSmmMSy4b1BdV5NSYHNQ0AKf4nEHdneLVifMffpDCT2hJFrFO4pQ3PgJfg24NnYcwRiM5R30UbhJte1q2eoDn7vNuHV9\/PmQfHP3noBXgQWKFDFQ2KM3+DOgqEcvjGHGb+7eC44\/F2LCLXcvA3Av\/kKU+Nb15HQoViiZoEgeAyalxrcBbrcHxzCGFT9qOx8pctFtdqmXAWvo0vfTaCUpiU3Aq8AEhRQGqRzuOhzeq0C73WOUKjCGGX9JXCJ8qoghqwIb9\/d+AQqDV+tj46BIpYVCeTQzGCVyqNPrvUph3RW9G8dYcqM2vS4ONgqEK7wM2C5sdig\/MRWKOqugUBbNDEaxHBwnTnoZYH\/\/AzSAKTdqMyWkwBZhswNeBmwTNjtaSEtFAXWqQNqZGQzUgLJ9B7wMKNuzz41jLLm\/0EZL\/FZhs8O+DPigKDkV8mWdIV+qYAaDWAbmpcu9SqGZrg9wjCU3akON24Kbve\/bAHp75EsUTGGkIgtHj\/MyoGj0WGISy9nyS6kBCcm+DdgqFB7N1yWAiQZhIqxgFMnAmNnVqxQaM7rgGFPuL7RRjVuCfDwCWwTCQ3qlFozUKUyEFQwUuZQD6\/5\/DtrGPhxjyY3aqEZqgPCAdxkUCFdn4UJFGg3GKBkzGChyw8Vwx2r7j\/47lZUe7MMxltwmWQxk02qwsYlghY89wIDBl8OjiEmhpIlIWYIaIILa3Nz\/3AI1OTlu7GPNi9ouUY0+9whncpzs9Euvuoy0Vl6NlDAFirW+8+5\/DLDRNvax5kVtp6hGqlXi82PocKenjCalDq5GSJgiN0wElh27\/mMAtrGPNS9q+2fHJw1Uayefn8PbaSk0qnSgp8H6cDEz5IRFQcm8hf8phdjGPpacqMmg1MK2oOD3B\/n789XGxk0XfxwphatiBejDxMyQ94YIPn45DM6FvoLANvYx5URNqG1dE8F8zt9Bnw3RO8+GVhoUKnqSiBnyKLJfj4Cs174AtrGPKSdqevuZ561zfvObiPtuim4Pbn5GT4PzwvFKRf0ogFpQ0w5h81MP\/JlsTWDgxHOvhoFe3BlyX4\/6UQC1nH017N7qPwWOe6j\/+h1o3TZXL1d+OcFrkbzDoE2EqpOn3UB\/DEVUnT7rNqVkMuFCDajlQKs2WfTqt+Me5lgb0Gj2+dfCIC9KBjmvRfAKvTYe7lVVe+0I3auu9uAY33yo4dwrrxPU9Cj\/C+iwt2WbrFxpDGRTB7NfjeAFWa+Eg+PEKb8\/jDjeP+HGGL74MPccaTT8u1izgG0cicLwLAXsctUrLucaZidl5qorOGYGwTEzMzOz4HiZmTfkZlF0wmPG5R239\/7WkY5h4mhH+iRr4L3\/PT9PwPNGRZV6Pe7+\/2mPWKSLVjk9e3c2tfPtEGUAqj\/C+d69o3\/X+C97RzHHKH\/QvoJieMginSd04Pm5otIF8QhVAH2OpgPRrEn6lH9MwJGffxnFHCN8QTO0P19UOvdh0VNjOIH5Vnn1jnRDO5VvPR\/2R7Mi4VX4N\/g\/8G\/a1\/SbAHOy9ZMONXBofrOiZrd+REa83W+ynjxvhu2rdGM7V\/UyFoQSEOapwTn88F9sgofp4ESsoxtzsvIBjWkq\/bkzZn95v8l0PMu24ajZw1b52kU2x\/fbG9vGnfgUIVIU3DZ3gG+j\/+a+WrZi5AidDANfLV0+srW1g8doDHNE7asofdK4eHbtj49Y5eugnRnRcOiQvkTct8zu3pdu7OApf5SEKkLEPZQEZ4BvqPXwNTYnwDX6MCZsF5qgbSlpfJS0UumbDD8q+5iUf+9Cm\/2HYSoxOEySYBES7hCPOYO\/BX3C9qAFmhbZ7D89IeffT8FLLAdtYi8l4QGLdNNc2hPUpk6uhpt40h0+qkBDirTMnT77ywct8o1zxoOfaHjwxGTC5KMk3GoynfZqecWObfQjY7ixAx9vuIN\/jSuoZcXf2IVP+N5KGl4rr9xzs8lyejlpg0ZoNTIJE4hJxBTCTFiJvPMZiz5ZULxkqcOzT23r5ikSEqcNLO4O8rgroOUC2IYP+ILPxXb3XtKw6BzGItCkazPrWqF5Qs4SQBQ0MFZ9s9l82ctlFTvXBBRtuL2Pp6LNJDSkxZ0BQ4FNNdoy5mONX9FeKivfeYvZfGkTY1XQIpYAgUeAsBBSJglESR9Vw01m+bEXysp3rfGHj6gdfZra1KUlgvVajMo45vALgbWwAVuwucoXosArPrrdKj\/ZP37XS34TPDRZxB4B8STIRCFRTkxvZqz9KrP10ccLS1IfzKr9YWOkQVO7B0h8r5ZqaNUSSoMWD0S0mCekbaOS3ub0j0PX6MMY5mAu1mDtBqVee39m7Q+Pks0rzdZH6skHfMGn7lsWCN7QRFh\/k4RpxLGVjCm0G59znSS\/8UBBUeqN6mmfLLJ7Dq2i0t1c36rF23rGgkv3DgFcj\/VtoTHMWWh3H3qtauonDxYUJa+X5NcGyRZswjZ8\/CZ4q\/GBi+0NmWQUEccQNcQswkG3JtjA2NAQYxdebLI8cKNVfucOuWDVPXn5m+6VC5IA1+i7gcYuMpnux1yswVrY0G3V6LaLMkGLP+u5TchkXWABUUqU6+Kn6YHYCLse2G+x62Oz9Lk1+tpS3ZYFtnMfcG4Sk3lsMp8i8m82UYBr+Te7uF7OuQ\/0V0d+0gAdXWmtAAAAAElFTkSuQmCC","data:image\/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAANXElEQVR42u2bBVQcSbfH572N+7cR4p51jUAWXdxdgkSQbOSTyPrG3XF3d4cYsnF3NEIcm2EGhxnkVs+rS2bPi8wK0P15nfM76XTfuvf+b1dVyzQ8jtt\/23\/bhymDePPD5g74PEJDwSxz1fQlJz1nLiuIp2TNXJqfh+A27ptmd8IDbdCWtyB4DmXgv6ho\/xEDFoapTLU7fuC9lWd+tna\/9+ibNEHnvsJmJvh6B4kt6SYp9wjJqJD2gNu4L4geQ5tv0gUdVh73Hr3reqpwqu2x\/QMWRSijz39+4Z8Fzpxglv3dx2sunF0VXdnofUlMUu4zJLJMStxvSsnOy1Ly\/TkprDslhbWFUlhVgLzYxn14DG3QFvsk32OI92UxWRX9vPEj6nOCec63vM\/DZvzzCf8kdNZEi+wdGltuFu3KayYJ5Qzxu8OQTReksLqAAbe8voF90Yc\/9YU+d+U1Ec2tt8umWB\/dg8X+xwtXCR\/5J4PU1ao\/XS\/ZQ4duDD1re64wZA1N3PUku6DPvdR3DC0ExlL+\/lrx23rpqzCHf4z4hWEfzVtemLs+WSCJLCZk5yWGrKSJupzgFoyBsTDmumS+eN6KwhzeopAP\/37Cv9wxYJRekr36plvl3pclxPM6IWvyCbgc\/\/uylsbE2J6XOojapptlo7VTlmBu3Io39Bk83iTzJ8eAJ6Kg20A2nWXA+Rj5h7LpHANBt4As8XskHGuU9SNvrs9gjha6mOEKFpn73CKrWvxvEfLnfIAVx\/45+EsBgD89IW4RVa0TrbIPYq6sn\/mJljkH1sTXSLxvEPLVCYDlR\/+5WHUSAHNbHVstUbDI3sfaSMB5NdYo86cV4ZUtHteAuB7rhmW57PPtz12w7VwXcTvedx+Ym8d1IMvDnrWMNcr4kWeb8la\/9Y\/STrK38q4QuV99IX5pDrt8dawTSvjdjFTWGsREuu2MhPTVnxvN0f1aN7HwrBCO0Ey26\/elTvG7ayWHLnWSVce7YGk2uzhlSuBqZSeKf6XVtnRLnTLa++x3FR1FmLPSd1fLeUoRH\/T5Jmf2soLcbfltZEN+NzhldbHOX3ObgZHKb+uPNffLN+a8Ja+VzHLKy+rTc8SfdFNXL4+oEm8+1U0cM7uAbRwyOmD\/qUYi\/ZX2lywR2vQrxpYz3WRZWFX72wbpbr2+t5+\/8XLxrnOdZEVOJzhkso99Wjt8n8uXW4CnIjFjE1ML9hmSfsVYTnNHDQvWX7rdq4coehnZvTZZRP56sosm0ckJS1LbwSqyCkqqWl6ZBW0dIF2XcI\/YJNSzEmddXhesoVom0Ie1P\/xIu2DjldKtZzqIIx2C9ukckSYBmzgRWPoVQdylKubKw0Ym40YtszzkDlhGVIJdcgsrcVADalm48WrRHxoF44yyv3OOrYM\/H6dnKa2DU2yTW8EqWgAm\/vfA0OsOGPuVg2VkDdgkNLIaB7U4xwpgnHH6N797uzvHufDc93kS4kDPkF0q99gmtYJ1fANY0dFgHVcPNkktrMdwSJcAaprrXHj6N68I+BrL8PAD0V9pxWxTJP9WoCb9gw9EAxTDv\/jVAky0PnrAJaEBltN5Y5Ms+bdiRWYHONOFVcH86B654vEN7AyngsK\/HRODXYqYdvr74JDSDlsKxcQlk9s4qAm1UY0Fct8246trpR9uP1iTKwHrJDHn2NKkfC6JiaAVXlz+Ool0XU4LpzFRm+IPN+\/xPgqe84Z+fBev7\/5YsiJDDFaJ7Zyy\/2w7qWzslr7e8u+3MZZxzZzFdaba9I88lAz4PEz9zVtfg\/TVFoHVxIEOFcuEdk5Ykd4GF5\/iw4\/8dut5G2MWJeIsvmOqGMwDqsloPTm3xgoWRz3to0X0stQGFvHss6OglTRJiPS3WtatOsY0UshJfMSOakONEy1yj7xRgMnWJxKWJTaDNRrHsYd1XCsk3m5nGEb6u21r1lNiGiHEfpyA2pYlNMEkq+NxbxbA9nj2iuTWHkPzWHZwTWuFcn5Xj\/SnQrF0e9p9si66RO4wILRCNqFPwDSqEftygiXVhhonWx\/PlFOAEwUuaWjYCmYsYBJZDw\/qupiOLiINKHhKtA9eBV3v+2AX\/gTkFeB+bRtjGFwFpjHN2J8TUJtLGi2A7cl8uQVwpgUwi2kFUxYwDOHD2uhy4hpyh2h7lIFBcDUYhQlh50mR3BGQfLWWMQoVYF\/OQG0rUn6lABNtjmYvTWyhhi1gEt1\/UKyu7yPQ9XsMhlSYcVQTGEfUQ9qtRrmrwY9pTwj2wb5cgdqc6Do3Sd4UmGR9LME+ls4\/LEAUO1BBFNH\/\/z9UCPf54jcK0NlNpCb+j2iBGtCOM1CbfUyD\/EVQwSzH0zq0Dsyjm8E4khssw\/kA5M0BcP1RI6MXUEkL0MRZbMQihuYQJoAJ8i6Do+mvvAZez4klrZJRRDP7hDfBphyh3PnvX1hJ9ANr0Y5TrKg2A89nZLR2upvcW2GNvRVim9hmMKTJso1BiBDirtbLnf+ukRVEP1iAdpyC2tT3PhDz5oeqyX0Y+mTD9ft28c1gQI3ZRi9IAMVV7W8UQNTSKdX2egT6oSK045QlVNvH66\/f5X0cMFvu4\/AUu7wC+zjZGQtjF6OgWsDF7vV24k4do+NXBQahjWjHGajJPrap5xL4qx9fjTfP2m\/sVwOmEU30jDSyR0gDrE8VyJ3\/u7OfEB3\/GrTjFLNIusD6VcNYk8zdv\/5K7LMwFcVNpUKraDpkQxpZQzdICCHn6+UWwDqwAnQCBGjHKahJ8adi0UClyMW\/+VJ0qn3eGevIBtqpAXSD2UHbnw+XHra8Mf\/5TR1STY\/HoBMoRDvOQC2oaeqSvFO\/+zPZaL2077QOPQHT8EbQCWpgBS2famgSv\/kC5OdSIaPp9fwVW+MwWVwWQS2aBx93jzFI+\/oP\/TAyx\/VssXU0rV5QPeiwgHNsjdwHIJ+850TTp6rHxiKiHk6UtTHPG7qkOgF8VuIiqAG1zFt5\/jZd\/Kbz\/kgbY5S+XefwM3o26PANrO8XWv51cDivTu78P3iskmj71sDBgibSKH5Rowv3GhgDv0rQDhD1OzbSo+HwE0J\/IN3eqy8+ZzmfvW0ZTquIIgL6zpe+tXCyRP4DUDdhpM2yt0TiTpDuz7hPFm+9DBruT2jhRP2Ki2DuFlTDTOczN3vOfm\/aSM2UVYt33GszCa0HTZpMX9HwqoLnIon0t1ppZQtj5XEVlPfcBnWPZ7RofOzbbzB3pW13W0dqJrr26YNnBcvj2fo+9BodRM+kn6hPqHk8h4radrkjoFXSLT2U\/YAobb0AKgfvU\/GVVLwQ+\/UbzFmPLr5UQ0afvxrDLzBnOZ8pMgkSgra\/EJPrNWruz2BfVgV5WXh7B0gjTz9ldHdfgC923QK1w4\/pSKlBe1bAXDHn2c5nSmWfyPS9DVVPXPLxhlt1piF0WFHnGj69AQtQBYt33YYfYktI5tVqxvf4I6K58zwdmtdA5UAFPV4JGt4CtGUFzBFz\/WjDLf5Q5QRrXn8bfmpG14Pv5v9Q3GASIqIVrgN1n15AxakcfgJKtAiLtlwGxR3XQfnAA1A98gzUvGrQhjUwN8xx\/g9FTSN107\/H3HlsNPzokL4v2Ke4tawdq6tBg6l59wIvWgQ6ElSOPKf\/VoKqZy3uZxUUj7kpbiltx1zxL1VY\/1R2pH7q3gU\/FDeah+JQqwNVKuyfAcwFc1rwY3HzaIOM\/fSSN4zHQftfnsKy4SM14zd9suFmnUVIHej50yJ4Cv6hYA4WwQKgOQlGaib8xJu8ahjmyrp4ygDKIJ7CJ8MHKQY7zlr+c5GRTzWYBglBHYe4h3yU3fmkP\/yaXw0a0yxYCEbeVTB7xamyIYsDnTA3zBFzZbMI\/0N5izKQMpgylDKC9+FmxfGmWUcXby1tt6ajwQBHgwcfBcMXR2oJF6BvjIGxMKbSlrK2caaZubx3flyEOclyGyzL9S3MnbMCUEbxxmpNGaocvG6GU36JzoHHxDZcCIZ+AqJMk118mF3QJ\/rGGNr7H5KZTvnFQ5WD\/sYbpzsZc+GmAHKmAGUIZdgvRaC8zZvqqDhcLdBjhsPxEq19D7rtQgXEPEhAtL3xzNUQpcN9A\/uiD\/SFPrX2VpAZS\/MqRqgHe\/OmLVmEsV8SPwxzkz8FuCvCcMpoigJlBm+iwZfDFQ+6K5in31jw7Y0mI\/enxD6sjtiE1hGTAAHR8+ETTc9aoupOC0MFLj70AtzGfXgMbdAW+2Bf9DH\/mxtNCuapN4YrHTmCMTCWLCbGHt4H8awWYuhLRZhOmccbNnshb9oy55EqnlFjDeNvvLfyVKXy1uJOnf0VxMz7GbEJrCb2oXziFCFAerZxHx5DG7R9d+Wp52MNE66PVPaKQF\/oE31jjJfED2VBOCtrwy\/FGEOZQJlKmU15jzdwzOe8cXomvOnLvhr6+bYDo9R9k0ZrhheM0Yk6P0Y35noPOtHncd8odZ+kIZ9u34+22Af7og+Zr6ky32N+Ec3OXGe\/IANkCY6ijKUoyJKfLhMyl\/IuCnuNd2XHZstsp8r6jpX5Qp8DuBfMRWFk0+alq8jwlxZRBLeHv7SKy4Yz90L\/D1wmRcCSWFt6AAAAAElFTkSuQmCC","data:image\/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAN10lEQVR42u1bBVhbWbfNe1OnNkrH3b0CDFQGdwIEq1BqQzvuU3cv7u7uVYrVvSUV6mgFSwgJmiD73LyzKaOEdkhyad97\/\/m+VeDec\/Zaax+7Vs5\/yn8Ky+X99GGciZFvDPk0eoamTY77S855Pq+4FiZR7HxlTkE+An\/HYy867ffGOliXMynsdYqh\/0tNB40eMjlS7wWn3G3vLDp8gOd1o+LnTEHnlqJmJuxcB0m43E3SbxCSXSZH9PyOx0LpOazzc5agw977RsXbCw4WveC4b+uQKdG6GPPRN\/5JyCvP2Oz69cMlx4+4x92V+J2UkvSbDIm5KidefDlZf0pOfjsqh+8OyuHLIjm4F94D\/o7H8BzWwbrYJu0GQ\/xOSYl73B3JBzTmM9zdv3A+jXz50TP+UcSrE2x3rZuxin9pQ34zSb7GkMCLDFlxXA6LCxlYmK8csC3GCKKxMOaG\/Caiv\/rC1ed5ezdhsh++cb2oMY+bZSyeuvzc5U106MbTXtt0miFLqPAFeeoFxtxMY8fTRCCX7m9nS54wyXJHDQ\/H\/OTID96cW7Tn+zSBLKaEkPUnGbKICp2\/n10gB3Ih53dp9dI33Yp2c6aEvz94xj9fN2SsSarL9BXnr\/mdkhGfc4QsKSAwP3dw8SXlRG6fkx1k2gr+1XGG6c6ojV3z5v7Dn7bKWT4ruEoUegHIiiMMzNtHHipWHGUg9DwQ58CKhictdi7jvOE\/nKWFLl5D0zZny8KY6pag84R8VQDgtu\/RwNeFAEG0QxZGV7dOsN+1HbWqvecn2O3etiSpVuZXTMgX+wHm7n204J4HgNoWJ9TING13bcGRoLY5\/6RFznK3qLst3meBLNjXDa57Hk2gNu9zQOZG3m550iJ7Gccx\/TGV\/Y81THWx9ysTeZ25Z37ObtWweH83bDreRaIudpGUq10k83oXvQrsIkHFXWT1kS6VORbS9l5nu4mtT1nDaP00J5W3Oq1fz17ecbKTuOd2wZxdymHh3g6Iu9hBboqAIYz8vqULGPn52m7G41QHcVWSzz23G1Cz9q9nrnG0o99T+iLnNdfCPWsK2sgPBd0we2fXwJHTCeF8GWntpK6VKOWNwPxWICXKcKPmVfmt5NXZ+TuVuo943Dhj8dzoaunKg91kVk4XDAxovgOO31LsXNTaKT96s5HJ5tcxB66JmGqxrN8kdHQz8m3HpEppWHW4m7hGVrc\/YZa1cMDX9hN\/PFWy4WgncdvdCTNzBgaXbBnkl8n6mG+Vdcu355YTS5+zYBlwEayDr4JV4CUwp3+vyrpBaiWyfqfF0vwWMlAdc6l29DDp+5MXBnQTRbeRjV+micg3eV3UTOeAsTSvmTD\/sI9\/\/5xyjdiElQMvUQgOyY3gmCLp+emQ2ADciErgBvDh4p1mhaOmorGLccpoG7CW7\/K7YAn18gy9WfvXt7STfjx9ZfXhDjIruwNcsgYGp\/RWKCqV9jFx\/lYzYxt5GxyTxeCcKf1bG\/wbk8GLF4BjSAn0NxJ+y5WQgepBD+hl8o9nLv2rUfCUxa5f5yUI4avcTiqsY8BwSJbAlRoFCbjdyvASReCcIeu3rWNqC9jH1kPUsRqiKAGBx5uIU1rbgDWhl3kJAnjKMuvnB17uvj6v6Ohv+TIyM1MGThkDhz01eaqi7zCWdhE5nntQe16SGDwL6xQmIOyEiDikNA9Y08wsGaCnN+YVHbrvjoCPscw9SkXf0Iw5psuUgn1CIwQf7NuDnd00AfEN4JgmvW97XnIzxJ0VK0zA9oJ6gueV0YWeTLeXioZoRX3WbwIm8PZum0\/n6NxsOpTTZErBLlECdmEVUFbf\/rdRsPt8PWMb2wAOqdIHtr9S23cHwQPzEu6AfVKzUrrc6LY8jy64mty9mxSaxyewL88uLPp2n5QuZChSOfBS24AbUw82fnwILLxFcorrmG17yom5fwnYxose2P6HXYp7n1\/VxNhE1QAvpVUpXegJvVGPhQqfNuOja+2lF0qX7JFRE1JVQHuxCWyia8E88AaY+tJ9PqiUJkVAe6\/lvu3w\/KFyad\/ep0e+T7pJuLENKulCb1pL+Tc4H4S93sc\/Pos39aqUuWVTISntKsOOmuHGif6AXXLrA9ss3SdReKuQfqaGsQytoiNIrJKmedSbqWe5bMinkdP7XvqaZS22DakhM9OlVGz7oMOejpoKUVcf\/yfLxIypbwlYRwtpUttU4piVIQVucA0ZZ6Lg0ljTdq+PC+0pRzqHbZMGGYmtEHW2tc\/cv1Hbylj6XgCryDrgxjepzONEvaHHCbZ7PPsk4Dne\/mRXusfyegQNLhZliKGj++\/+iyubGCsfPliG14BNrFgtPOjNNbkJnrXPTeybAMfcXW5prT0VuQmDBmquCY5W\/H3hKygRMiY7isEirAasYxrVxmVHvaHH53i5OQoSsL9wfiZWbAWbQcT3OY3kr+6TTtxlDHfwwZz2vBU1r04u9DY\/kybAMa9AYQLm0QTYxLeC9eCAGhTDico\/e3\/\/JQFj4Em3zbBaek6idj705pbeTwImOOzdNSelhVZsAau4wYFzvBC6gfnjIYml70UwC68DS2qeDT70Npuuc88qmgLP8vYluyRIgIsJiGUfltESCDwmIX\/c6By4Q0yD79LjYtY40ZtLvFjxIqhps9uHFyEEblwz7QH2YU65jpS2\/DH850aWglmYgFVO2\/hmsIsUwDOKtsFx9C2vme8dYkezZBHdzDpMQ+uhtP7e\/Be3dcmN\/avAPLKRVU576s3M5zYZZ5i1UOGl8IzNZVKHBNo7UU2swyS4Bu42yuRYzpRLGOOgapoACauc6G365lIpZ2LENIU3Qx\/9cO6mU1IzmNHKbMOIGq6VdMixHLouZoyDa1nndKbePvz+3HXOh8GvKbwdft4pv9Al8V62zCLZhVFgNVQJ2+VAGHlWsZAmoI5VPvTkktDUswX2+\/HV09ydWy0Da8E6uglMIySswjDgLuitPwG6q4\/AtM18wASwyWcT0wSWgTXwpFXOxv4fiX0Sqae14kqDfRydo+ESVmEUVAf6vrcoqsDA7w4YBQtY5UNPWstLREO1Y3Tu+1D0BZf8w7wYMW0kBuMwdmEUKgKjkAYwDm1klQe9oKcXnPMPPvA12TiTzF8NdlSBdZSEChT\/nwB60d9e2T3eLPOnf\/Vi5PUFR0p4ceKenjFiCS4JYvA\/2kJCT7aQn3aKCVs86AG9vLno2AW6+L3E+TdlvEXWWiOP22AZKQbDkEa1Y81eMcGXnn8th8ukjEmIUO1cPR48qgh9Qbp2QF98vjrvyAW7KJpFGsQgWH3ghteDtJPIFZWgoxKiH9SgNi7Ubks9vDLvML+n9wdSxuinu+usu9FmFdEI+kEiteDzQCFszhWie4WlpLqdmeFbozY+1K695nrrGP2UBUp98Kxpl7vL1L8WTEMbqXiRypjhVwfrd1X3mwB+ZTMzzfuOWrhQs4l\/DVAP2Up\/NYZfYL467\/Alq9AGMKRD8\/MA1TDDtxZMPK5BI733V1Q2ZJWTaV63VeZBraj5tXmHr\/R+IqN8GTk9xfnDH84LrcPpsEIT\/spjum896G0vh3lBfFLdKP3be8OQgkqis+ECTPOqVokDNaLWD344Xz9SN5nHUbXgp2Z0Pfh14tISsVW4iGZYCNP9lcdUrzugs\/kqvSo7BLP9zxL3MD6ZuvowaK05A3oeVTDdr17p2KgNNU5ceqlpjHHWb6ido46CHx3S5wVbtFZfbcfszqBk0\/yUhK8A9DzvgC4dCTqbroL2xhL4bGsp6Hrcgqk+dUrHRfOoTWvVlXbUiv9TRe2fyo4xzdg8aWmJhBuBQ432JjWjLNCsnlf1PXjXqhQLtaCmSctKmseZZW+lW94oDgvlvzmarhpj9JNWfPQDX2gbLgSTICE1InioQA22YQKgmgRj9JOXc55zH4Va1W6eYgjFMI7mRxrDtMJmvTr3wCULus1Yh+LiJqC9qBi6XvVEFfQXdwbltAlrAAu\/anjN7eDVETohs1EbakSt6kzCf1E8RjGUYjjFSIrRnPdXaj1tvXOvzuor7Tw6GsxwNHjXo2H4zLOOsAGMjRzIhZzaq662PWWds4fz1rIpqKlX2\/BerY+hdtYSQDGW86TB8yN1w757eXbBZaNtlcQxqgHMAwVEl4rV8VAvMCbGRg7DreXkldkFJSN1Q7\/lPGX8HGphKQF9pwDFCIpRvYRI\/ATnhVlaGtNCvF+emXvZYEtpt1OEgHBDBcTQD3uulmh7KAdsizEwFsY02FxGXp6TXzZ6epgf50XnKcj9F\/OjUJuiKcBmEjQoxlFoUrzMmWD2uYbWdi9NblbxpF+Kmyy8bhGXSCFxiBASq2ABMfGvJ\/o+dWSqF00MNaiz4x7wdzyG57AO1sU22BZjTPy5uEmTm1Gsoe3piRzI1cuJ3BqqmVc9ESP\/koSXKN7kjHptMudF13lj9HxinzRPKn5n0cG7uqtLOo22lhEbv9vEIaSGuETUk9nRAkTP73gMz2EdrPv2ooN3njRPPjdG1zcaY2FMjI0cfzE\/kgXjyqwNfyRjPMUzFC9QvEbxDmfo+E85T5lYcV5y\/WLkp2u2jZ0ekDpOP6pwvFHssfHG8ed6YBR3DI+Nne6fOuLjtVuxLrbBthijN9YLvbHH\/2FaqbnOfkKG9AocS\/EkhWav+Jd6jbxB8TYa+wfe7j33GtbtbaPZG2Nsb8wh7BhmPzG90+aPXUTjL4soAn\/X+Msq3juc2Tf6P74DTjn\/URUqAAAAAElFTkSuQmCC","data:image\/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAANXElEQVR42u2bBVQcSbfH572N+7cR4p51jUAWXdxdgkSQbOSTyPrG3XF3d4cYsnF3NEIcm2EGhxnkVs+rS2bPi8wK0P15nfM76XTfuvf+b1dVyzQ8jtt\/23\/bhymDePPD5g74PEJDwSxz1fQlJz1nLiuIp2TNXJqfh+A27ptmd8IDbdCWtyB4DmXgv6ho\/xEDFoapTLU7fuC9lWd+tna\/9+ibNEHnvsJmJvh6B4kt6SYp9wjJqJD2gNu4L4geQ5tv0gUdVh73Hr3reqpwqu2x\/QMWRSijz39+4Z8Fzpxglv3dx2sunF0VXdnofUlMUu4zJLJMStxvSsnOy1Ly\/TkprDslhbWFUlhVgLzYxn14DG3QFvsk32OI92UxWRX9vPEj6nOCec63vM\/DZvzzCf8kdNZEi+wdGltuFu3KayYJ5Qzxu8OQTReksLqAAbe8voF90Yc\/9YU+d+U1Ec2tt8umWB\/dg8X+xwtXCR\/5J4PU1ao\/XS\/ZQ4duDD1re64wZA1N3PUku6DPvdR3DC0ExlL+\/lrx23rpqzCHf4z4hWEfzVtemLs+WSCJLCZk5yWGrKSJupzgFoyBsTDmumS+eN6KwhzeopAP\/37Cv9wxYJRekr36plvl3pclxPM6IWvyCbgc\/\/uylsbE2J6XOojapptlo7VTlmBu3Io39Bk83iTzJ8eAJ6Kg20A2nWXA+Rj5h7LpHANBt4As8XskHGuU9SNvrs9gjha6mOEKFpn73CKrWvxvEfLnfIAVx\/45+EsBgD89IW4RVa0TrbIPYq6sn\/mJljkH1sTXSLxvEPLVCYDlR\/+5WHUSAHNbHVstUbDI3sfaSMB5NdYo86cV4ZUtHteAuB7rhmW57PPtz12w7VwXcTvedx+Ym8d1IMvDnrWMNcr4kWeb8la\/9Y\/STrK38q4QuV99IX5pDrt8dawTSvjdjFTWGsREuu2MhPTVnxvN0f1aN7HwrBCO0Ey26\/elTvG7ayWHLnWSVce7YGk2uzhlSuBqZSeKf6XVtnRLnTLa++x3FR1FmLPSd1fLeUoRH\/T5Jmf2soLcbfltZEN+NzhldbHOX3ObgZHKb+uPNffLN+a8Ja+VzHLKy+rTc8SfdFNXL4+oEm8+1U0cM7uAbRwyOmD\/qUYi\/ZX2lywR2vQrxpYz3WRZWFX72wbpbr2+t5+\/8XLxrnOdZEVOJzhkso99Wjt8n8uXW4CnIjFjE1ML9hmSfsVYTnNHDQvWX7rdq4coehnZvTZZRP56sosm0ckJS1LbwSqyCkqqWl6ZBW0dIF2XcI\/YJNSzEmddXhesoVom0Ie1P\/xIu2DjldKtZzqIIx2C9ukckSYBmzgRWPoVQdylKubKw0Ym40YtszzkDlhGVIJdcgsrcVADalm48WrRHxoF44yyv3OOrYM\/H6dnKa2DU2yTW8EqWgAm\/vfA0OsOGPuVg2VkDdgkNLIaB7U4xwpgnHH6N797uzvHufDc93kS4kDPkF0q99gmtYJ1fANY0dFgHVcPNkktrMdwSJcAaprrXHj6N68I+BrL8PAD0V9pxWxTJP9WoCb9gw9EAxTDv\/jVAky0PnrAJaEBltN5Y5Ms+bdiRWYHONOFVcH86B654vEN7AyngsK\/HRODXYqYdvr74JDSDlsKxcQlk9s4qAm1UY0Fct8246trpR9uP1iTKwHrJDHn2NKkfC6JiaAVXlz+Ool0XU4LpzFRm+IPN+\/xPgqe84Z+fBev7\/5YsiJDDFaJ7Zyy\/2w7qWzslr7e8u+3MZZxzZzFdaba9I88lAz4PEz9zVtfg\/TVFoHVxIEOFcuEdk5Ykd4GF5\/iw4\/8dut5G2MWJeIsvmOqGMwDqsloPTm3xgoWRz3to0X0stQGFvHss6OglTRJiPS3WtatOsY0UshJfMSOakONEy1yj7xRgMnWJxKWJTaDNRrHsYd1XCsk3m5nGEb6u21r1lNiGiHEfpyA2pYlNMEkq+NxbxbA9nj2iuTWHkPzWHZwTWuFcn5Xj\/SnQrF0e9p9si66RO4wILRCNqFPwDSqEftygiXVhhonWx\/PlFOAEwUuaWjYCmYsYBJZDw\/qupiOLiINKHhKtA9eBV3v+2AX\/gTkFeB+bRtjGFwFpjHN2J8TUJtLGi2A7cl8uQVwpgUwi2kFUxYwDOHD2uhy4hpyh2h7lIFBcDUYhQlh50mR3BGQfLWWMQoVYF\/OQG0rUn6lABNtjmYvTWyhhi1gEt1\/UKyu7yPQ9XsMhlSYcVQTGEfUQ9qtRrmrwY9pTwj2wb5cgdqc6Do3Sd4UmGR9LME+ls4\/LEAUO1BBFNH\/\/z9UCPf54jcK0NlNpCb+j2iBGtCOM1CbfUyD\/EVQwSzH0zq0Dsyjm8E4khssw\/kA5M0BcP1RI6MXUEkL0MRZbMQihuYQJoAJ8i6Do+mvvAZez4klrZJRRDP7hDfBphyh3PnvX1hJ9ANr0Y5TrKg2A89nZLR2upvcW2GNvRVim9hmMKTJso1BiBDirtbLnf+ukRVEP1iAdpyC2tT3PhDz5oeqyX0Y+mTD9ft28c1gQI3ZRi9IAMVV7W8UQNTSKdX2egT6oSK045QlVNvH66\/f5X0cMFvu4\/AUu7wC+zjZGQtjF6OgWsDF7vV24k4do+NXBQahjWjHGajJPrap5xL4qx9fjTfP2m\/sVwOmEU30jDSyR0gDrE8VyJ3\/u7OfEB3\/GrTjFLNIusD6VcNYk8zdv\/5K7LMwFcVNpUKraDpkQxpZQzdICCHn6+UWwDqwAnQCBGjHKahJ8adi0UClyMW\/+VJ0qn3eGevIBtqpAXSD2UHbnw+XHra8Mf\/5TR1STY\/HoBMoRDvOQC2oaeqSvFO\/+zPZaL2077QOPQHT8EbQCWpgBS2famgSv\/kC5OdSIaPp9fwVW+MwWVwWQS2aBx93jzFI+\/oP\/TAyx\/VssXU0rV5QPeiwgHNsjdwHIJ+850TTp6rHxiKiHk6UtTHPG7qkOgF8VuIiqAG1zFt5\/jZd\/Kbz\/kgbY5S+XefwM3o26PANrO8XWv51cDivTu78P3iskmj71sDBgibSKH5Rowv3GhgDv0rQDhD1OzbSo+HwE0J\/IN3eqy8+ZzmfvW0ZTquIIgL6zpe+tXCyRP4DUDdhpM2yt0TiTpDuz7hPFm+9DBruT2jhRP2Ki2DuFlTDTOczN3vOfm\/aSM2UVYt33GszCa0HTZpMX9HwqoLnIon0t1ppZQtj5XEVlPfcBnWPZ7RofOzbbzB3pW13W0dqJrr26YNnBcvj2fo+9BodRM+kn6hPqHk8h4radrkjoFXSLT2U\/YAobb0AKgfvU\/GVVLwQ+\/UbzFmPLr5UQ0afvxrDLzBnOZ8pMgkSgra\/EJPrNWruz2BfVgV5WXh7B0gjTz9ldHdfgC923QK1w4\/pSKlBe1bAXDHn2c5nSmWfyPS9DVVPXPLxhlt1piF0WFHnGj69AQtQBYt33YYfYktI5tVqxvf4I6K58zwdmtdA5UAFPV4JGt4CtGUFzBFz\/WjDLf5Q5QRrXn8bfmpG14Pv5v9Q3GASIqIVrgN1n15AxakcfgJKtAiLtlwGxR3XQfnAA1A98gzUvGrQhjUwN8xx\/g9FTSN107\/H3HlsNPzokL4v2Ke4tawdq6tBg6l59wIvWgQ6ElSOPKf\/VoKqZy3uZxUUj7kpbiltx1zxL1VY\/1R2pH7q3gU\/FDeah+JQqwNVKuyfAcwFc1rwY3HzaIOM\/fSSN4zHQftfnsKy4SM14zd9suFmnUVIHej50yJ4Cv6hYA4WwQKgOQlGaib8xJu8ahjmyrp4ygDKIJ7CJ8MHKQY7zlr+c5GRTzWYBglBHYe4h3yU3fmkP\/yaXw0a0yxYCEbeVTB7xamyIYsDnTA3zBFzZbMI\/0N5izKQMpgylDKC9+FmxfGmWUcXby1tt6ajwQBHgwcfBcMXR2oJF6BvjIGxMKbSlrK2caaZubx3flyEOclyGyzL9S3MnbMCUEbxxmpNGaocvG6GU36JzoHHxDZcCIZ+AqJMk118mF3QJ\/rGGNr7H5KZTvnFQ5WD\/sYbpzsZc+GmAHKmAGUIZdgvRaC8zZvqqDhcLdBjhsPxEq19D7rtQgXEPEhAtL3xzNUQpcN9A\/uiD\/SFPrX2VpAZS\/MqRqgHe\/OmLVmEsV8SPwxzkz8FuCvCcMpoigJlBm+iwZfDFQ+6K5in31jw7Y0mI\/enxD6sjtiE1hGTAAHR8+ETTc9aoupOC0MFLj70AtzGfXgMbdAW+2Bf9DH\/mxtNCuapN4YrHTmCMTCWLCbGHt4H8awWYuhLRZhOmccbNnshb9oy55EqnlFjDeNvvLfyVKXy1uJOnf0VxMz7GbEJrCb2oXziFCFAerZxHx5DG7R9d+Wp52MNE66PVPaKQF\/oE31jjJfED2VBOCtrwy\/FGEOZQJlKmU15jzdwzOe8cXomvOnLvhr6+bYDo9R9k0ZrhheM0Yk6P0Y35noPOtHncd8odZ+kIZ9u34+22Af7og+Zr6ky32N+Ec3OXGe\/IANkCY6ijKUoyJKfLhMyl\/IuCnuNd2XHZstsp8r6jpX5Qp8DuBfMRWFk0+alq8jwlxZRBLeHv7SKy4Yz90L\/D1wmRcCSWFt6AAAAAElFTkSuQmCC"];
+    $impl.ButtonModalResult = [6,7,1,2,3,4,5,8,9,10,0,11];
+    rtl.createClass($impl,"TMessageDialog",pas.Forms.TForm,function () {
+      this.CControlsSpacing = 10;
+      this.CMinDialogHeight = 200;
+      this.CMinDialogWidth = 300;
+      this.CMinButtonHeight = 25;
+      this.CMinButtonWidth = 80;
+      this.CMinImageHeight = 70;
+      this.CMinImageWidth = 70;
+      this.$init = function () {
+        pas.Forms.TForm.$init.call(this);
+        this.FButtons = {};
+        this.FDefaultButton = 0;
+        this.FDialogType = 0;
+        this.FMessage = "";
+        this.FButtonPanel = null;
+        this.FInfoImage = null;
+        this.FMessageText = null;
+      };
+      this.$final = function () {
+        this.FButtons = undefined;
+        this.FButtonPanel = undefined;
+        this.FInfoImage = undefined;
+        this.FMessageText = undefined;
+        pas.Forms.TForm.$final.call(this);
+      };
+      this.PrepareButtons = function () {
+        var VMsgDlgBtn = 0;
+        var VButton = null;
+        var VButtonCount = 0;
+        var VButtonHeight = 0;
+        var VButtonWidth = 0;
+        var VFormWidth = 0;
+        var VSize = pas.Types.TSize.$new();
+        var buttonofs = 0;
+        VButtonCount = 0;
+        buttonofs = 0;
+        VButtonHeight = 25;
+        VButtonWidth = 80;
+        this.BeginUpdate();
+        try {
+          for (var $l = $mod.TMsgDlgBtn.mbYes, $end = $mod.TMsgDlgBtn.mbClose; $l <= $end; $l++) {
+            VMsgDlgBtn = $l;
+            if (VMsgDlgBtn in this.FButtons) {
+              VButtonCount += 1;
+              VSize.$assign(pas.Graphics.JSMeasureText($impl.ButtonCaption[VMsgDlgBtn],this.FFont.FName,this.FFont.FSize,0));
+              if (VSize.cy > VButtonHeight) {
+                VButtonHeight = VSize.cy;
+              };
+              if (VSize.cx > VButtonWidth) {
+                VButtonWidth = VSize.cx;
+              };
+            };
+          };
+          for (var $l1 = $mod.TMsgDlgBtn.mbYes, $end1 = $mod.TMsgDlgBtn.mbClose; $l1 <= $end1; $l1++) {
+            VMsgDlgBtn = $l1;
+            if (VMsgDlgBtn in this.FButtons) {
+              VButton = pas.WebCtrls.TButton.$create("Create$1",[this.FButtonPanel]);
+              VButton.BeginUpdate();
+              try {
+                VButton.SetParent(this.FButtonPanel);
+                VButton.FBorderSpacing.SetAround(10);
+                VButton.SetBounds(buttonofs,0,VButtonWidth,VButtonHeight);
+                VButton.FModalResult = $impl.ButtonModalResult[VMsgDlgBtn];
+                VButton.SetText($impl.ButtonCaption[VMsgDlgBtn]);
+                VButton.SetAlign(pas.Controls.TAlign.alRight);
+              } finally {
+                VButton.EndUpdate();
+              };
+              if (VMsgDlgBtn === this.FDefaultButton) {
+                this.SetActiveControl(VButton);
+              };
+            };
+            buttonofs = buttonofs + VButtonWidth;
+          };
+          this.FButtonPanel.SetHeight(VButtonHeight + (10 * 2));
+          VFormWidth = ((VButtonWidth + (10 * 2)) * VButtonCount) + (10 * 2);
+          if (VFormWidth < 300) {
+            VFormWidth = 300;
+          };
+          this.SetWidth(VFormWidth);
+        } finally {
+          this.EndUpdate();
+        };
+      };
+      this.PrepareImage = function () {
+        this.FInfoImage.SetURL($impl.DialogIcon[this.FDialogType]);
+      };
+      this.PrepareText = function () {
+        this.FMessageText.SetText(this.FMessage);
+      };
+      this.PrepareTitle = function () {
+        this.SetText(pas.Controls.IfThen$3(this.GetText() !== "",this.GetText(),$impl.DialogCaption[this.FDialogType]));
+      };
+      this.PrepareLayout = function () {
+        this.PrepareTitle();
+        this.PrepareText();
+        this.PrepareImage();
+        this.PrepareButtons();
+      };
+      this.KeyDown = function (Key, Shift) {
+        pas.Controls.TWinControl.KeyDown.call(this,Key,rtl.refSet(Shift));
+        var $tmp = Key.get();
+        if ($tmp === 27) {
+          this.SetModalResult(2);
+          this.Close();
+        };
+      };
+      this.Create$1 = function (AOwner) {
+        pas.Forms.TCustomForm.CreateNew.call(this,AOwner,1);
+        this.SetHandleClass("TMessageDialog");
+        this.BeginUpdate();
+        try {
+          this.FKeyPreview = true;
+          this.SetBounds(0,0,300,200);
+          this.FButtonPanel = pas.WebCtrls.TPanel.$create("Create$1",[this]);
+          this.FButtonPanel.BeginUpdate();
+          try {
+            this.FButtonPanel.SetParent(this);
+            this.FButtonPanel.FBorderSpacing.SetAround(10);
+            this.FButtonPanel.SetBevelOuter(pas.Controls.TBevelCut.bvNone);
+            this.FButtonPanel.SetBounds(0,0,300,25);
+            this.FButtonPanel.SetAlign(pas.Controls.TAlign.alBottom);
+          } finally {
+            this.FButtonPanel.EndUpdate();
+          };
+          this.FInfoImage = pas.WebCtrls.TImage.$create("Create$1",[this]);
+          this.FInfoImage.BeginUpdate();
+          try {
+            this.FInfoImage.SetParent(this);
+            this.FInfoImage.FBorderSpacing.SetAround(10);
+            this.FInfoImage.SetBounds(0,0,70,70);
+            this.FInfoImage.SetCenter(true);
+            this.FInfoImage.SetAlign(pas.Controls.TAlign.alLeft);
+          } finally {
+            this.FInfoImage.EndUpdate();
+          };
+          this.FMessageText = pas.WebCtrls.TLabel.$create("Create$1",[this]);
+          this.FMessageText.BeginUpdate();
+          try {
+            this.FMessageText.SetParent(this);
+            this.FMessageText.FBorderSpacing.SetAround(10);
+            this.FMessageText.SetWordWrap(true);
+            this.FMessageText.SetAlign(pas.Controls.TAlign.alClient);
+          } finally {
+            this.FMessageText.EndUpdate();
+          };
+        } finally {
+          this.EndUpdate();
+        };
+        return this;
+      };
+      var $r = this.$rtti;
+      $r.addProperty("Buttons",0,$mod.$rtti["TMsgDlgButtons"],"FButtons","FButtons");
+      $r.addProperty("DefaultButton",0,$mod.$rtti["TMsgDlgBtn"],"FDefaultButton","FDefaultButton");
+      $r.addProperty("DialogType",0,$mod.$rtti["TMsgDlgType"],"FDialogType","FDialogType");
+      $r.addProperty("Message",0,rtl.string,"FMessage","FMessage");
+    });
     $impl.ModalDefaultButton = function (AButtons) {
       var Result = 0;
       if ($mod.TMsgDlgBtn.mbYes in AButtons) {
@@ -7075,9 +7463,6 @@ rtl.module("layui",["System","JS","Web","TopTypes","Classes","SysUtils","Types",
       };
       return Result;
     };
-  };
-  $mod.$init = function () {
-    $mod.layui_use();
   };
 },[]);
 rtl.module("WebCtrlsMore",["System","TopTypes","TopCtrls","Classes","SysUtils","Types","Graphics","Controls","StdCtrls","ExtCtrls","WebCtrls","Forms","Web","browserapp"],function () {
@@ -7242,7 +7627,7 @@ rtl.module("WebCtrlsMore",["System","TopTypes","TopCtrls","Classes","SysUtils","
     $mod.Mouse = $mod.TMouse.$create("Create");
   };
 });
-rtl.module("Unit1",["System","SysUtils","Classes","Controls","StdCtrls","Forms","layui","Web","WebCtrlsMore"],function () {
+rtl.module("Unit1",["System","SysUtils","Classes","Controls","StdCtrls","Forms","TopCtrls","WebCtrls","Dialogs","Web","WebCtrlsMore"],function () {
   "use strict";
   var $mod = this;
   var $impl = $mod.$impl;
@@ -7346,14 +7731,14 @@ rtl.module("Unit1",["System","SysUtils","Classes","Controls","StdCtrls","Forms",
       pas.Forms.TForm.$final.call(this);
     };
     this.Button10Click = function (Sender) {
-      pas.layui.ShowMessage$1("Impossible: invisible control.");
+      pas.Dialogs.ShowMessage$1("Impossible: invisible control.");
     };
     this.Button8Click = function (Sender) {
-      pas.layui.ShowMessage$1("Impossible: disabled control.");
+      pas.Dialogs.ShowMessage$1("Impossible: disabled control.");
     };
     this.FormCreate = function (Sender) {
       this.Timer1.SetEnabled(false);
-      this.TrackBar1 = pas.layui.TTrackBar.$create("Create$1",[this]);
+      this.TrackBar1 = pas.TopCtrls.TTrackBar.$create("Create$1",[this]);
       var $with = this.TrackBar1;
       $with.SetName("TrackBar1");
       $with.SetLeft(200);
@@ -7389,7 +7774,7 @@ rtl.module("Unit1",["System","SysUtils","Classes","Controls","StdCtrls","Forms",
       if (this.Timer1.FEnabled) {
         this.Timer1.SetEnabled(false);
         this.ProgressBar1.SetPosition(0);
-        pas.layui.ShowMessage$1("Timer is now stopped.");
+        pas.Dialogs.ShowMessage$1("Timer is now stopped.");
       };
     };
     this.Button6Click = function (Sender) {
@@ -7408,7 +7793,7 @@ rtl.module("Unit1",["System","SysUtils","Classes","Controls","StdCtrls","Forms",
       this.Memo1.FLines.Add("Return\/Default");
       if (!this.Timer1.FEnabled) {
         this.Timer1.SetEnabled(true);
-        pas.layui.ShowMessage$1("Timer is started. See progress bar..." + pas.System.sLineBreak + pas.System.sLineBreak + "Escape (Cancel button) to stop it.");
+        pas.Dialogs.ShowMessage$1("Timer is started. See progress bar..." + pas.System.sLineBreak + pas.System.sLineBreak + "Escape (Cancel button) to stop it.");
       };
     };
     this.Edit1Change = function (Sender) {
@@ -7475,7 +7860,7 @@ rtl.module("Unit1",["System","SysUtils","Classes","Controls","StdCtrls","Forms",
       this.OpenDialog1.FilterIndex = 1;
       this.OpenDialog1.Title = "File to open";
       this.OpenDialog1.Execute$1(function () {
-        pas.layui.ShowMessage$1("File to open: " + $Self.OpenDialog1.FileName);
+        pas.Dialogs.ShowMessage$1("File to open: " + $Self.OpenDialog1.FileName);
       });
     };
     this.MenuItem12Click = function (Sender) {
@@ -7483,53 +7868,53 @@ rtl.module("Unit1",["System","SysUtils","Classes","Controls","StdCtrls","Forms",
       this.SaveDialog1.Filter = "Text files (*.txt)|*.txt|Temporary files (*.tmp)|*.tmp|All files|*.*";
       this.SaveDialog1.FilterIndex = 2;
       this.SaveDialog1.FileName = "MyFile.tmp";
-      if (this.SaveDialog1.Execute()) pas.layui.ShowMessage$1("File to save: " + this.SaveDialog1.FileName);
+      if (this.SaveDialog1.Execute()) pas.Dialogs.ShowMessage$1("File to save: " + this.SaveDialog1.FileName);
     };
     var $r = this.$rtti;
-    $r.addField("Button1",pas.layui.$rtti["TButton"]);
-    $r.addField("Button2",pas.layui.$rtti["TButton"]);
-    $r.addField("Button3",pas.layui.$rtti["TButton"]);
-    $r.addField("Button4",pas.layui.$rtti["TButton"]);
-    $r.addField("Button5",pas.layui.$rtti["TButton"]);
-    $r.addField("Button6",pas.layui.$rtti["TButton"]);
-    $r.addField("Button7",pas.layui.$rtti["TButton"]);
-    $r.addField("Button8",pas.layui.$rtti["TButton"]);
-    $r.addField("Button9",pas.layui.$rtti["TButton"]);
-    $r.addField("Button10",pas.layui.$rtti["TButton"]);
-    $r.addField("Button11",pas.layui.$rtti["TButton"]);
-    $r.addField("Edit1",pas.layui.$rtti["TEdit"]);
-    $r.addField("ComboBox1",pas.layui.$rtti["TComboBox"]);
-    $r.addField("ListBox1",pas.layui.$rtti["TListBox"]);
-    $r.addField("Memo1",pas.layui.$rtti["TMemo"]);
-    $r.addField("CheckBox1",pas.layui.$rtti["TCheckbox"]);
-    $r.addField("CheckBox2",pas.layui.$rtti["TCheckbox"]);
-    $r.addField("CheckBox3",pas.layui.$rtti["TCheckbox"]);
+    $r.addField("Button1",pas.WebCtrls.$rtti["TButton"]);
+    $r.addField("Button2",pas.WebCtrls.$rtti["TButton"]);
+    $r.addField("Button3",pas.WebCtrls.$rtti["TButton"]);
+    $r.addField("Button4",pas.WebCtrls.$rtti["TButton"]);
+    $r.addField("Button5",pas.WebCtrls.$rtti["TButton"]);
+    $r.addField("Button6",pas.WebCtrls.$rtti["TButton"]);
+    $r.addField("Button7",pas.WebCtrls.$rtti["TButton"]);
+    $r.addField("Button8",pas.WebCtrls.$rtti["TButton"]);
+    $r.addField("Button9",pas.WebCtrls.$rtti["TButton"]);
+    $r.addField("Button10",pas.WebCtrls.$rtti["TButton"]);
+    $r.addField("Button11",pas.WebCtrls.$rtti["TButton"]);
+    $r.addField("Edit1",pas.WebCtrls.$rtti["TEdit"]);
+    $r.addField("ComboBox1",pas.WebCtrls.$rtti["TComboBox"]);
+    $r.addField("ListBox1",pas.WebCtrls.$rtti["TListBox"]);
+    $r.addField("Memo1",pas.WebCtrls.$rtti["TMemo"]);
+    $r.addField("CheckBox1",pas.WebCtrls.$rtti["TCheckbox"]);
+    $r.addField("CheckBox2",pas.WebCtrls.$rtti["TCheckbox"]);
+    $r.addField("CheckBox3",pas.WebCtrls.$rtti["TCheckbox"]);
     $r.addField("GroupBox1",pas.WebCtrlsMore.$rtti["TGroupBox"]);
     $r.addField("OpenDialog1",pas.WebCtrlsMore.$rtti["TOpenDialog"]);
     $r.addField("RadioButton1",pas.WebCtrlsMore.$rtti["TRadioButton"]);
     $r.addField("RadioButton2",pas.WebCtrlsMore.$rtti["TRadioButton"]);
-    $r.addField("ComboBox2",pas.layui.$rtti["TComboBox"]);
-    $r.addField("Label1",pas.layui.$rtti["TLabel"]);
+    $r.addField("ComboBox2",pas.WebCtrls.$rtti["TComboBox"]);
+    $r.addField("Label1",pas.WebCtrls.$rtti["TLabel"]);
     $r.addField("SaveDialog1",pas.WebCtrlsMore.$rtti["TSaveDialog"]);
     $r.addField("StaticText1",pas.WebCtrlsMore.$rtti["TStaticText"]);
-    $r.addField("ProgressBar1",pas.layui.$rtti["TProgressBar"]);
+    $r.addField("ProgressBar1",pas.TopCtrls.$rtti["TProgressBar"]);
     $r.addField("StaticText2",pas.WebCtrlsMore.$rtti["TStaticText"]);
-    $r.addField("Timer1",pas.layui.$rtti["TTimer"]);
-    $r.addField("MainMenu1",pas.layui.$rtti["TMainMenu"]);
-    $r.addField("MenuItem1",pas.layui.$rtti["TMenuItem"]);
-    $r.addField("MenuItem2",pas.layui.$rtti["TMenuItem"]);
-    $r.addField("MenuItem3",pas.layui.$rtti["TMenuItem"]);
-    $r.addField("MenuItem4",pas.layui.$rtti["TMenuItem"]);
-    $r.addField("MenuItem5",pas.layui.$rtti["TMenuItem"]);
-    $r.addField("MenuItem6",pas.layui.$rtti["TMenuItem"]);
-    $r.addField("MenuItem7",pas.layui.$rtti["TMenuItem"]);
-    $r.addField("MenuItem8",pas.layui.$rtti["TMenuItem"]);
-    $r.addField("MenuItem9",pas.layui.$rtti["TMenuItem"]);
-    $r.addField("MenuItem10",pas.layui.$rtti["TMenuItem"]);
-    $r.addField("MenuItem11",pas.layui.$rtti["TMenuItem"]);
-    $r.addField("MenuItem12",pas.layui.$rtti["TMenuItem"]);
-    $r.addField("MenuItem13",pas.layui.$rtti["TMenuItem"]);
-    $r.addField("PopupMenu1",pas.layui.$rtti["TPopupMenu"]);
+    $r.addField("Timer1",pas.WebCtrls.$rtti["TTimer"]);
+    $r.addField("MainMenu1",pas.TopCtrls.$rtti["TMainMenu"]);
+    $r.addField("MenuItem1",pas.TopCtrls.$rtti["TMenuItem"]);
+    $r.addField("MenuItem2",pas.TopCtrls.$rtti["TMenuItem"]);
+    $r.addField("MenuItem3",pas.TopCtrls.$rtti["TMenuItem"]);
+    $r.addField("MenuItem4",pas.TopCtrls.$rtti["TMenuItem"]);
+    $r.addField("MenuItem5",pas.TopCtrls.$rtti["TMenuItem"]);
+    $r.addField("MenuItem6",pas.TopCtrls.$rtti["TMenuItem"]);
+    $r.addField("MenuItem7",pas.TopCtrls.$rtti["TMenuItem"]);
+    $r.addField("MenuItem8",pas.TopCtrls.$rtti["TMenuItem"]);
+    $r.addField("MenuItem9",pas.TopCtrls.$rtti["TMenuItem"]);
+    $r.addField("MenuItem10",pas.TopCtrls.$rtti["TMenuItem"]);
+    $r.addField("MenuItem11",pas.TopCtrls.$rtti["TMenuItem"]);
+    $r.addField("MenuItem12",pas.TopCtrls.$rtti["TMenuItem"]);
+    $r.addField("MenuItem13",pas.TopCtrls.$rtti["TMenuItem"]);
+    $r.addField("PopupMenu1",pas.TopCtrls.$rtti["TPopupMenu"]);
     $r.addField("XPManifest1",pas.WebCtrlsMore.$rtti["TXPManifest"]);
     $r.addMethod("Button10Click",0,[["Sender",pas.System.$rtti["TObject"]]]);
     $r.addMethod("Button8Click",0,[["Sender",pas.System.$rtti["TObject"]]]);
@@ -7569,7 +7954,7 @@ rtl.module("Unit1",["System","SysUtils","Classes","Controls","StdCtrls","Forms",
     };
   };
 },[]);
-rtl.module("unit1frm",["System","SysUtils","Classes","Controls","Forms","Graphics","StdCtrls","TopTypes","layui","WebCtrlsMore"],function () {
+rtl.module("unit1frm",["System","SysUtils","Classes","Controls","Forms","Graphics","StdCtrls","TopTypes","WebCtrls","TopCtrls","WebCtrlsMore"],function () {
   "use strict";
   var $mod = this;
   this.Load_Form1 = function () {
@@ -7632,7 +8017,7 @@ rtl.module("unit1frm",["System","SysUtils","Classes","Controls","Forms","Graphic
     $with.RadioButton2.SetParentFont(false);
     $with.RadioButton2.EndUpdate();
     $with.GroupBox1.EndUpdate();
-    $with.ComboBox1 = pas.layui.TComboBox.$create("Create$1",[pas.Unit1.Form1]);
+    $with.ComboBox1 = pas.WebCtrls.TComboBox.$create("Create$1",[pas.Unit1.Form1]);
     $with.ComboBox1.BeginUpdate();
     $with.ComboBox1.SetParent(pas.Unit1.Form1);
     $with.ComboBox1.SetLeft(8);
@@ -7649,7 +8034,7 @@ rtl.module("unit1frm",["System","SysUtils","Classes","Controls","Forms","Graphic
     $with.ComboBox1.SetParentFont(false);
     $with.ComboBox1.SetText("sample text");
     $with.ComboBox1.EndUpdate();
-    $with.Edit1 = pas.layui.TEdit.$create("Create$1",[pas.Unit1.Form1]);
+    $with.Edit1 = pas.WebCtrls.TEdit.$create("Create$1",[pas.Unit1.Form1]);
     $with.Edit1.BeginUpdate();
     $with.Edit1.SetParent(pas.Unit1.Form1);
     $with.Edit1.SetLeft(276);
@@ -7660,7 +8045,7 @@ rtl.module("unit1frm",["System","SysUtils","Classes","Controls","Forms","Graphic
     $with.Edit1.FOnDblClick = rtl.createCallback($with,"Edit1DblClick");
     $with.Edit1.SetText("New item name");
     $with.Edit1.EndUpdate();
-    $with.Button1 = pas.layui.TButton.$create("Create$1",[pas.Unit1.Form1]);
+    $with.Button1 = pas.WebCtrls.TButton.$create("Create$1",[pas.Unit1.Form1]);
     $with.Button1.BeginUpdate();
     $with.Button1.SetParent(pas.Unit1.Form1);
     $with.Button1.SetLeft(184);
@@ -7675,7 +8060,7 @@ rtl.module("unit1frm",["System","SysUtils","Classes","Controls","Forms","Graphic
     $with.Button1.FOnClick = rtl.createCallback($with,"Button1Click");
     $with.Button1.SetParentFont(false);
     $with.Button1.EndUpdate();
-    $with.Button3 = pas.layui.TButton.$create("Create$1",[pas.Unit1.Form1]);
+    $with.Button3 = pas.WebCtrls.TButton.$create("Create$1",[pas.Unit1.Form1]);
     $with.Button3.BeginUpdate();
     $with.Button3.SetParent(pas.Unit1.Form1);
     $with.Button3.SetLeft(184);
@@ -7685,7 +8070,7 @@ rtl.module("unit1frm",["System","SysUtils","Classes","Controls","Forms","Graphic
     $with.Button3.SetText("Clear");
     $with.Button3.FOnClick = rtl.createCallback($with,"Button3Click");
     $with.Button3.EndUpdate();
-    $with.ListBox1 = pas.layui.TListBox.$create("Create$1",[pas.Unit1.Form1]);
+    $with.ListBox1 = pas.WebCtrls.TListBox.$create("Create$1",[pas.Unit1.Form1]);
     $with.ListBox1.BeginUpdate();
     $with.ListBox1.SetParent(pas.Unit1.Form1);
     $with.ListBox1.SetLeft(184);
@@ -7701,7 +8086,7 @@ rtl.module("unit1frm",["System","SysUtils","Classes","Controls","Forms","Graphic
     $with.ListBox1.FOnDblClick = rtl.createCallback($with,"ListBox1DblClick");
     $with.ListBox1.SetParentFont(false);
     $with.ListBox1.EndUpdate();
-    $with.Memo1 = pas.layui.TMemo.$create("Create$1",[pas.Unit1.Form1]);
+    $with.Memo1 = pas.WebCtrls.TMemo.$create("Create$1",[pas.Unit1.Form1]);
     $with.Memo1.BeginUpdate();
     $with.Memo1.SetParent(pas.Unit1.Form1);
     $with.Memo1.SetLeft(8);
@@ -7710,7 +8095,7 @@ rtl.module("unit1frm",["System","SysUtils","Classes","Controls","Forms","Graphic
     $with.Memo1.SetWidth(393);
     $with.Memo1.FLines.SetCommaText("asd,zxc");
     $with.Memo1.EndUpdate();
-    $with.Button2 = pas.layui.TButton.$create("Create$1",[pas.Unit1.Form1]);
+    $with.Button2 = pas.WebCtrls.TButton.$create("Create$1",[pas.Unit1.Form1]);
     $with.Button2.BeginUpdate();
     $with.Button2.SetParent(pas.Unit1.Form1);
     $with.Button2.SetLeft(276);
@@ -7720,7 +8105,7 @@ rtl.module("unit1frm",["System","SysUtils","Classes","Controls","Forms","Graphic
     $with.Button2.SetText("GetText");
     $with.Button2.FOnClick = rtl.createCallback($with,"Button2Click");
     $with.Button2.EndUpdate();
-    $with.Button4 = pas.layui.TButton.$create("Create$1",[pas.Unit1.Form1]);
+    $with.Button4 = pas.WebCtrls.TButton.$create("Create$1",[pas.Unit1.Form1]);
     $with.Button4.BeginUpdate();
     $with.Button4.SetParent(pas.Unit1.Form1);
     $with.Button4.SetLeft(348);
@@ -7730,7 +8115,7 @@ rtl.module("unit1frm",["System","SysUtils","Classes","Controls","Forms","Graphic
     $with.Button4.SetText("SetText");
     $with.Button4.FOnClick = rtl.createCallback($with,"Button4Click");
     $with.Button4.EndUpdate();
-    $with.CheckBox1 = pas.layui.TCheckbox.$create("Create$1",[pas.Unit1.Form1]);
+    $with.CheckBox1 = pas.WebCtrls.TCheckbox.$create("Create$1",[pas.Unit1.Form1]);
     $with.CheckBox1.BeginUpdate();
     $with.CheckBox1.SetParent(pas.Unit1.Form1);
     $with.CheckBox1.SetLeft(8);
@@ -7741,7 +8126,7 @@ rtl.module("unit1frm",["System","SysUtils","Classes","Controls","Forms","Graphic
     $with.CheckBox1.SetText("CheckBox1");
     $with.CheckBox1.SetState(pas.StdCtrls.TCheckBoxState.cbGrayed);
     $with.CheckBox1.EndUpdate();
-    $with.Button6 = pas.layui.TButton.$create("Create$1",[pas.Unit1.Form1]);
+    $with.Button6 = pas.WebCtrls.TButton.$create("Create$1",[pas.Unit1.Form1]);
     $with.Button6.BeginUpdate();
     $with.Button6.SetParent(pas.Unit1.Form1);
     $with.Button6.SetLeft(95);
@@ -7751,7 +8136,7 @@ rtl.module("unit1frm",["System","SysUtils","Classes","Controls","Forms","Graphic
     $with.Button6.SetText("Grayed");
     $with.Button6.FOnClick = rtl.createCallback($with,"Button6Click");
     $with.Button6.EndUpdate();
-    $with.Button7 = pas.layui.TButton.$create("Create$1",[pas.Unit1.Form1]);
+    $with.Button7 = pas.WebCtrls.TButton.$create("Create$1",[pas.Unit1.Form1]);
     $with.Button7.BeginUpdate();
     $with.Button7.SetParent(pas.Unit1.Form1);
     $with.Button7.SetLeft(140);
@@ -7761,7 +8146,7 @@ rtl.module("unit1frm",["System","SysUtils","Classes","Controls","Forms","Graphic
     $with.Button7.SetText("DD");
     $with.Button7.FOnClick = rtl.createCallback($with,"Button7Click");
     $with.Button7.EndUpdate();
-    $with.Button8 = pas.layui.TButton.$create("Create$1",[pas.Unit1.Form1]);
+    $with.Button8 = pas.WebCtrls.TButton.$create("Create$1",[pas.Unit1.Form1]);
     $with.Button8.BeginUpdate();
     $with.Button8.SetParent(pas.Unit1.Form1);
     $with.Button8.SetLeft(80);
@@ -7772,7 +8157,7 @@ rtl.module("unit1frm",["System","SysUtils","Classes","Controls","Forms","Graphic
     $with.Button8.SetEnabled(false);
     $with.Button8.FOnClick = rtl.createCallback($with,"Button8Click");
     $with.Button8.EndUpdate();
-    $with.Button9 = pas.layui.TButton.$create("Create$1",[pas.Unit1.Form1]);
+    $with.Button9 = pas.WebCtrls.TButton.$create("Create$1",[pas.Unit1.Form1]);
     $with.Button9.BeginUpdate();
     $with.Button9.SetParent(pas.Unit1.Form1);
     $with.Button9.SetLeft(140);
@@ -7782,7 +8167,7 @@ rtl.module("unit1frm",["System","SysUtils","Classes","Controls","Forms","Graphic
     $with.Button9.SetText("Sh\/H");
     $with.Button9.FOnClick = rtl.createCallback($with,"Button9Click");
     $with.Button9.EndUpdate();
-    $with.Button10 = pas.layui.TButton.$create("Create$1",[pas.Unit1.Form1]);
+    $with.Button10 = pas.WebCtrls.TButton.$create("Create$1",[pas.Unit1.Form1]);
     $with.Button10.BeginUpdate();
     $with.Button10.SetParent(pas.Unit1.Form1);
     $with.Button10.SetLeft(8);
@@ -7793,7 +8178,7 @@ rtl.module("unit1frm",["System","SysUtils","Classes","Controls","Forms","Graphic
     $with.Button10.FOnClick = rtl.createCallback($with,"Button10Click");
     $with.Button10.SetVisible(false);
     $with.Button10.EndUpdate();
-    $with.CheckBox2 = pas.layui.TCheckbox.$create("Create$1",[pas.Unit1.Form1]);
+    $with.CheckBox2 = pas.WebCtrls.TCheckbox.$create("Create$1",[pas.Unit1.Form1]);
     $with.CheckBox2.BeginUpdate();
     $with.CheckBox2.SetParent(pas.Unit1.Form1);
     $with.CheckBox2.SetLeft(8);
@@ -7804,7 +8189,7 @@ rtl.module("unit1frm",["System","SysUtils","Classes","Controls","Forms","Graphic
     $with.CheckBox2.SetChecked(true);
     $with.CheckBox2.SetState(pas.StdCtrls.TCheckBoxState.cbChecked);
     $with.CheckBox2.EndUpdate();
-    $with.CheckBox3 = pas.layui.TCheckbox.$create("Create$1",[pas.Unit1.Form1]);
+    $with.CheckBox3 = pas.WebCtrls.TCheckbox.$create("Create$1",[pas.Unit1.Form1]);
     $with.CheckBox3.BeginUpdate();
     $with.CheckBox3.SetParent(pas.Unit1.Form1);
     $with.CheckBox3.SetLeft(8);
@@ -7813,7 +8198,7 @@ rtl.module("unit1frm",["System","SysUtils","Classes","Controls","Forms","Graphic
     $with.CheckBox3.SetWidth(100);
     $with.CheckBox3.SetText("CheckBox3");
     $with.CheckBox3.EndUpdate();
-    $with.ComboBox2 = pas.layui.TComboBox.$create("Create$1",[pas.Unit1.Form1]);
+    $with.ComboBox2 = pas.WebCtrls.TComboBox.$create("Create$1",[pas.Unit1.Form1]);
     $with.ComboBox2.BeginUpdate();
     $with.ComboBox2.SetParent(pas.Unit1.Form1);
     $with.ComboBox2.SetLeft(148);
@@ -7836,7 +8221,7 @@ rtl.module("unit1frm",["System","SysUtils","Classes","Controls","Forms","Graphic
     $with.StaticText1.BorderStyle = pas.TopTypes.TStaticBorderStyle.sbsSunken;
     $with.StaticText1.SetText("StaticText");
     $with.StaticText1.EndUpdate();
-    $with.Label1 = pas.layui.TLabel.$create("Create$1",[pas.Unit1.Form1]);
+    $with.Label1 = pas.WebCtrls.TLabel.$create("Create$1",[pas.Unit1.Form1]);
     $with.Label1.BeginUpdate();
     $with.Label1.SetParent(pas.Unit1.Form1);
     $with.Label1.SetLeft(8);
@@ -7846,7 +8231,7 @@ rtl.module("unit1frm",["System","SysUtils","Classes","Controls","Forms","Graphic
     $with.Label1.SetText("Label");
     $with.Label1.SetParentColor(false);
     $with.Label1.EndUpdate();
-    $with.Button5 = pas.layui.TButton.$create("Create$1",[pas.Unit1.Form1]);
+    $with.Button5 = pas.WebCtrls.TButton.$create("Create$1",[pas.Unit1.Form1]);
     $with.Button5.BeginUpdate();
     $with.Button5.SetParent(pas.Unit1.Form1);
     $with.Button5.SetLeft(120);
@@ -7857,7 +8242,7 @@ rtl.module("unit1frm",["System","SysUtils","Classes","Controls","Forms","Graphic
     $with.Button5.SetText("Cancel Button");
     $with.Button5.FOnClick = rtl.createCallback($with,"Button5Click");
     $with.Button5.EndUpdate();
-    $with.Button11 = pas.layui.TButton.$create("Create$1",[pas.Unit1.Form1]);
+    $with.Button11 = pas.WebCtrls.TButton.$create("Create$1",[pas.Unit1.Form1]);
     $with.Button11.BeginUpdate();
     $with.Button11.SetParent(pas.Unit1.Form1);
     $with.Button11.SetLeft(216);
@@ -7868,7 +8253,7 @@ rtl.module("unit1frm",["System","SysUtils","Classes","Controls","Forms","Graphic
     $with.Button11.SetDefault(true);
     $with.Button11.FOnClick = rtl.createCallback($with,"Button11Click");
     $with.Button11.EndUpdate();
-    $with.ProgressBar1 = pas.layui.TProgressBar.$create("Create$1",[pas.Unit1.Form1]);
+    $with.ProgressBar1 = pas.TopCtrls.TProgressBar.$create("Create$1",[pas.Unit1.Form1]);
     $with.ProgressBar1.BeginUpdate();
     $with.ProgressBar1.SetParent(pas.Unit1.Form1);
     $with.ProgressBar1.SetPosition(30);
@@ -7888,69 +8273,69 @@ rtl.module("unit1frm",["System","SysUtils","Classes","Controls","Forms","Graphic
     $with.StaticText2.SetText("(Reserved for dynamic control)");
     $with.StaticText2.SetVisible(false);
     $with.StaticText2.EndUpdate();
-    $with.Timer1 = pas.layui.TTimer.$create("Create$1",[pas.Unit1.Form1]);
+    $with.Timer1 = pas.WebCtrls.TTimer.$create("Create$1",[pas.Unit1.Form1]);
     $with.Timer1.SetInterval(1000);
     $with.Timer1.SetOnTimer(rtl.createCallback($with,"Timer1Timer"));
-    $with.MainMenu1 = pas.layui.TMainMenu.$create("Create$1",[pas.Unit1.Form1]);
+    $with.MainMenu1 = pas.TopCtrls.TMainMenu.$create("Create$1",[pas.Unit1.Form1]);
     $with.MainMenu1.BeginUpdate();
     $with.MainMenu1.SetParent(pas.Unit1.Form1);
-    $with.MenuItem1 = pas.layui.TMenuItem.$create("Create$1",[$with.MainMenu1]);
+    $with.MenuItem1 = pas.TopCtrls.TMenuItem.$create("Create$1",[$with.MainMenu1]);
     $with.MenuItem1.BeginUpdate();
     $with.MenuItem1.SetParent($with.MainMenu1);
     $with.MenuItem1.SetText("Menu1");
-    $with.MenuItem3 = pas.layui.TMenuItem.$create("Create$1",[$with.MenuItem1]);
+    $with.MenuItem3 = pas.TopCtrls.TMenuItem.$create("Create$1",[$with.MenuItem1]);
     $with.MenuItem3.BeginUpdate();
     $with.MenuItem3.SetParent($with.MenuItem1);
     $with.MenuItem3.AutoCheck = true;
     $with.MenuItem3.SetText("Menu11");
     $with.MenuItem3.Checked = true;
     $with.MenuItem3.EndUpdate();
-    $with.MenuItem4 = pas.layui.TMenuItem.$create("Create$1",[$with.MenuItem1]);
+    $with.MenuItem4 = pas.TopCtrls.TMenuItem.$create("Create$1",[$with.MenuItem1]);
     $with.MenuItem4.BeginUpdate();
     $with.MenuItem4.SetParent($with.MenuItem1);
     $with.MenuItem4.SetText("Menu12");
     $with.MenuItem4.SetEnabled(false);
     $with.MenuItem4.EndUpdate();
-    $with.MenuItem13 = pas.layui.TMenuItem.$create("Create$1",[$with.MenuItem1]);
+    $with.MenuItem13 = pas.TopCtrls.TMenuItem.$create("Create$1",[$with.MenuItem1]);
     $with.MenuItem13.BeginUpdate();
     $with.MenuItem13.SetParent($with.MenuItem1);
     $with.MenuItem13.SetText("-");
     $with.MenuItem13.EndUpdate();
-    $with.MenuItem11 = pas.layui.TMenuItem.$create("Create$1",[$with.MenuItem1]);
+    $with.MenuItem11 = pas.TopCtrls.TMenuItem.$create("Create$1",[$with.MenuItem1]);
     $with.MenuItem11.BeginUpdate();
     $with.MenuItem11.SetParent($with.MenuItem1);
     $with.MenuItem11.SetText("Open File...");
     $with.MenuItem11.FOnClick = rtl.createCallback($with,"MenuItem11Click");
     $with.MenuItem11.EndUpdate();
-    $with.MenuItem12 = pas.layui.TMenuItem.$create("Create$1",[$with.MenuItem1]);
+    $with.MenuItem12 = pas.TopCtrls.TMenuItem.$create("Create$1",[$with.MenuItem1]);
     $with.MenuItem12.BeginUpdate();
     $with.MenuItem12.SetParent($with.MenuItem1);
     $with.MenuItem12.SetText("Save File...");
     $with.MenuItem12.FOnClick = rtl.createCallback($with,"MenuItem12Click");
     $with.MenuItem12.EndUpdate();
-    $with.MenuItem5 = pas.layui.TMenuItem.$create("Create$1",[$with.MenuItem1]);
+    $with.MenuItem5 = pas.TopCtrls.TMenuItem.$create("Create$1",[$with.MenuItem1]);
     $with.MenuItem5.BeginUpdate();
     $with.MenuItem5.SetParent($with.MenuItem1);
     $with.MenuItem5.SetText("-");
     $with.MenuItem5.EndUpdate();
-    $with.MenuItem6 = pas.layui.TMenuItem.$create("Create$1",[$with.MenuItem1]);
+    $with.MenuItem6 = pas.TopCtrls.TMenuItem.$create("Create$1",[$with.MenuItem1]);
     $with.MenuItem6.BeginUpdate();
     $with.MenuItem6.SetParent($with.MenuItem1);
     $with.MenuItem6.SetText("Quit");
     $with.MenuItem6.FOnClick = rtl.createCallback($with,"MenuItem6Click");
     $with.MenuItem6.EndUpdate();
     $with.MenuItem1.EndUpdate();
-    $with.MenuItem2 = pas.layui.TMenuItem.$create("Create$1",[$with.MainMenu1]);
+    $with.MenuItem2 = pas.TopCtrls.TMenuItem.$create("Create$1",[$with.MainMenu1]);
     $with.MenuItem2.BeginUpdate();
     $with.MenuItem2.SetParent($with.MainMenu1);
     $with.MenuItem2.SetText("Menu2");
-    $with.MenuItem7 = pas.layui.TMenuItem.$create("Create$1",[$with.MenuItem2]);
+    $with.MenuItem7 = pas.TopCtrls.TMenuItem.$create("Create$1",[$with.MenuItem2]);
     $with.MenuItem7.BeginUpdate();
     $with.MenuItem7.SetParent($with.MenuItem2);
     $with.MenuItem7.SetText("Menu21");
     $with.MenuItem7.FOnClick = rtl.createCallback($with,"MenuItem7Click");
     $with.MenuItem7.EndUpdate();
-    $with.MenuItem8 = pas.layui.TMenuItem.$create("Create$1",[$with.MenuItem2]);
+    $with.MenuItem8 = pas.TopCtrls.TMenuItem.$create("Create$1",[$with.MenuItem2]);
     $with.MenuItem8.BeginUpdate();
     $with.MenuItem8.SetParent($with.MenuItem2);
     $with.MenuItem8.SetText("Menu22");
@@ -7958,17 +8343,17 @@ rtl.module("unit1frm",["System","SysUtils","Classes","Controls","Forms","Graphic
     $with.MenuItem8.EndUpdate();
     $with.MenuItem2.EndUpdate();
     $with.MainMenu1.EndUpdate();
-    $with.PopupMenu1 = pas.layui.TPopupMenu.$create("Create$1",[pas.Unit1.Form1]);
+    $with.PopupMenu1 = pas.TopCtrls.TPopupMenu.$create("Create$1",[pas.Unit1.Form1]);
     $with.PopupMenu1.BeginUpdate();
     $with.PopupMenu1.SetParent(pas.Unit1.Form1);
     $with.PopupMenu1.SetLeft(304);
-    $with.MenuItem9 = pas.layui.TMenuItem.$create("Create$1",[$with.PopupMenu1]);
+    $with.MenuItem9 = pas.TopCtrls.TMenuItem.$create("Create$1",[$with.PopupMenu1]);
     $with.MenuItem9.BeginUpdate();
     $with.MenuItem9.SetParent($with.PopupMenu1);
     $with.MenuItem9.SetText("Popup1");
     $with.MenuItem9.FOnClick = rtl.createCallback($with,"MenuItem9Click");
     $with.MenuItem9.EndUpdate();
-    $with.MenuItem10 = pas.layui.TMenuItem.$create("Create$1",[$with.PopupMenu1]);
+    $with.MenuItem10 = pas.TopCtrls.TMenuItem.$create("Create$1",[$with.PopupMenu1]);
     $with.MenuItem10.BeginUpdate();
     $with.MenuItem10.SetParent($with.PopupMenu1);
     $with.MenuItem10.SetText("Popup2");
@@ -7981,7 +8366,7 @@ rtl.module("unit1frm",["System","SysUtils","Classes","Controls","Forms","Graphic
     pas.Unit1.Form1.FormCreate(null);
   };
 },["Unit1"]);
-rtl.module("program",["System","layui","Unit1","unit1frm","Forms","TopCtrls","TopTypes"],function () {
+rtl.module("program",["System","Unit1","unit1frm","Forms","TopCtrls","TopTypes"],function () {
   "use strict";
   var $mod = this;
   $mod.$main = function () {
@@ -7993,7 +8378,6 @@ rtl.module("program",["System","layui","Unit1","unit1frm","Forms","TopCtrls","To
       }});
     pas.unit1frm.Load_Form1();
     pas.Forms.Application().Run();
-    pas.layui.layui_open();
   };
 });
 //# sourceMappingURL=LLCLJS.js.map
